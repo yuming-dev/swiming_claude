@@ -820,6 +820,16 @@ namespace SwimmingScoreboard
             }
             if (firstVisible != null) MainTabControl.SelectedItem = firstVisible;
 
+            // 2026-10-06 用户明确要求: 编排记录及成绩处理这个子程序不连硬件计时器, 顶部状态栏
+            //   那一串"电池电压/硬件计时器连接状态"信息对它毫无意义, 只会让人误以为这台机器
+            //   也要管硬件——整段摘掉(电量 + 红绿灯 + "硬件计时器:"标签 + 连接状态文字)。
+            //   RTC(IsRemoteTimingControlMode)不受影响, 它是真的直连硬件, 要保留。
+            if (BatteryLabel != null) BatteryLabel.Visibility = Visibility.Collapsed;
+            if (BatteryVoltageText != null) BatteryVoltageText.Visibility = Visibility.Collapsed;
+            if (HwConnDot != null) HwConnDot.Visibility = Visibility.Collapsed;
+            if (HwTimerLabel != null) HwTimerLabel.Visibility = Visibility.Collapsed;
+            if (HwConnStatusText != null) HwConnStatusText.Visibility = Visibility.Collapsed;
+
             // 在顶部状态栏里注入"主服务器: [IP] [连接/断开] [状态]"控件 + 启动同步客户端
             InjectEditorSyncToolbar();
             SetupEditorSyncClient();

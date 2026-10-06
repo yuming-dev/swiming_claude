@@ -54,11 +54,11 @@
                     <!--2026-06-20 释放内存按钮: 强制 GC + LOH 紧凑, 大堆下可能卡 1-2s-->
                     <Button Content="{DynamicResource Str_Btn_ReleaseMemory}" Click="ReleaseMemory_Click" FontSize="11" Foreground="White" Background="#0EA5E9" BorderThickness="0" Padding="6,2" Margin="0,0,16,0" VerticalAlignment="Center" Cursor="Hand" ToolTip="{DynamicResource Str_Tooltip_ReleaseMemory}"/>
                     <!--2026-06-19 电池电压从"比赛控制 → 计时硬件连接"右下角移到顶端 (内存右 / 硬件计时器左)-->
-                    <TextBlock Text="{DynamicResource Str_Status_BatteryColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="BatteryLabel" Text="{DynamicResource Str_Status_BatteryColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="BatteryVoltageText" Text="—" Foreground="#94A3B8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
                     <!--2026-05-19 顶部右侧加硬件计时器连接状态：红=未连/绿=已连，颜色醒目-->
                     <Ellipse x:Name="HwConnDot" Width="10" Height="10" Fill="#EF4444" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{DynamicResource Str_Status_HwTimerColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="HwTimerLabel" Text="{DynamicResource Str_Status_HwTimerColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="HwConnStatusText" Text="{DynamicResource Str_HwConn_NotConnected}" Foreground="#EF4444" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
                     <TextBlock x:Name="ControlModeLabel" Text="{DynamicResource Str_Status_ControlModeColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="ControlModeText" Text="{DynamicResource Str_ScoringMode_Local}" Foreground="#22C55E" FontSize="12" VerticalAlignment="Center"/>
