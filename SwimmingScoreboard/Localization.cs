@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows;
@@ -3748,6 +3750,7 @@ namespace SwimmingScoreboard
             CurrentLanguage = normalized;
             Save();
             Apply();
+            UpdateShortcutsForLanguage();
             return true;
         }
 
@@ -3755,6 +3758,109 @@ namespace SwimmingScoreboard
             CurrentLanguage = CurrentLanguage == En ? Zh : En;
             Save();
             Apply();
+            UpdateShortcutsForLanguage();
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 2026-10-07 用户明确要求: 切到 English 后, 桌面/开始菜单的快捷方式名字也要跟着
+        // 变英文(中文版时是中文)——Setup.exe 装的时候名字是写死中文的(见 InstallerApp\
+        // Setup.cs), 运行时在"设置"页切语言并不会动那几个 .lnk 文件, 两边脱节。
+        //
+        // 放在这儿(SetLanguage/Toggle 内部调用)而不是分散在各 exe 的"语言按钮点击"/
+        // "收到 LANGUAGE_SYNC"调用点——这是全系统语言真正改变的唯一两个出口, 管这一处
+        // 就覆盖了全部 5 个 exe 的全部触发路径(本机点按钮、或收到主服务器广播跟随)。
+        //
+        // 每台机器只改它自己桌面上、而且确实存在的那几个快捷方式——装机结构固定是
+        // <安装目录>\{Server,RemoteControl,RemoteDisplay,Registration,ScheduleEditor}\xxx.exe,
+        // 当前 exe 所在目录的上一级就是安装根目录, 对哪个 exe 都成立。开发机直接从
+        // bin\Release 跑、没有对应名字的快捷方式时, RenameShortcutIfExists 的
+        // File.Exists 检查会直接跳过, 不会出错也不会凭空建一个。
+        private static void UpdateShortcutsForLanguage() {
+            try {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
+                string installDir = Path.GetDirectoryName(baseDir);
+                if (string.IsNullOrEmpty(installDir)) return;
+                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "游泳赛事管理系统");
+
+                var entries = new[] {
+                    new[] { "游泳赛事管理主服务器", "Swimming Meet Main Server", @"Server\SwimmingScoreboard.exe" },
+                    new[] { "远程计时控制台", "Remote Timing Console", @"RemoteControl\RemoteTimingControl.exe" },
+                    new[] { "远程显示控制台", "Remote Display Console", @"RemoteDisplay\RemoteDisplayControl.exe" },
+                    new[] { "运动员报名工具", "Swimmer Registration Tool", @"Registration\RegistrationTool.exe" },
+                    new[] { "编排记录及成绩处理", "Schedule & Results Editor", @"ScheduleEditor\ScheduleEditor.exe" }
+                };
+                bool toEn = CurrentLanguage == En;
+                foreach (var e in entries) {
+                    string zhName = e[0], enName = e[1], relPath = e[2];
+                    string oldName = toEn ? zhName : enName;
+                    string newName = toEn ? enName : zhName;
+                    string target = Path.Combine(installDir, relPath);
+                    string workDir = Path.GetDirectoryName(target);
+                    RenameShortcutIfExists(Path.Combine(desktop, oldName + ".lnk"), Path.Combine(desktop, newName + ".lnk"), target, workDir);
+                    RenameShortcutIfExists(Path.Combine(startMenu, oldName + ".lnk"), Path.Combine(startMenu, newName + ".lnk"), target, workDir);
+                }
+                // 卸载快捷方式只在开始菜单, 没有桌面那份(见 Setup.cs CreateShortcut 调用点)
+                string uninstZh = "卸载游泳赛事管理系统", uninstEn = "Uninstall Swimming Event Management System";
+                string uOld = toEn ? uninstZh : uninstEn;
+                string uNew = toEn ? uninstEn : uninstZh;
+                RenameShortcutIfExists(Path.Combine(startMenu, uOld + ".lnk"), Path.Combine(startMenu, uNew + ".lnk"),
+                    Path.Combine(installDir, "Uninstall.exe"), installDir);
+            } catch { }
+        }
+
+        // 2026-10-07 开发联调时亲手摔过一次坑, 补一道防线记在这儿: 原来只按文件名找旧快捷方式,
+        //   不管它实际指向哪——同一台机器上如果存在第二份装到别处的安装(开发/测试用的那种),
+        //   名字一撞就会把"属于另一份安装"的快捷方式悄悄改指到这份安装, 现场机器上可能真的
+        //   碰到"重装到新目录"这种场景。改成: 先读旧快捷方式现在实际指向哪, 跟这次要写入的
+        //   target 必须一致(大小写不敏感)才动手, 指向別处就跳过不碰——只重命名"确实属于
+        //   这份安装"的快捷方式。
+        private static void RenameShortcutIfExists(string oldPath, string newPath, string target, string workDir) {
+            try {
+                if (!File.Exists(oldPath)) return;
+                if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase)) return;
+                string existingTarget = ReadShortcutTargetViaCom(oldPath);
+                if (existingTarget == null || !string.Equals(existingTarget.TrimEnd('\\', '/'), target.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                    return;
+                if (File.Exists(newPath)) File.Delete(newPath);
+                CreateShortcutViaCom(newPath, target, workDir);
+                File.Delete(oldPath);
+            } catch { }
+        }
+
+        // 跟 InstallerApp\Setup.cs 的 CreateShortcut 用同一个 WScript.Shell COM 组件,
+        // 但用反射晚绑定(InvokeMember)而不是 dynamic —— RemoteDisplayControl/RegistrationTool
+        // 两个 csproj 没显式引用 Microsoft.CSharp 程序集, 用 dynamic 有编译期风险, 反射不用这个依赖。
+        private static void CreateShortcutViaCom(string lnkPath, string target, string workDir) {
+            object shell = null, sc = null;
+            try {
+                Type t = Type.GetTypeFromCLSID(new Guid("72C24DD5-D70A-438B-8A42-98424B88AFB8")); // WScript.Shell
+                shell = Activator.CreateInstance(t);
+                sc = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
+                sc.GetType().InvokeMember("TargetPath", BindingFlags.SetProperty, null, sc, new object[] { target });
+                sc.GetType().InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, sc, new object[] { workDir });
+                sc.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
+            } catch { } finally {
+                try { if (sc != null) Marshal.FinalReleaseComObject(sc); } catch { }
+                try { if (shell != null) Marshal.FinalReleaseComObject(shell); } catch { }
+            }
+        }
+
+        // 读一个已存在 .lnk 当前指向哪 —— RenameShortcutIfExists 用它确认"这份快捷方式真的
+        // 是这份安装自己的", 不是同名但属于另一份安装的。读不到(文件损坏/COM 失败)时返回
+        // null, 调用方按"跳过不碰"处理, 不当成"指向一致"误判。
+        private static string ReadShortcutTargetViaCom(string lnkPath) {
+            object shell = null, sc = null;
+            try {
+                Type t = Type.GetTypeFromCLSID(new Guid("72C24DD5-D70A-438B-8A42-98424B88AFB8")); // WScript.Shell
+                shell = Activator.CreateInstance(t);
+                sc = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
+                object val = sc.GetType().InvokeMember("TargetPath", BindingFlags.GetProperty, null, sc, null);
+                return val as string;
+            } catch { return null; } finally {
+                try { if (sc != null) Marshal.FinalReleaseComObject(sc); } catch { }
+                try { if (shell != null) Marshal.FinalReleaseComObject(shell); } catch { }
+            }
         }
     }
 }
