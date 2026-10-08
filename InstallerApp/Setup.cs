@@ -15,6 +15,11 @@ class SetupForm : Form
     CheckBox chkDesktopShortcut;
     ProgressBar progressBar;
     Label lblStatus, lblProgress, lblDoneInfo;
+    // 2026-10-08 现场反馈这个版本号从 6 月 13 日起就没更新过——装机向导里显示的版本号
+    //   跟实际安装包的新旧完全对不上, 容易让人误以为装错了旧包。打包一次改一次这个常量
+    //   (跟 SwimmingScoreboard_Setup_v<日期>_<序号>.zip 的日期对齐即可, 不需要每个小改动
+    //   都单独改这里)。
+    const string InstallerVersion = "v2026.10.08";
     string installDir = @"C:\SwimmingTimingSystem";
     // 2026-09-28 现场反馈"以前可选的生成桌面快捷方式选项没有了"——加一个可勾选项,
     //   默认勾选(=保留原来的行为), 不想要桌面图标的可以取消勾。
@@ -70,7 +75,7 @@ class SetupForm : Form
                 e.Graphics.DrawString("系统", titleFont, Brushes.White, new RectangleF(0, 210, p.Width, 30), sf);
             // 版本号
             using (var verFont = new Font("Segoe UI", 10))
-                e.Graphics.DrawString("v2026.06.13", verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
+                e.Graphics.DrawString(InstallerVersion, verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
         };
         return p;
     }
@@ -527,7 +532,7 @@ class SetupForm : Form
                 "程序位于：" + installDir;
         }
         lblDoneInfo.Text =
-            "游泳赛事管理与计时系统 v2026.06.13 已成功安装。\n\n" +
+            "游泳赛事管理与计时系统 " + InstallerVersion + " 已成功安装。\n\n" +
             shortcutSection + "\n\n" +
             // 2026-09-14 这里的端口写错过: 网页在 8080, 3002 是 WebSocket 端口。
             //   照着 3002 开网页是打不开的 —— 新装机的人第一步就会卡在这儿。
@@ -568,14 +573,19 @@ class SetupForm : Form
     {
         try
         {
-            Type t = Type.GetTypeFromCLSID(new Guid("72C24DD5-D70A-438B-8A42-98424B88AFB8")); // WScript.Shell
-            dynamic shell = Activator.CreateInstance(t);
-            dynamic sc = shell.CreateShortcut(lnkPath);
-            sc.TargetPath = target;
-            sc.WorkingDirectory = workDir;
-            sc.Save();
-            Marshal.FinalReleaseComObject(sc);
-            Marshal.FinalReleaseComObject(shell);
+            // 2026-10-08 现场反馈: 装到一台"新电脑"(系统区域设置→管理→非Unicode程序的语言
+            // 不是中文, 很多国行以外/精简版预装系统默认是英文)上, 全部 10 个快捷方式都报
+            // "Unable to save shortcut "C:\Users\xxx\Desktop\??????????.lnk""——文件名里的
+            // 中文字符在抛错信息里已经是问号, 说明在传进 WScript.Shell(wshom.ocx) 这个老牌
+            // COM 自动化对象那一刻就已经按"非Unicode程序的语言"这个 ANSI 代码页损毁了, 跟
+            // .NET 自己的编码无关——这是 WSH 这个组件内部沿用的历史遗留限制, 不是传了
+            // BSTR(COM 自动化字符串本该是全 Unicode)就能绕开的。
+            //
+            // 换成直接用 Shell 原生的 IShellLinkW + IPersistFile 这两个 COM 接口自己创建
+            // .lnk 文件——这是 shell32.dll 真正落地写 .lnk 的那两个接口, 全程 Unicode (LPWStr
+            // marshal), 不经过 wshom.ocx 那层, 不受"非Unicode程序的语言"设置影响, 任何系统
+            // 区域设置下中文文件名都能正常创建。
+            Util.CreateShortcutNative(lnkPath, target, workDir);
         }
         catch (Exception ex)
         {
@@ -591,5 +601,64 @@ class SetupForm : Form
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.Run(new SetupForm());
+    }
+}
+
+// 2026-10-08 原生 IShellLinkW + IPersistFile 创建 .lnk —— 见 SetupForm.CreateShortcut 的说明:
+// WScript.Shell(wshom.ocx) 在"非Unicode程序的语言"不是中文的系统上会把中文文件名损毁成问号,
+// 这两个接口是 shell32.dll 自己落地写 .lnk 文件用的, 全程走 LPWStr(Unicode), 不受那个设置影响。
+[ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+internal class ShellLinkCoClass { }
+
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("000214F9-0000-0000-C000-000000000046")]
+internal interface IShellLinkW
+{
+    void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszFile, int cchMaxPath, IntPtr pfd, int fFlags);
+    void GetIDList(out IntPtr ppidl);
+    void SetIDList(IntPtr pidl);
+    void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszName, int cchMaxName);
+    void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+    void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszDir, int cchMaxPath);
+    void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
+    void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszArgs, int cchMaxPath);
+    void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
+    void GetHotkey(out short pwHotkey);
+    void SetHotkey(short wHotkey);
+    void GetShowCmd(out int piShowCmd);
+    void SetShowCmd(int iShowCmd);
+    void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszIconPath, int cchIconPath, out int piIcon);
+    void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
+    void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, int dwReserved);
+    void Resolve(IntPtr hwnd, int fFlags);
+    void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
+}
+
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("0000010b-0000-0000-C000-000000000046")]
+internal interface IPersistFile
+{
+    void GetClassID(out Guid pClassID);
+    [PreserveSig] int IsDirty();
+    void Load([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, int dwMode);
+    void Save([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, [MarshalAs(UnmanagedType.Bool)] bool fRemember);
+    void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
+    void GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string ppszFileName);
+}
+
+internal static class Util
+{
+    public static void CreateShortcutNative(string lnkPath, string target, string workDir)
+    {
+        IShellLinkW link = (IShellLinkW)new ShellLinkCoClass();
+        try
+        {
+            link.SetPath(target);
+            link.SetWorkingDirectory(workDir ?? "");
+            IPersistFile pf = (IPersistFile)link;
+            pf.Save(lnkPath, true);
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(link);
+        }
     }
 }

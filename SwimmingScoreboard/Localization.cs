@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -3828,21 +3827,22 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
-        // 跟 InstallerApp\Setup.cs 的 CreateShortcut 用同一个 WScript.Shell COM 组件,
-        // 但用反射晚绑定(InvokeMember)而不是 dynamic —— RemoteDisplayControl/RegistrationTool
-        // 两个 csproj 没显式引用 Microsoft.CSharp 程序集, 用 dynamic 有编译期风险, 反射不用这个依赖。
+        // 2026-10-08 现场反馈: 装到一台"非Unicode程序的语言"不是中文的新电脑上, Setup.exe
+        //   原来用 WScript.Shell(wshom.ocx) 建快捷方式, 中文文件名在那一步就被按系统 ANSI
+        //   代码页损毁成了问号, 导致 Setup.exe 和这里(运行时切语言改名)用的是同一个有问题的
+        //   机制。换成 IShellLinkW + IPersistFile 这两个 shell32.dll 原生 COM 接口自己写
+        //   .lnk 文件——全程 Unicode(LPWStr), 不经过 wshom.ocx 那层, 不受那个系统设置影响。
+        //   详细原理见 InstallerApp\Setup.cs 里 CreateShortcut 的同一条说明(两边各自独立
+        //   定义一份接口——Setup.cs 是 csc 单文件编译, 没法跨工程共享这几个 interface)。
         private static void CreateShortcutViaCom(string lnkPath, string target, string workDir) {
-            object shell = null, sc = null;
+            IShellLinkW link = null;
             try {
-                Type t = Type.GetTypeFromCLSID(new Guid("72C24DD5-D70A-438B-8A42-98424B88AFB8")); // WScript.Shell
-                shell = Activator.CreateInstance(t);
-                sc = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
-                sc.GetType().InvokeMember("TargetPath", BindingFlags.SetProperty, null, sc, new object[] { target });
-                sc.GetType().InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, sc, new object[] { workDir });
-                sc.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
+                link = (IShellLinkW)new ShellLinkCoClass();
+                link.SetPath(target);
+                link.SetWorkingDirectory(workDir ?? "");
+                ((IPersistFile)link).Save(lnkPath, true);
             } catch { } finally {
-                try { if (sc != null) Marshal.FinalReleaseComObject(sc); } catch { }
-                try { if (shell != null) Marshal.FinalReleaseComObject(shell); } catch { }
+                try { if (link != null) Marshal.FinalReleaseComObject(link); } catch { }
             }
         }
 
@@ -3850,17 +3850,51 @@ namespace SwimmingScoreboard
         // 是这份安装自己的", 不是同名但属于另一份安装的。读不到(文件损坏/COM 失败)时返回
         // null, 调用方按"跳过不碰"处理, 不当成"指向一致"误判。
         private static string ReadShortcutTargetViaCom(string lnkPath) {
-            object shell = null, sc = null;
+            IShellLinkW link = null;
             try {
-                Type t = Type.GetTypeFromCLSID(new Guid("72C24DD5-D70A-438B-8A42-98424B88AFB8")); // WScript.Shell
-                shell = Activator.CreateInstance(t);
-                sc = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
-                object val = sc.GetType().InvokeMember("TargetPath", BindingFlags.GetProperty, null, sc, null);
-                return val as string;
+                link = (IShellLinkW)new ShellLinkCoClass();
+                ((IPersistFile)link).Load(lnkPath, 0);
+                var sb = new StringBuilder(260);
+                link.GetPath(sb, 260, IntPtr.Zero, 0);
+                return sb.ToString();
             } catch { return null; } finally {
-                try { if (sc != null) Marshal.FinalReleaseComObject(sc); } catch { }
-                try { if (shell != null) Marshal.FinalReleaseComObject(shell); } catch { }
+                try { if (link != null) Marshal.FinalReleaseComObject(link); } catch { }
             }
         }
+    }
+
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+    internal class ShellLinkCoClass { }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("000214F9-0000-0000-C000-000000000046")]
+    internal interface IShellLinkW {
+        void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszFile, int cchMaxPath, IntPtr pfd, int fFlags);
+        void GetIDList(out IntPtr ppidl);
+        void SetIDList(IntPtr pidl);
+        void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszName, int cchMaxName);
+        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+        void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszDir, int cchMaxPath);
+        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
+        void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszArgs, int cchMaxPath);
+        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
+        void GetHotkey(out short pwHotkey);
+        void SetHotkey(short wHotkey);
+        void GetShowCmd(out int piShowCmd);
+        void SetShowCmd(int iShowCmd);
+        void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszIconPath, int cchIconPath, out int piIcon);
+        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
+        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, int dwReserved);
+        void Resolve(IntPtr hwnd, int fFlags);
+        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("0000010b-0000-0000-C000-000000000046")]
+    internal interface IPersistFile {
+        void GetClassID(out Guid pClassID);
+        [PreserveSig] int IsDirty();
+        void Load([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, int dwMode);
+        void Save([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, [MarshalAs(UnmanagedType.Bool)] bool fRemember);
+        void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
+        void GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string ppszFileName);
     }
 }
