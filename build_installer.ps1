@@ -41,7 +41,12 @@ $fullRef = "/reference:System.Windows.Forms.dll,System.Drawing.dll,System.dll"
 # 输出路径/源文件路径求值到变量再拼，否则 csc 收到 "/out:" 后跟独立参数报 CS2005。
 $outSetup = Join-Path $installerBuild "Setup.exe"
 $srcSetup = Join-Path $root "InstallerApp\Setup.cs"
-& $csc /target:winexe "/out:$outSetup" $winFormsRef $srcSetup
+# 2026-10-08 显式嵌入 requireAdministrator 清单——原来靠 Windows 对"Setup.exe"这类
+# 文件名的旧式"安装程序检测"启发式自动提权, 这条启发式在不少现代 Windows 配置下
+# 其实是关着的, 导致装机时真正需要管理员权限的操作(netsh http add urlacl)静默失败
+# (用户实拍到: 装完 netsh http show urlacl 查出来还是空的)。不再赌启发式。
+$manifestSetup = Join-Path $root "InstallerApp\Setup.exe.manifest"
+& $csc /target:winexe "/out:$outSetup" "/win32manifest:$manifestSetup" $winFormsRef $srcSetup
 if ($LASTEXITCODE -ne 0) { throw "Setup.cs 编译失败" }
 
 $outUninst = Join-Path $installerBuild "Uninstall.exe"
