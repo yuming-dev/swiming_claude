@@ -5179,16 +5179,57 @@ namespace SwimmingScoreboard
         }
 
         // 建好/拿到"这一组"要用来计时的运动员对象——建好之后这些对象会留在 _swimmers
-        // 里持续使用(供触板/手动时间记录、确认本组成绩), 不是每次调用都现查现造:
-        //   · 内存里已经有这一组的分组记录(StageAssignment) ——说明早建过(本机手动
-        //     分组, 或者之前已经从库建过一次), 直接用, 不用再查库。
-        //   · 内存里一个都没有(这组第一次被引用, 分组数据来自别的机器/库)——这时候
-        //     才去查分组表数据库, 把这一组的对象建出来并加进 _swimmers, 从此跟正常
-        //     分组的运动员一样参与后面计时、确认成绩的流程。
+        // 里持续使用(供触板/手动时间记录、确认本组成绩), 不是每次调用都现查现造。
+        //
+        // 2026-10-08 用户现场实拍到的真实 bug: 原来"内存里已经有就直接信、按性别
+        // 字符串在 _swimmers 里筛"这条捷径, 在同一 EventName 下"男"/"男女"两个并列
+        // 子项目都被浏览过一遍之后(两边运动员各自都已经进了 _swimmers、各自都有本
+        // 赛次 StageAssignment)不再可靠——两边对象同时在内存里, 性别过滤一旦有
+        // 时序/判定上的松动(hasMixed 算的时候还没看到"男女"那边的对象), 就会把
+        // 两个不同赛次的人混进同一组(张掖市和平凉市同时出现在"男女"组的3道, 跟
+        // display.html 最早报的那个 bug一模一样, 只是这条由 SHOW_LIVE_RACE/
+        // GetCurrentHeatSwimmers 这条独立路径触发, 没跟着 GetHeatEntries 那次一起改)。
+        //
+        // 改成跟 GetHeatEntries 完全一致的原则: 库(heat_entries, 按 round_id 物理
+        // 隔离, 天然不会混)才是权威名单; 内存只负责"这库里一行对应的是不是已经在
+        // 跟踪的某个对象"(按参赛号认——找到了复用, 计时数据不丢; 没找到才新建),
+        // 不再用内存自己去筛"这一组有谁"。
         private List<Swimmer> EnsureCurrentHeatSwimmersFromDb(string ageGroup, string gender, string eventName, string stage, int heat) {
+            List<SwimmingScoreboard.Db.LaneRow> dbRows = null;
+            if (_meetDb != null) {
+                try { dbRows = _meetDb.ReadBackHeat(ageGroup, gender, eventName, stage, heat); }
+                catch { dbRows = null; }
+            }
+
+            if (dbRows != null && dbRows.Count > 0) {
+                var byBib = new Dictionary<string, Swimmer>();
+                foreach (var s in _swimmers) {
+                    if (s.EventName != eventName) continue;
+                    if (string.IsNullOrEmpty(s.BibNumber)) continue;
+                    if (!byBib.ContainsKey(s.BibNumber)) byBib[s.BibNumber] = s;
+                }
+                var built = new List<Swimmer>();
+                foreach (var row in dbRows) {
+                    if (row.Lane == null) continue;   // 替补没有道次, 不上道, 不参与计时
+                    Swimmer sw = null;
+                    if (!string.IsNullOrEmpty(row.BibNumber)) byBib.TryGetValue(row.BibNumber, out sw);
+                    if (sw == null) {
+                        sw = SwimmerFromLaneRow(row, eventName, gender, ageGroup, stage, heat);
+                        _swimmers.Add(sw);
+                    } else {
+                        // 已经在跟踪的对象——保留它身上积累的 Results/计时数据, 只把
+                        // 分组表的权威赛次/组次/道次刷新上去。
+                        sw.SetStageAssignment(stage, row.Heat ?? heat, row.Lane.Value, row.SeedTimeSeconds, row.SeedTime);
+                    }
+                    built.Add(sw);
+                }
+                return built;   // dbRows 已按道次排好序(ORDER BY 道次)
+            }
+
+            // 库里查不到(这个赛次还没分组过 / meetDb 还没打开 / 单机测试没建过库)——
+            // 退回内存兜底, 同样只认 StageAssignment, 不退回顶层字段瞎猜。
             bool isRelay = eventName.Contains("接力");
             bool hasMixed = HasExplicitMixedEntry(eventName, ageGroup);
-
             var fromMemory = new List<Swimmer>();
             foreach (var s in _swimmers) {
                 if (s.EventName != eventName) continue;
@@ -5198,29 +5239,12 @@ namespace SwimmingScoreboard
                 var sa = s.GetAssignmentForStage(stage);
                 if (sa != null && sa.Heat == heat) fromMemory.Add(s);
             }
-            if (fromMemory.Count > 0) {
-                fromMemory.Sort(delegate(Swimmer a, Swimmer b) {
-                    int la = LaneOfStage(a, stage), lb = LaneOfStage(b, stage);
-                    if (la != lb) return la.CompareTo(lb);
-                    return string.Compare(a.Name ?? "", b.Name ?? "", StringComparison.Ordinal);
-                });
-                return fromMemory;
-            }
-
-            if (_meetDb == null) return fromMemory;   // 没库可查, 就是真没人(空列表)
-            List<SwimmingScoreboard.Db.LaneRow> dbRows;
-            try { dbRows = _meetDb.ReadBackHeat(ageGroup, gender, eventName, stage, heat); }
-            catch { return fromMemory; }
-            if (dbRows == null || dbRows.Count == 0) return fromMemory;
-
-            var built = new List<Swimmer>();
-            foreach (var row in dbRows) {
-                if (row.Lane == null) continue;   // 替补没有道次, 不上道, 不参与计时
-                var sw = SwimmerFromLaneRow(row, eventName, gender, ageGroup, stage, heat);
-                _swimmers.Add(sw);
-                built.Add(sw);
-            }
-            return built;
+            fromMemory.Sort(delegate(Swimmer a, Swimmer b) {
+                int la = LaneOfStage(a, stage), lb = LaneOfStage(b, stage);
+                if (la != lb) return la.CompareTo(lb);
+                return string.Compare(a.Name ?? "", b.Name ?? "", StringComparison.Ordinal);
+            });
+            return fromMemory;
         }
 
         // 2026-05-27 BUG 修复 #3: 加 ageGroup 维度. 之前只按 gender + eventName 排名,
