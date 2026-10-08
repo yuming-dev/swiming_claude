@@ -5303,13 +5303,14 @@ namespace SwimmingScoreboard
                 bool confirmed = IsHeatConfirmed(ageGroup ?? "", gender, eventName, stage, h);
                 if (!confirmed && stage == _currentStage && h == _currentHeat && _resultConfirmed) confirmed = true;
                 if (!confirmed) continue;
+                // 2026-10-08 用户明确要求: 总排名(大屏/颁奖回放都读这个方法)一律以分组表
+                // (StageAssignment)为准, 不再退回顶层字段猜——同 GetHeatEntries() 那处修复。
                 foreach (var s in _swimmers) {
                     if (s.EventName != eventName || !SgMatch(s.Gender, gender)) continue;
                     if (!MatchesAgeGroup(s, ageGroup)) continue;
                     if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                     var sa = s.GetAssignmentForStage(stage);
-                    if (sa != null && sa.Heat == h) { stageSwimmers.Add(s); continue; }
-                    if (sa == null && s.CurrentStage == stage && s.Heat == h) stageSwimmers.Add(s);
+                    if (sa != null && sa.Heat == h) stageSwimmers.Add(s);
                 }
             }
             var ranked = new List<object>();
@@ -13612,11 +13613,13 @@ namespace SwimmingScoreboard
                 MatchesAgeGroup(s, ageGroup) &&
                 !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
+            // 2026-10-08 用户明确要求: 判断"这组有谁"一律以分组表(StageAssignment)为准,
+            // 不再退回顶层字段猜——同 GetHeatEntries() 那处修复, 这两处(HeatStatus/
+            // IsHeatConfirmedFast)直接影响大屏/总排名/赛程导航树判断一组算不算"已确认"。
             var inHeat = new List<Swimmer>();
             foreach (var s in heatSwimmers) {
                 var sa = s.GetAssignmentForStage(stage);
-                if (sa != null && sa.Heat == heat) { inHeat.Add(s); continue; }
-                if (s.CurrentStage == stage && s.Heat == heat) inHeat.Add(s);
+                if (sa != null && sa.Heat == heat) inHeat.Add(s);
             }
             if (inHeat.Count == 0) return "pending";
             // 全部 DNS/DNF/DSQ → 已取消
@@ -14038,11 +14041,13 @@ namespace SwimmingScoreboard
                 !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
 
+            // 2026-10-08 用户明确要求: 判断"这组有谁"一律以分组表(StageAssignment)为准,
+            // 不再退回顶层字段猜——同 GetHeatEntries() 那处修复, 这两处(HeatStatus/
+            // IsHeatConfirmedFast)直接影响大屏/总排名/赛程导航树判断一组算不算"已确认"。
             var inHeat = new List<Swimmer>();
             foreach (var s in heatSwimmers) {
                 var sa = s.GetAssignmentForStage(stage);
-                if (sa != null && sa.Heat == heat) { inHeat.Add(s); continue; }
-                if (s.CurrentStage == stage && s.Heat == heat) inHeat.Add(s);
+                if (sa != null && sa.Heat == heat) inHeat.Add(s);
             }
 
             if (inHeat.Count == 0) return false;
@@ -24460,12 +24465,14 @@ namespace SwimmingScoreboard
                 if (!SgMatch(s.Gender, gender) || s.EventName != eventName) continue;
                 // 2026-06-16 按组别筛选 — 跨组别同 (gender,event,stage,heat) 不应混在一起
                 if (!string.IsNullOrEmpty(ageGroup) && (s.AgeCategory ?? "") != ageGroup) continue;
+                // 2026-10-08 用户明确要求: 发布到大屏的成绩(不分个人/接力)一律以分组表
+                // (StageAssignment)为准, 不再退回 s.CurrentStage/s.Heat 这几个顶层字段猜——
+                // 原理同 GetHeatEntries() 那处修复, 见那边的详细说明。
                 var sa = s.GetAssignmentForStage(stage);
-                bool inHeat = (sa != null && sa.Heat == heat) || (s.CurrentStage == stage && s.Heat == heat);
-                if (!inHeat) continue;
+                if (sa == null || sa.Heat != heat) continue;
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 var r = s.GetResultForStage(stage);
-                int lane = sa != null ? sa.Lane : s.Lane;
+                int lane = sa.Lane;
                 // 接力项目：name显示队员姓名
                 string dispName = s.Name ?? "";
                 if (eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")) {
@@ -26680,6 +26687,20 @@ namespace SwimmingScoreboard
 
             // 联机同步：服务器 → 编排端 / 编排端 → 服务器；_applyingRemoteSync 防回环
             try { PropagateSyncAfterSave(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_OnlineSyncExceptionFmt", ex.Message)); }
+
+            // 2026-10-08 用户明确要求: 分组数据要落到竞赛库(heat_entries, "分组表")里,
+            //   大屏/总排名/成绩发布改成直接查这张表, 不再靠内存对象自己算。
+            //   ScheduleMeetDbSyncFromPatch() 原来只在【收到远端编排端推来的补丁】
+            //   (HandleEditorPatch) 和 SaveAndPushAssign(只覆盖了泳道互换/接力棒次
+            //   /部分追加分组等 9 处调用点)两条路上触发——"项目自动分组"
+            //   (AutoGenerateHeats_Click, 现场多半是用这个建的分组)等相当一部分
+            //   编辑函数结尾还停在旧版"只调 AutoSaveData()", 从没走到这条同步, heat_entries
+            //   永远停在赛事包【导入那一刻】的旧分组, 这正是"张掖市"那种旧数据漏出来的根源
+            //   之一。AutoSaveData() 是全系统唯一"存一次档"的公共收尾点(36 处调用), 把同步
+            //   钩子挂在这里一次性覆盖所有调用方, 不用再挨个找漏网的编辑函数。
+            //   ScheduleMeetDbSyncFromPatch() 自带 2 秒防抖 + SelfCheck 先比对再决定要不要
+            //   真重建(没差异就是一次很便宜的查询), 高频调用 AutoSaveData() 不会造成重复重建。
+            if (!_meetDb.IsRemote) ScheduleMeetDbSyncFromPatch();
         }
 
         // 把当前内存状态打包成 CompetitionPackage（AutoSaveData 与同步推送共用）
