@@ -5107,43 +5107,60 @@ namespace SwimmingScoreboard
             catch { return null; }
             if (dbRows == null || dbRows.Count == 0) return null;
 
-            // 候选集合: 跟内存兜底那条路一样的项目/性别/组别过滤(先把范围圈对, 同一
-            // EventName 下"男"/"男女"这类并列子项目分开, 不互相串)。
-            // 2026-10-08 用户订正: 候选集合内再按【本项目参赛号】(Swimmer.BibNumber,
-            // 对应 entries.bib_number)精确认人——这才是库里/内存两边唯一都认、本来
-            // 就是为"这个项目里是哪一个人"设计的身份键(20+ 处既有代码早就是拿它当
-            // 唯一键用, 见 BibNumber+EventName 的既有用法); 按姓名+单位字符串去猜
-            // (前一版的做法)原理上就可能认错——同名、单位改名都会让库里一条对应
-            // 不上内存任何对象, 或者更糟, 对应到错的对象上。
-            var byBib = new Dictionary<string, Swimmer>();
+            // 候选集合: 项目/性别/组别过滤, 先把范围圈对(同一 EventName 下"男"/"男女"
+            // 这类并列子项目分开, 不互相串)。
+            var candidates = new List<Swimmer>();
             foreach (var s in _swimmers) {
                 if (s.EventName != eventName) continue;
                 if (!GenderMatchEx(s.Gender, gender, hasMixed)) continue;
                 if (!MatchesAgeGroup(s, ageGroup)) continue;
                 if (isRelay && IsRelayMemberNote(s.Notes)) continue;
-                if (string.IsNullOrEmpty(s.BibNumber)) continue;
-                if (!byBib.ContainsKey(s.BibNumber)) byBib[s.BibNumber] = s;
+                candidates.Add(s);
             }
 
+            // 2026-10-08 用户再订正: 参赛号/姓名/单位这些字段现实中可能缺(临时补录的
+            // 队员、还没来得及编号/核对) ——拿它们当"必须匹配上才算数"的硬条件, 缺了
+            // 就把这一道整个漏掉, 比"显示的信息不全"更糟(人明明分组表里站着, 大屏却
+            // 不显示)。改成分级尝试认人, 但"道次有行"这件事本身绝对不能因为认不出人
+            // 而丢:
+            //   1) 参赛号对得上, 最准, 优先用。
+            //   2) 对不上(号缺/号不一致), 退回按姓名(+单位)认。
+            //   3) 还对不上, 退回按候选人自己当前(可能还没同步、但多数时候仍对)的
+            //      本赛次道次认——分组表的道次号本身是 heat_entries 的 UNIQUE 列,
+            //      永远有值, 比参赛号/姓名/单位更能保证"总能认出点什么"。
+            //   4) 连这个都对不上(全新/从未进过内存的队员), 直接拿库里这一行自带的
+            //      姓名/单位/参赛号现造一个运动员对象——哪怕字段不全, 道次照样显示,
+            //      不耽误比赛; 不并入 _swimmers, 只用于本次返回的显示/检录/计时名单。
+            var used = new HashSet<Swimmer>();
             var list = new List<Swimmer>();
-            int laneRowCount = 0;
             foreach (var row in dbRows) {
                 if (row.Lane == null) continue;   // 替补没有道次, 不站道, 大屏/检录都不该列进泳道表
-                laneRowCount++;
-                Swimmer sw;
-                if (string.IsNullOrEmpty(row.BibNumber) || !byBib.TryGetValue(row.BibNumber, out sw)) continue;
-                // 库里有这一行但内存里按参赛号配不上(号码没同步/老档案缺号)——跳过这一道, 不是整组放弃
+
+                Swimmer sw = null;
+                if (!string.IsNullOrEmpty(row.BibNumber))
+                    sw = candidates.FirstOrDefault(s => !used.Contains(s) && s.BibNumber == row.BibNumber);
+                if (sw == null && !string.IsNullOrEmpty(row.Name))
+                    sw = row.IsRelay
+                        ? candidates.FirstOrDefault(s => !used.Contains(s) && s.Country == row.Name)
+                        : candidates.FirstOrDefault(s => !used.Contains(s) && s.Name == row.Name
+                            && (string.IsNullOrEmpty(row.UnitName) || s.Country == row.UnitName));
+                if (sw == null)
+                    sw = candidates.FirstOrDefault(s => !used.Contains(s) && LaneOfStage(s, stage) == row.Lane.Value);
+                if (sw == null) {
+                    sw = new Swimmer {
+                        Name = row.Name ?? "", Country = row.UnitName ?? "", BibNumber = row.BibNumber ?? "",
+                        EventName = eventName, Gender = gender ?? "", AgeCategory = ageGroup ?? "",
+                        Notes = row.IsRelay ? ("接力队 棒次:" + (row.Name ?? "")) : null
+                    };
+                }
+                used.Add(sw);
                 // 库里的赛次/组次/道次是权威值——写回内存这份"赛次分组记录", 后面
                 // LaneOfStage/BuildSwimmerPayload 等照常读 StageAssignment 就行, 不用
                 // 再对着 LaneRow 另开一套字段。
                 sw.SetStageAssignment(stage, row.Heat ?? heat, row.Lane.Value, row.SeedTimeSeconds, row.SeedTime);
                 list.Add(sw);
             }
-            // 库里明明有站道的行, 但一个都没在内存里配上号(姓名/单位跟内存对不上这种
-            // 数据不一致的极端情况)——这不是"这组真没人", 是配对失败, 退回内存兜底,
-            // 别让大屏显示空白。library 有行且至少配上一个时才信这份结果。
-            if (laneRowCount > 0 && list.Count == 0) return null;
-            return list;   // 已经是 dbRows 按道次排好的顺序(ORDER BY 道次), 不用再排一次
+            return list;   // 现在每一道都保证有结果(配不上号也会现造), 不会再出现"库里有行但返回空"
         }
 
         // 该赛次的泳道号: 有分组记录用分组记录的, 否则用顶层字段
