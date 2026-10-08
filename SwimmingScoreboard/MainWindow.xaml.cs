@@ -5052,22 +5052,16 @@ namespace SwimmingScoreboard
         //   · 完全没有分组记录 → 才退回顶层 CurrentStage/Heat, 兼容老档案。
         //
         // 返回按泳道排好的名单; 泳道相同(异常数据)按姓名兜底, 保证任何调用方顺序一致。
-        // 2026-10-08 用户明确要求(一次性从根本解决): "分组表是编排记录裁判进行编排、
-        //   分组，经裁判长确认后的正式比赛文件，必须按此来比赛"——大屏/检录/计时控制
-        //   这几处"这一组有谁"要直接查分组表数据库(heat_entries), 不再各自对着内存
-        //   算一遍。GetHeatEntries() 是全系统这个问题唯一的入口(20+ 处调用), 改这一处
-        //   全部跟着对。
-        //
-        //   库里查得到就按库的来(GetHeatRosterFromDb, 按【姓名+单位】认人——这两项是
-        //   运动员身份, 不像道次那样会因为旧分组残留而撞车, ApplyHeatFromDb 那条已有
-        //   的回读路径按道次认是因为它假定内存已经选对了人, 这里恰恰是要靠身份去纠正
-        //   内存可能选错的人, 不能用同一个假设)。配上后顺手用 SetStageAssignment 把
-        //   内存这份"赛次分组记录"刷成跟库一致, 后续 LaneOfStage/BuildSwimmerPayload
-        //   等等不用另外改一遍, 读到的已经是库的权威值。
-        //
-        //   库里查不到(这个赛次还没分组过 / meetDb 还没打开 / 单机测试没建过库)时退回
-        //   内存那条路径兜底(同样已改成只认 StageAssignment, 不退回顶层字段瞎猜)——
-        //   保底，不是把"库查不到"当"真没人"处理。
+        // 2026-10-08 用户明确要求(一次性从根本解决): "分组表数据库就是基准...调出分组
+        //   表数据库内容就直接显示（不要再进行比较，也不要自己造，没有就不显）"——
+        //   本方法现在只服务"看一眼"的场合(检录/大屏/总排名/赛程状态): 库里查得到就
+        //   直接用库的(GetHeatRosterFromDb, 每条库行照抄一个全新对象, 不跟内存比较、
+        //   不往内存里塞东西); 库里查不到(这个赛次还没分组过 / meetDb 还没打开 / 单机
+        //   测试没建过库)才退回内存那条路径兜底(同样只认 StageAssignment, 不退回顶层
+        //   字段瞎猜)。
+        //   实时比赛控制(计时过程中要持续记录数据的场合)不走这个函数, 走单独的
+        //   EnsureCurrentHeatSwimmersFromDb——那条路要的是"建好之后能一直用下去的
+        //   同一个对象", 跟这里"只读、每次都给新对象"的用途不一样。
         private List<Swimmer> GetHeatEntries(string ageGroup, string gender, string eventName, string stage, int heat) {
             var list = new List<Swimmer>();
             if (string.IsNullOrEmpty(eventName) || heat <= 0) return list;
@@ -5097,8 +5091,18 @@ namespace SwimmingScoreboard
             return list;
         }
 
-        // 查分组表(heat_entries)拿这一组的权威名单。返回 null = 库里查不到(调用方退回
-        // 内存兜底); 返回空列表 = 库里查到了但这一组确实没人(替补除外, 替补不站道)。
+        // 2026-10-08 用户最终订正, 定调: "分组表数据库就是基准...调出分组表数据库内容
+        // 就直接显示（不要再进行比较，也不要自己造，没有就不显）"——前几版在这里跟
+        // 内存 _swimmers 做参赛号/姓名/单位/道次的多级匹配, 本身就是多余的复杂度:
+        // 库里这一行本来就自带姓名/单位/参赛号/成绩/名次等全部字段, 不需要先"找出
+        // 内存里对应哪个对象"才能显示。本方法只给"看一眼"的场合用(检录/大屏/总排名/
+        // 赛程状态)——这些地方只读, 不会往返回的对象上写新东西, 所以每次照着库的数据
+        // 现搭一份全新对象、完全不碰 _swimmers, 没有副作用也没有"认错人"的风险。
+        // 需要在计时过程中持续记录的实时比赛控制走 EnsureCurrentHeatSwimmersFromDb,
+        // 那条路要的是"建好之后能一直用下去的同一个对象", 跟这里的用途不一样。
+        //
+        // 返回 null = 库里查不到(调用方退回内存兜底, 比如单机测试没建过库); 返回
+        // 空列表 = 库里查到了但这一组确实没人(替补除外, 替补不站道)。
         private List<Swimmer> GetHeatRosterFromDb(string ageGroup, string gender, string eventName, string stage,
                                                     int heat, bool isRelay, bool hasMixed) {
             if (_meetDb == null) return null;
@@ -5107,60 +5111,40 @@ namespace SwimmingScoreboard
             catch { return null; }
             if (dbRows == null || dbRows.Count == 0) return null;
 
-            // 候选集合: 项目/性别/组别过滤, 先把范围圈对(同一 EventName 下"男"/"男女"
-            // 这类并列子项目分开, 不互相串)。
-            var candidates = new List<Swimmer>();
-            foreach (var s in _swimmers) {
-                if (s.EventName != eventName) continue;
-                if (!GenderMatchEx(s.Gender, gender, hasMixed)) continue;
-                if (!MatchesAgeGroup(s, ageGroup)) continue;
-                if (isRelay && IsRelayMemberNote(s.Notes)) continue;
-                candidates.Add(s);
-            }
-
-            // 2026-10-08 用户再订正: 参赛号/姓名/单位这些字段现实中可能缺(临时补录的
-            // 队员、还没来得及编号/核对) ——拿它们当"必须匹配上才算数"的硬条件, 缺了
-            // 就把这一道整个漏掉, 比"显示的信息不全"更糟(人明明分组表里站着, 大屏却
-            // 不显示)。改成分级尝试认人, 但"道次有行"这件事本身绝对不能因为认不出人
-            // 而丢:
-            //   1) 参赛号对得上, 最准, 优先用。
-            //   2) 对不上(号缺/号不一致), 退回按姓名(+单位)认。
-            //   3) 还对不上, 退回按候选人自己当前(可能还没同步、但多数时候仍对)的
-            //      本赛次道次认——分组表的道次号本身是 heat_entries 的 UNIQUE 列,
-            //      永远有值, 比参赛号/姓名/单位更能保证"总能认出点什么"。
-            //   4) 连这个都对不上(全新/从未进过内存的队员), 直接拿库里这一行自带的
-            //      姓名/单位/参赛号现造一个运动员对象——哪怕字段不全, 道次照样显示,
-            //      不耽误比赛; 不并入 _swimmers, 只用于本次返回的显示/检录/计时名单。
-            var used = new HashSet<Swimmer>();
             var list = new List<Swimmer>();
             foreach (var row in dbRows) {
                 if (row.Lane == null) continue;   // 替补没有道次, 不站道, 大屏/检录都不该列进泳道表
-
-                Swimmer sw = null;
-                if (!string.IsNullOrEmpty(row.BibNumber))
-                    sw = candidates.FirstOrDefault(s => !used.Contains(s) && s.BibNumber == row.BibNumber);
-                if (sw == null && !string.IsNullOrEmpty(row.Name))
-                    sw = row.IsRelay
-                        ? candidates.FirstOrDefault(s => !used.Contains(s) && s.Country == row.Name)
-                        : candidates.FirstOrDefault(s => !used.Contains(s) && s.Name == row.Name
-                            && (string.IsNullOrEmpty(row.UnitName) || s.Country == row.UnitName));
-                if (sw == null)
-                    sw = candidates.FirstOrDefault(s => !used.Contains(s) && LaneOfStage(s, stage) == row.Lane.Value);
-                if (sw == null) {
-                    sw = new Swimmer {
-                        Name = row.Name ?? "", Country = row.UnitName ?? "", BibNumber = row.BibNumber ?? "",
-                        EventName = eventName, Gender = gender ?? "", AgeCategory = ageGroup ?? "",
-                        Notes = row.IsRelay ? ("接力队 棒次:" + (row.Name ?? "")) : null
-                    };
-                }
-                used.Add(sw);
-                // 库里的赛次/组次/道次是权威值——写回内存这份"赛次分组记录", 后面
-                // LaneOfStage/BuildSwimmerPayload 等照常读 StageAssignment 就行, 不用
-                // 再对着 LaneRow 另开一套字段。
-                sw.SetStageAssignment(stage, row.Heat ?? heat, row.Lane.Value, row.SeedTimeSeconds, row.SeedTime);
-                list.Add(sw);
+                list.Add(SwimmerFromLaneRow(row, eventName, gender, ageGroup, stage, heat));
             }
-            return list;   // 现在每一道都保证有结果(配不上号也会现造), 不会再出现"库里有行但返回空"
+            return list;   // dbRows 已经按道次排好序(ORDER BY 道次), 不用再排一次
+        }
+
+        // 把一条分组表数据库行直接转成"只读显示用"的运动员对象——字段照抄数据库,
+        // 不比较、不猜、缺了就留空; 不加入 _swimmers, 不参与计时/确认成绩那条链路。
+        private static Swimmer SwimmerFromLaneRow(SwimmingScoreboard.Db.LaneRow row, string eventName,
+                                                    string gender, string ageGroup, string stage, int heat) {
+            // 接力队 4 位队员姓名(Notes="接力队 棒次:张三,李四,...")这条查询拿不到
+            // (那是 relay_legs 表, LaneRow.Legs 这里没按需带上)——宁可留空让下游退回
+            // 显示队名(sw.Name), 也不编一个假的 Notes 出来。
+            var sw = new Swimmer {
+                Name = row.Name ?? "", Country = row.UnitName ?? "", BibNumber = row.BibNumber ?? "",
+                EventName = eventName, Gender = gender ?? "", AgeCategory = ageGroup ?? "",
+                EntryTime = row.SeedTime ?? "", EntryTimeSeconds = row.SeedTimeSeconds,
+                Status = row.Status ?? ""
+            };
+            sw.SetStageAssignment(stage, row.Heat ?? heat, row.Lane.Value, row.SeedTimeSeconds, row.SeedTime);
+            if (row.FinalTime > 0 || row.Rank > 0 || !string.IsNullOrEmpty(row.Status)) {
+                sw.Results.Add(new LaneResult {
+                    EventName = eventName, Stage = stage, Heat = row.Heat ?? heat, Lane = row.Lane.Value,
+                    FinalTime = row.FinalTime, TimeInSeconds = row.FinalTime,
+                    Rank = row.HeatRank > 0 ? row.HeatRank : row.Rank, EventRank = row.Rank,
+                    Gap = row.Gap, IsTie = row.IsTie, PromotionMark = row.PromotionMark ?? "",
+                    Status = row.Status ?? "", RecordNote = row.RecordNote ?? "",
+                    TimingSource = row.TimingSource ?? "",
+                    StartingBlockTime = row.ReactionTime, FromDb = true
+                });
+            }
+            return sw;
         }
 
         // 该赛次的泳道号: 有分组记录用分组记录的, 否则用顶层字段
@@ -5182,12 +5166,61 @@ namespace SwimmingScoreboard
                 _currentHeatSwimmersCacheAt = DateTime.Now;
                 return _currentHeatSwimmersCache;
             }
-            // 2026-08-24 整段筛选逻辑已收敛到 GetHeatEntries(), 这里只保留 50ms 缓存
-            var ordered = GetHeatEntries(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+            // 2026-10-08 用户订正: 实时比赛控制跟检录/大屏不是一回事——这里拿到的对象,
+            // 后面计时硬件要在它上面持续记触板/手动时间、直到"确认本组成绩", 不能每次
+            // 调用都从库现造一份新对象扔掉上一份(会把刚记的计时数据丢了)。改成"开始
+            // 计时前从分组表数据库把这一组的对象建好、留进 _swimmers, 之后一直用这
+            // 同一批对象"——不是每次都重新查库。
+            var ordered = EnsureCurrentHeatSwimmersFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
             _currentHeatSwimmersCache = ordered;
             _currentHeatSwimmersCacheKey = key;
             _currentHeatSwimmersCacheAt = DateTime.Now;
             return ordered;
+        }
+
+        // 建好/拿到"这一组"要用来计时的运动员对象——建好之后这些对象会留在 _swimmers
+        // 里持续使用(供触板/手动时间记录、确认本组成绩), 不是每次调用都现查现造:
+        //   · 内存里已经有这一组的分组记录(StageAssignment) ——说明早建过(本机手动
+        //     分组, 或者之前已经从库建过一次), 直接用, 不用再查库。
+        //   · 内存里一个都没有(这组第一次被引用, 分组数据来自别的机器/库)——这时候
+        //     才去查分组表数据库, 把这一组的对象建出来并加进 _swimmers, 从此跟正常
+        //     分组的运动员一样参与后面计时、确认成绩的流程。
+        private List<Swimmer> EnsureCurrentHeatSwimmersFromDb(string ageGroup, string gender, string eventName, string stage, int heat) {
+            bool isRelay = eventName.Contains("接力");
+            bool hasMixed = HasExplicitMixedEntry(eventName, ageGroup);
+
+            var fromMemory = new List<Swimmer>();
+            foreach (var s in _swimmers) {
+                if (s.EventName != eventName) continue;
+                if (!GenderMatchEx(s.Gender, gender, hasMixed)) continue;
+                if (!MatchesAgeGroup(s, ageGroup)) continue;
+                if (isRelay && IsRelayMemberNote(s.Notes)) continue;
+                var sa = s.GetAssignmentForStage(stage);
+                if (sa != null && sa.Heat == heat) fromMemory.Add(s);
+            }
+            if (fromMemory.Count > 0) {
+                fromMemory.Sort(delegate(Swimmer a, Swimmer b) {
+                    int la = LaneOfStage(a, stage), lb = LaneOfStage(b, stage);
+                    if (la != lb) return la.CompareTo(lb);
+                    return string.Compare(a.Name ?? "", b.Name ?? "", StringComparison.Ordinal);
+                });
+                return fromMemory;
+            }
+
+            if (_meetDb == null) return fromMemory;   // 没库可查, 就是真没人(空列表)
+            List<SwimmingScoreboard.Db.LaneRow> dbRows;
+            try { dbRows = _meetDb.ReadBackHeat(ageGroup, gender, eventName, stage, heat); }
+            catch { return fromMemory; }
+            if (dbRows == null || dbRows.Count == 0) return fromMemory;
+
+            var built = new List<Swimmer>();
+            foreach (var row in dbRows) {
+                if (row.Lane == null) continue;   // 替补没有道次, 不上道, 不参与计时
+                var sw = SwimmerFromLaneRow(row, eventName, gender, ageGroup, stage, heat);
+                _swimmers.Add(sw);
+                built.Add(sw);
+            }
+            return built;
         }
 
         // 2026-05-27 BUG 修复 #3: 加 ageGroup 维度. 之前只按 gender + eventName 排名,
