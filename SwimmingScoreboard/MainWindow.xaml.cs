@@ -22108,15 +22108,16 @@ namespace SwimmingScoreboard
                 if (!MatchesAgeGroup(s, ageGroup)) continue;
                 // 接力项目：跳过个人队员条目（Notes以"接力队员"开头），只保留代表队条目
                 if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                // 2026-10-08 用户要求全系统排查同类问题后发现: 这里 sa==null 时退回
+                // 顶层 CurrentStage/Heat 瞎猜, 跟最初那个"张掖市幻影三道"是同一个坑——
+                // 同一项目"男"/"男女"两个并列子项目的运动员都在内存里时, 顶层字段
+                // 可能是旧赛次残留。这个列表是按下标 swap/编辑用的, 要是混进不该在
+                // 这组的人, 轻则预览显示多了个幻影, 重则按下标改道次改错对象。
+                // 改成只认 StageAssignment, 没有就不算这组的。
                 var sa = s.GetAssignmentForStage(stage);
                 if (sa != null && sa.Heat > 0) {
                     if (showAll || sa.Heat == heat)
                         matchedSwimmers.Add(Tuple.Create(s, sa.Heat, sa.Lane));
-                    continue;
-                }
-                if (s.CurrentStage == stage && s.Heat > 0) {
-                    if (showAll || s.Heat == heat)
-                        matchedSwimmers.Add(Tuple.Create(s, s.Heat, s.Lane));
                 }
             }
             matchedSwimmers.Sort((a, b) => {
@@ -22583,15 +22584,16 @@ namespace SwimmingScoreboard
                 if (!MatchesAgeGroup(s, ageGroup)) continue;
                 if (!SgMatch(s.Gender, gender) || s.EventName != eventName) continue;
                 if (isRelaySwap && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                // 2026-10-08 用户要求全系统排查同类问题后发现: 这里 sa==null 时退回
+                // 顶层 CurrentStage/Heat 瞎猜, 跟最初那个"张掖市幻影三道"是同一个坑——
+                // 同一项目"男"/"男女"两个并列子项目的运动员都在内存里时, 顶层字段
+                // 可能是旧赛次残留。这个列表是按下标 swap/编辑用的, 要是混进不该在
+                // 这组的人, 轻则预览显示多了个幻影, 重则按下标改道次改错对象。
+                // 改成只认 StageAssignment, 没有就不算这组的。
                 var sa = s.GetAssignmentForStage(stage);
                 if (sa != null && sa.Heat > 0) {
                     if (showAll || sa.Heat == heat)
                         matchedSwimmers.Add(Tuple.Create(s, sa.Heat, sa.Lane));
-                    continue;
-                }
-                if (s.CurrentStage == stage && s.Heat > 0) {
-                    if (showAll || s.Heat == heat)
-                        matchedSwimmers.Add(Tuple.Create(s, s.Heat, s.Lane));
                 }
             }
             matchedSwimmers.Sort((a, b) => {
@@ -24021,13 +24023,17 @@ namespace SwimmingScoreboard
                 touchedEvents.Add(new string[] { ageGroup, gender, eventName, stage });
 
                 // 找该项目当前最大组号
+                // 2026-10-08 用户要求全系统排查同类问题后发现: 这里原来 sa==null 时
+                // 退回顶层 CurrentStage/Heat 瞎猜——同一项目"男"/"男女"两个并列子
+                // 项目的运动员都在内存里时, 顶层字段可能是旧赛次残留, 会把另一个
+                // 子项目的人算进 maxHeat/lastHeatCount, 导致追加分组算错"最后一组
+                // 还有几个空位", 把新人塞错道或塞错组。改成只认 StageAssignment。
                 int maxHeat = 0;
                 foreach (var s in _swimmers) {
                     if (!SgMatch(s.Gender, gender) || s.EventName != eventName) continue;
                     if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                     var sa = s.GetAssignmentForStage(stage);
                     if (sa != null && sa.Heat > maxHeat) maxHeat = sa.Heat;
-                    if (s.CurrentStage == stage && s.Heat > maxHeat) maxHeat = s.Heat;
                 }
 
                 // 检查最后一组是否还有空位
@@ -24037,8 +24043,7 @@ namespace SwimmingScoreboard
                         if (!SgMatch(s.Gender, gender) || s.EventName != eventName) continue;
                         if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                         var sa = s.GetAssignmentForStage(stage);
-                        if ((sa != null && sa.Heat == maxHeat) || (s.CurrentStage == stage && s.Heat == maxHeat))
-                            lastHeatCount++;
+                        if (sa != null && sa.Heat == maxHeat) lastHeatCount++;
                     }
                 }
 
@@ -32754,15 +32759,14 @@ namespace SwimmingScoreboard
                 foreach (var s in _swimmers) {
                     if (!SgMatch(s.Gender, gender) || s.EventName != eventName) continue;
                     if (!MatchesAgeGroup(s, schedAge)) continue;
-                    // 优先从StageAssignments获取
+                    // 2026-10-08 用户要求全系统排查同类问题后发现: 这里"兼容旧数据"的
+                    // 顶层字段兜底是同一个坑——这份是正式成绩册/日程导出用的名单,
+                    // 混进别的并列子项目(同 EventName 不同性别)的人会直接印到正式文档
+                    // 里。StageAssignment 本身已是权威记录(20+ 处分组路径都写它),
+                    // 没有就是真不属于这组, 不再退回顶层字段瞎猜。
                     var sa = s.GetAssignmentForStage(stage);
                     if (sa != null && sa.Heat > 0) {
                         assigned.Add(Tuple.Create(s, sa.Heat, sa.Lane, sa.EntryTime ?? s.EntryTime ?? ""));
-                        continue;
-                    }
-                    // 兼容旧数据
-                    if (s.CurrentStage == stage && s.Heat > 0) {
-                        assigned.Add(Tuple.Create(s, s.Heat, s.Lane, s.EntryTime ?? ""));
                     }
                 }
 
