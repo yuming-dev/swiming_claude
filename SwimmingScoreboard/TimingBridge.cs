@@ -208,7 +208,7 @@ namespace SwimmingScoreboard
 
         public TimingBridge() {
             ConnectionMode = TimingConnectionMode.None;
-            StatusText = "未连接";
+            StatusText = Loc.T("Str_Timing_StatusNotConnected");
             // 默认1:1映射
             for (int i = 0; i < 20; i++) _moduleToLane[i] = i;
         }
@@ -230,14 +230,14 @@ namespace SwimmingScoreboard
 
                 ConnectionMode = TimingConnectionMode.SerialPort;
                 IsConnected = true;
-                StatusText = string.Format("串口已连接: {0} @ {1}", portName, baudRate);
+                StatusText = Loc.F("Str_Timing_StatusSerialConnectedFmt", portName, baudRate);
                 RaiseStatus(StatusText);
 
                 _running = true;
                 _receiveThread = new Thread(SerialReceiveLoop) { IsBackground = true, Name = "TimingSerial" };
                 _receiveThread.Start();
             } catch (Exception ex) {
-                StatusText = "串口连接失败: " + ex.Message;
+                StatusText = Loc.F("Str_Timing_StatusSerialConnectFailedFmt", ex.Message);
                 RaiseStatus(StatusText);
                 RaiseLog("串口连接错误: " + ex.Message);
             }
@@ -253,16 +253,36 @@ namespace SwimmingScoreboard
 
                 ConnectionMode = TimingConnectionMode.TcpClient;
                 IsConnected = true;
-                StatusText = string.Format("TCP已连接: {0}:{1}", host, port);
+                StatusText = Loc.F("Str_Timing_StatusTcpConnectedFmt", host, port);
                 RaiseStatus(StatusText);
 
                 _running = true;
                 _receiveThread = new Thread(TcpReceiveLoop) { IsBackground = true, Name = "TimingTcp" };
                 _receiveThread.Start();
             } catch (Exception ex) {
-                StatusText = "TCP连接失败: " + ex.Message;
+                StatusText = Loc.F("Str_Timing_StatusTcpConnectFailedFmt", LocalizedExceptionMessage(ex));
                 RaiseStatus(StatusText);
                 RaiseLog("TCP连接错误: " + ex.Message);
+            }
+        }
+
+        // 2026-10-08 用户反馈: 英文界面下这行状态还是中文——"TCP连接失败: " 这个前缀
+        // 本身已经改走 Loc 了, 但后面拼的 ex.Message 对 SocketException 来说是 Windows
+        // 自己的 FormatMessage 翻出来的(受操作系统装没装对应语言包控制, 不受本程序的
+        // CurrentUICulture 设置影响——哪怕设了也不一定生效)。这里挑几个计时硬件连接
+        // 最常撞到的错误码(连接被拒绝/超时/网络不可达等), 自己给一份双语文案, 不依赖
+        // 操作系统翻译; 没覆盖到的生僻错误码照旧用 ex.Message 兜底。
+        private static string LocalizedExceptionMessage(Exception ex) {
+            var se = ex as SocketException ?? ex.InnerException as SocketException;
+            if (se == null) return ex.Message;
+            switch (se.SocketErrorCode) {
+                case SocketError.ConnectionRefused: return Loc.T("Str_Timing_SockErr_ConnectionRefused");
+                case SocketError.TimedOut: return Loc.T("Str_Timing_SockErr_TimedOut");
+                case SocketError.HostUnreachable: return Loc.T("Str_Timing_SockErr_HostUnreachable");
+                case SocketError.NetworkUnreachable: return Loc.T("Str_Timing_SockErr_NetworkUnreachable");
+                case SocketError.AddressAlreadyInUse: return Loc.T("Str_Timing_SockErr_AddressInUse");
+                case SocketError.AccessDenied: return Loc.T("Str_Timing_SockErr_AccessDenied");
+                default: return ex.Message;
             }
         }
 
@@ -278,7 +298,7 @@ namespace SwimmingScoreboard
             _udpClient = null;
             ConnectionMode = TimingConnectionMode.None;
             IsConnected = false;
-            StatusText = "未连接";
+            StatusText = Loc.T("Str_Timing_StatusNotConnected");
         }
 
         // ═══════ UDP监听 ═══════
@@ -293,16 +313,16 @@ namespace SwimmingScoreboard
                 ConnectionMode = TimingConnectionMode.UdpListener;
                 IsConnected = true;
                 if (_udpSendTarget != null)
-                    StatusText = string.Format("UDP: 收←{0} 发→{1}:{2}", listenPort, sendHost, sendPort);
+                    StatusText = Loc.F("Str_Timing_StatusUdpBothFmt", listenPort, sendHost, sendPort);
                 else
-                    StatusText = string.Format("UDP监听中: 端口 {0}", listenPort);
+                    StatusText = Loc.F("Str_Timing_StatusUdpListeningFmt", listenPort);
                 RaiseStatus(StatusText);
 
                 _running = true;
                 _receiveThread = new Thread(UdpReceiveLoop) { IsBackground = true, Name = "TimingUdp" };
                 _receiveThread.Start();
             } catch (Exception ex) {
-                StatusText = "UDP监听失败: " + ex.Message;
+                StatusText = Loc.F("Str_Timing_StatusUdpListenFailedFmt", LocalizedExceptionMessage(ex));
                 RaiseStatus(StatusText);
                 RaiseLog("UDP监听错误: " + ex.Message);
             }
@@ -324,7 +344,7 @@ namespace SwimmingScoreboard
             }
 
             IsConnected = false;
-            StatusText = "UDP已停止";
+            StatusText = Loc.T("Str_Timing_StatusUdpStopped");
             RaiseStatus(StatusText);
         }
 
@@ -350,7 +370,7 @@ namespace SwimmingScoreboard
             }
 
             IsConnected = false;
-            StatusText = "串口已断开";
+            StatusText = Loc.T("Str_Timing_StatusSerialDisconnected");
             RaiseStatus(StatusText);
         }
 
@@ -371,7 +391,7 @@ namespace SwimmingScoreboard
             }
 
             IsConnected = false;
-            StatusText = "TCP已断开";
+            StatusText = Loc.T("Str_Timing_StatusTcpDisconnected");
             RaiseStatus(StatusText);
         }
 
