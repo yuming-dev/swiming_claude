@@ -5052,6 +5052,22 @@ namespace SwimmingScoreboard
         //   · 完全没有分组记录 → 才退回顶层 CurrentStage/Heat, 兼容老档案。
         //
         // 返回按泳道排好的名单; 泳道相同(异常数据)按姓名兜底, 保证任何调用方顺序一致。
+        // 2026-10-08 用户明确要求(一次性从根本解决): "分组表是编排记录裁判进行编排、
+        //   分组，经裁判长确认后的正式比赛文件，必须按此来比赛"——大屏/检录/计时控制
+        //   这几处"这一组有谁"要直接查分组表数据库(heat_entries), 不再各自对着内存
+        //   算一遍。GetHeatEntries() 是全系统这个问题唯一的入口(20+ 处调用), 改这一处
+        //   全部跟着对。
+        //
+        //   库里查得到就按库的来(GetHeatRosterFromDb, 按【姓名+单位】认人——这两项是
+        //   运动员身份, 不像道次那样会因为旧分组残留而撞车, ApplyHeatFromDb 那条已有
+        //   的回读路径按道次认是因为它假定内存已经选对了人, 这里恰恰是要靠身份去纠正
+        //   内存可能选错的人, 不能用同一个假设)。配上后顺手用 SetStageAssignment 把
+        //   内存这份"赛次分组记录"刷成跟库一致, 后续 LaneOfStage/BuildSwimmerPayload
+        //   等等不用另外改一遍, 读到的已经是库的权威值。
+        //
+        //   库里查不到(这个赛次还没分组过 / meetDb 还没打开 / 单机测试没建过库)时退回
+        //   内存那条路径兜底(同样已改成只认 StageAssignment, 不退回顶层字段瞎猜)——
+        //   保底，不是把"库查不到"当"真没人"处理。
         private List<Swimmer> GetHeatEntries(string ageGroup, string gender, string eventName, string stage, int heat) {
             var list = new List<Swimmer>();
             if (string.IsNullOrEmpty(eventName) || heat <= 0) return list;
@@ -5059,22 +5075,15 @@ namespace SwimmingScoreboard
             bool isRelay = eventName.Contains("接力");
             bool hasMixed = HasExplicitMixedEntry(eventName, ageGroup);
 
+            var dbList = GetHeatRosterFromDb(ageGroup, gender, eventName, stage, heat, isRelay, hasMixed);
+            if (dbList != null) return dbList;
+
             foreach (var s in _swimmers) {
                 if (s.EventName != eventName) continue;
                 if (!GenderMatchEx(s.Gender, gender, hasMixed)) continue;
                 if (!MatchesAgeGroup(s, ageGroup)) continue;
                 if (isRelay && IsRelayMemberNote(s.Notes)) continue;   // 接力只取代表队条目
 
-                // 2026-10-08 现场反馈: 大屏接力项目出现两个"3道"、其中一队("张掖市")根本
-                //   不在分组表里——根因就是这里 sa==null 时退回 s.CurrentStage/s.Heat/s.Lane
-                //   这三个"顶层字段"兜底。StageAssignment 是"赛次分组记录（保存每个赛次的
-                //   分组/泳道分配，不会被后续赛次覆盖）"(见 Swimmer.cs 类注释)——真正分组过
-                //   的运动员/接力队, SetStageAssignment 一定会写一条, 20+ 处分组/调整/导入
-                //   代码路径全部经这一个方法落地, 没有例外。顶层 CurrentStage/Heat/Lane 只是
-                //   "最后一次"的单值快照, 一个运动员报了预赛+决赛两个赛次时这三个字段只能
-                //   记一份, 旧赛次/旧分组的残留值很容易被误判成"属于当前这组"。
-                //   改成跟用户要求的一致: 分组表(StageAssignment)说了算, 没有就不算这组的——
-                //   不再用顶层字段去猜。
                 var sa = s.GetAssignmentForStage(stage);
                 if (sa == null || sa.Heat != heat) continue;
                 list.Add(s);
@@ -5086,6 +5095,51 @@ namespace SwimmingScoreboard
                 return string.Compare(a.Name ?? "", b.Name ?? "", StringComparison.Ordinal);
             });
             return list;
+        }
+
+        // 查分组表(heat_entries)拿这一组的权威名单。返回 null = 库里查不到(调用方退回
+        // 内存兜底); 返回空列表 = 库里查到了但这一组确实没人(替补除外, 替补不站道)。
+        private List<Swimmer> GetHeatRosterFromDb(string ageGroup, string gender, string eventName, string stage,
+                                                    int heat, bool isRelay, bool hasMixed) {
+            if (_meetDb == null) return null;
+            List<SwimmingScoreboard.Db.LaneRow> dbRows;
+            try { dbRows = _meetDb.ReadBackHeat(ageGroup, gender, eventName, stage, heat); }
+            catch { return null; }
+            if (dbRows == null || dbRows.Count == 0) return null;
+
+            // 候选集合: 跟内存兜底那条路一样的项目/性别/组别过滤, 只是不再用道次/StageAssignment
+            // 去判"算不算这组的"——这件事交给上面查出来的 dbRows, 候选集合只用来"按身份
+            // (姓名+单位)在内存里找到具体是哪个对象"。
+            var candidates = new List<Swimmer>();
+            foreach (var s in _swimmers) {
+                if (s.EventName != eventName) continue;
+                if (!GenderMatchEx(s.Gender, gender, hasMixed)) continue;
+                if (!MatchesAgeGroup(s, ageGroup)) continue;
+                if (isRelay && IsRelayMemberNote(s.Notes)) continue;
+                candidates.Add(s);
+            }
+
+            var list = new List<Swimmer>();
+            int laneRowCount = 0;
+            foreach (var row in dbRows) {
+                if (row.Lane == null) continue;   // 替补没有道次, 不站道, 大屏/检录都不该列进泳道表
+                laneRowCount++;
+                Swimmer sw = row.IsRelay
+                    ? candidates.FirstOrDefault(s => s.Country == row.Name)
+                    : candidates.FirstOrDefault(s => s.Name == row.Name
+                        && (string.IsNullOrEmpty(row.UnitName) || s.Country == row.UnitName));
+                if (sw == null) continue;   // 库里有这一行但内存里配不上号(改名/换单位之类)——跳过这一道, 不是整组放弃
+                // 库里的赛次/组次/道次是权威值——写回内存这份"赛次分组记录", 后面
+                // LaneOfStage/BuildSwimmerPayload 等照常读 StageAssignment 就行, 不用
+                // 再对着 LaneRow 另开一套字段。
+                sw.SetStageAssignment(stage, row.Heat ?? heat, row.Lane.Value, row.SeedTimeSeconds, row.SeedTime);
+                list.Add(sw);
+            }
+            // 库里明明有站道的行, 但一个都没在内存里配上号(姓名/单位跟内存对不上这种
+            // 数据不一致的极端情况)——这不是"这组真没人", 是配对失败, 退回内存兜底,
+            // 别让大屏显示空白。library 有行且至少配上一个时才信这份结果。
+            if (laneRowCount > 0 && list.Count == 0) return null;
+            return list;   // 已经是 dbRows 按道次排好的顺序(ORDER BY 道次), 不用再排一次
         }
 
         // 该赛次的泳道号: 有分组记录用分组记录的, 否则用顶层字段
@@ -5304,14 +5358,10 @@ namespace SwimmingScoreboard
                 if (!confirmed && stage == _currentStage && h == _currentHeat && _resultConfirmed) confirmed = true;
                 if (!confirmed) continue;
                 // 2026-10-08 用户明确要求: 总排名(大屏/颁奖回放都读这个方法)一律以分组表
-                // (StageAssignment)为准, 不再退回顶层字段猜——同 GetHeatEntries() 那处修复。
-                foreach (var s in _swimmers) {
-                    if (s.EventName != eventName || !SgMatch(s.Gender, gender)) continue;
-                    if (!MatchesAgeGroup(s, ageGroup)) continue;
-                    if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
-                    var sa = s.GetAssignmentForStage(stage);
-                    if (sa != null && sa.Heat == h) stageSwimmers.Add(s);
-                }
+                // 数据库为准, 不再自己重算谁在这一组——改成直接调 GetHeatEntries() (唯一
+                // 权威入口, 已经是先查 heat_entries 库、查不到才退回内存 StageAssignment),
+                // 不再在这里另开一份名单判定逻辑(两处各算一次正是用户点名的根因)。
+                stageSwimmers.AddRange(GetHeatEntries(ageGroup ?? "", gender, eventName, stage, h));
             }
             var ranked = new List<object>();
             var withTimes = stageSwimmers.Where(s => {
@@ -13607,20 +13657,10 @@ namespace SwimmingScoreboard
 
         private string HeatStatus(string ageGroup, string gender, string eventName, string stage, int heat) {
             if (IsHeatTrulyConfirmed(ageGroup, gender, eventName, stage, heat)) return "confirmed";
-            bool isRelay = eventName != null && eventName.Contains("接力");
-            var heatSwimmers = _swimmers.Where(s =>
-                SgMatch(s.Gender, gender) && s.EventName == eventName &&
-                MatchesAgeGroup(s, ageGroup) &&
-                !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
-            ).ToList();
-            // 2026-10-08 用户明确要求: 判断"这组有谁"一律以分组表(StageAssignment)为准,
-            // 不再退回顶层字段猜——同 GetHeatEntries() 那处修复, 这两处(HeatStatus/
-            // IsHeatConfirmedFast)直接影响大屏/总排名/赛程导航树判断一组算不算"已确认"。
-            var inHeat = new List<Swimmer>();
-            foreach (var s in heatSwimmers) {
-                var sa = s.GetAssignmentForStage(stage);
-                if (sa != null && sa.Heat == heat) inHeat.Add(s);
-            }
+            // 2026-10-08 用户明确要求: 判断"这组有谁"一律调分组表唯一入口 GetHeatEntries()
+            // (先查 heat_entries 数据库, 查不到才退回内存 StageAssignment)——不再在这里
+            // 自己另开一份"谁在这组"的判定逻辑, 两处各算一次正是用户点名的根因。
+            var inHeat = GetHeatEntries(ageGroup, gender, eventName, stage, heat);
             if (inHeat.Count == 0) return "pending";
             // 全部 DNS/DNF/DSQ → 已取消
             bool allCancelled = inHeat.All(s => s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ" || s.Status == "SCR");
@@ -14041,9 +14081,14 @@ namespace SwimmingScoreboard
                 !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
 
-            // 2026-10-08 用户明确要求: 判断"这组有谁"一律以分组表(StageAssignment)为准,
-            // 不再退回顶层字段猜——同 GetHeatEntries() 那处修复, 这两处(HeatStatus/
-            // IsHeatConfirmedFast)直接影响大屏/总排名/赛程导航树判断一组算不算"已确认"。
+            // 2026-10-08 用户明确要求: 判断"这组有谁"一律以分组表为准, 不再退回顶层字段猜。
+            // 这里特意不改成调 GetHeatEntries()(它会先查 heat_entries 数据库)——本方法
+            // 是赛程导航树状态刷新的性能特化版(swIdx 预索引 + 对全部项目全部组逐组调用,
+            // 一次刷新可能跑上百次), 真去查库会把这条热路径变成"每组一次 SQL"。
+            // StageAssignment 本身已经是权威记录(20 处分组/改组路径全都会写它), 保留
+            // "sa != null && sa.Heat == heat"这条已修好的严格判定就足够正确, 只是不再
+            // 多绕一次数据库——GetHeatEntries 侧的 DB 校验已经覆盖了显示/排名这些真正
+            // 需要防"内存脏了也不知道"的地方。
             var inHeat = new List<Swimmer>();
             foreach (var s in heatSwimmers) {
                 var sa = s.GetAssignmentForStage(stage);
@@ -24461,18 +24506,14 @@ namespace SwimmingScoreboard
                 && (string.IsNullOrEmpty(ageGroup) || (s.AgeGroup ?? "") == ageGroup));
             int heatCount = schedItem != null ? schedItem.HeatCount : 1;
 
-            foreach (var s in _swimmers) {
-                if (!SgMatch(s.Gender, gender) || s.EventName != eventName) continue;
-                // 2026-06-16 按组别筛选 — 跨组别同 (gender,event,stage,heat) 不应混在一起
-                if (!string.IsNullOrEmpty(ageGroup) && (s.AgeCategory ?? "") != ageGroup) continue;
-                // 2026-10-08 用户明确要求: 发布到大屏的成绩(不分个人/接力)一律以分组表
-                // (StageAssignment)为准, 不再退回 s.CurrentStage/s.Heat 这几个顶层字段猜——
-                // 原理同 GetHeatEntries() 那处修复, 见那边的详细说明。
+            // 2026-10-08 用户明确要求: 发布到大屏的成绩(不分个人/接力)一律以分组表数据库
+            // 为准——改成直接调 GetHeatEntries()(唯一权威入口: 先查 heat_entries 库,
+            // 查不到才退回内存 StageAssignment), 不再在这里自己另开一份"谁在这组"的
+            // 判定逻辑, 两处各算一次正是用户点名的根因。
+            foreach (var s in GetHeatEntries(ageGroup, gender, eventName, stage, heat)) {
                 var sa = s.GetAssignmentForStage(stage);
-                if (sa == null || sa.Heat != heat) continue;
-                if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 var r = s.GetResultForStage(stage);
-                int lane = sa.Lane;
+                int lane = sa != null ? sa.Lane : s.Lane;
                 // 接力项目：name显示队员姓名
                 string dispName = s.Name ?? "";
                 if (eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")) {
