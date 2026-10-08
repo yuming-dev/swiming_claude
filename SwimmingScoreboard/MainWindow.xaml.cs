@@ -13170,7 +13170,12 @@ namespace SwimmingScoreboard
         private void ScheduleMeetDbSyncFromPatch() {
             try {
                 if (_meetDbSyncDebounceTimer == null) {
-                    _meetDbSyncDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+                    // 2026-10-08 用户明确要求缩短: 2 秒太长——分组表数据库现在是检录/
+                    //   大屏/总排名等的直接显示来源(不再退回内存比较), 修改后数据库
+                    //   多久才更新, 这些地方就有多久看不到最新分组。缩到 0.5 秒, 仍然
+                    //   够合并同一次连续编辑动作(比如一次拖拽调整发出的好几条补丁),
+                    //   但不会让看数据库的人等太久。
+                    _meetDbSyncDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(0.5) };
                     _meetDbSyncDebounceTimer.Tick += MeetDbSyncDebounceTick;
                 }
                 _meetDbSyncDebounceTimer.Stop();
