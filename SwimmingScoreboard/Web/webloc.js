@@ -920,6 +920,10 @@ var WebLoc = (function () {
 
     return {
         table: table, t: t, f: f, apply: apply, toggle: toggle, currentLang: currentLang,
-        genderDisplay: genderDisplay, stageDisplay: stageDisplay
+        genderDisplay: genderDisplay, stageDisplay: stageDisplay,
+        // 2026-10-08 display.html 专用: 跟主服务器广播的 data.lang 同步(大屏是纯展示给观众看的,
+        // 不该有自己的语言主张)。原来 setLang 只在闭包内部用, 这里额外导出, 不改 toggle() 本身
+        // (query/register 等其它网页的"自己选语言"行为不受影响)。
+        setLang: setLang
     };
 })();

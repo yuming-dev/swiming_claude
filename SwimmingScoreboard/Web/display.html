@@ -1066,6 +1066,23 @@ function checkPageVer(serverVer) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
         if (msg.data && msg.data.webAssetVersion) checkPageVer(msg.data.webAssetVersion);
+        // 2026-10-08 现场反馈: 主服务器切到 English 后大屏还是中文——大屏是纯展示给观众看的,
+        //   不该像 query.html/register.html 那样保留"自己选的语言", 应该始终跟主服务器当前
+        //   语言一致。两条路都会带语言过来: 常规状态广播里的 data.lang(见 GetStatusData/
+        //   DisplayCommon, 下一次有数据变化才会带新值过去), 以及语言按钮一按立刻单独推的
+        //   LANGUAGE_SYNC(见 BroadcastLanguageSync, 这条消息的 lang 在顶层不在 data 里)——
+        //   两种消息形状都认, 不管哪条先到都立刻跟上。
+        var _pushedLang = (msg.data && msg.data.lang) || msg.lang;
+        if (_pushedLang && _pushedLang !== WebLoc.currentLang()) {
+            WebLoc.setLang(_pushedLang);
+            WebLoc.apply();
+            // 2026-10-08 WebLoc.apply() 只管 data-i18n 静态元素(+ 调 onWebLocApplied 重建设置
+            // 面板)——比赛视图/组成绩等表头是 renderRace()/renderHeatResult() 等现拼 innerHTML,
+            // 只有真来一帧新数据(SHOW_LIVE_RACE 等)才会被重新调用。语言单独切换时(比如比赛
+            // 正打到一半没有新的 SHOW_* 消息)不会触发这些函数, 表头就会停在切换前的语言不动。
+            // 拿现有 data/currentMode 强制重画一次当前视图, 不用等下一帧数据。
+            try { render(); } catch (eRenderLang) {}
+        }
         // 硬件 0.1s 节拍的轻量滚动时间帧 — 只更新右上角时间，不重渲染整页
         if (msg.type === 'RUNNING_TIME_UPDATE') {
             if (msg.data && typeof msg.data.runningTime === 'string') {
@@ -1509,16 +1526,20 @@ function _setRaceHeader() {
     var lc = getLaneCount();
     var fs = lc <= 8 ? 'calc(3.5vh * var(--fs) * var(--fs-header))' : 'calc(2.9vh * var(--fs) * var(--fs-header))';
     var relay = isRelayEvent();
-    var c1 = relay ? '代表队' : '姓名', f1 = relay ? 6 : 11;
-    var c2 = relay ? '姓名' : '代表队', f2 = relay ? 28 : 9;
+    // 2026-10-08 现场反馈: 大屏切到 English 后比赛视图的表头(道次/名次/姓名/代表队/组别/
+    //   成绩/备注)还是中文——这几行是每次渲染现拼 innerHTML 的字符串, 原来直接写死中文,
+    //   根本没走 WebLoc.t(), 跟静态 HTML 里那份(data-i18n, 只在没数据时的占位态显示)是
+    //   两处独立的文案, 后者翻了前者没翻。改成跟静态占位态一样查 WebLoc.t()。
+    var c1 = relay ? WebLoc.t('Str_Display_ColTeam') : WebLoc.t('Str_Display_ColName'), f1 = relay ? 6 : 11;
+    var c2 = relay ? WebLoc.t('Str_Display_ColName') : WebLoc.t('Str_Display_ColTeam'), f2 = relay ? 28 : 9;
     var html =
-        '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-        '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
+        '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+WebLoc.t('Str_Display_ColLane')+'</div>' +
+        '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+WebLoc.t('Str_Display_ColRank')+'</div>' +
         '<div style="flex:'+f1+';min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+c1+'</div>' +
         '<div style="flex:'+f2+';min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+c2+'</div>' +
-        '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">组别</div>' +
-        '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">成绩</div>' +
-        '<div style="flex:7;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
+        '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+WebLoc.t('Str_Display_ColAgeGroup')+'</div>' +
+        '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+WebLoc.t('Str_Display_ColResult')+'</div>' +
+        '<div style="flex:7;min-width:0;text-align:center;font-size:'+fs+';">'+WebLoc.t('Str_Display_ColRemark')+'</div>';
     if (header.innerHTML !== html) header.innerHTML = html;
 }
 
@@ -2279,22 +2300,23 @@ function renderPublishedResult(pubData) {
 
     // 成绩排名表头
     // 2026-06-04 与 比赛视图 同款 7 列 flex (加 组别), 与 renderHeatResult 同款
-    var pubRelay = (pubData.eventName||'').indexOf('接力') >= 0;
+    var pubRelay = (pubData.eventName || '').indexOf('接力') >= 0;
     var pf1 = pubRelay ? 6 : 11;
     var pf2 = pubRelay ? 28 : 9;
-    var ph1 = pubRelay ? '代表队' : '姓名';
-    var ph2 = pubRelay ? '姓名' : '代表队';
+    var ph1 = pubRelay ? WebLoc.t('Str_Display_ColTeam') : WebLoc.t('Str_Display_ColName');
+    var ph2 = pubRelay ? WebLoc.t('Str_Display_ColName') : WebLoc.t('Str_Display_ColTeam');
     var header = document.querySelector('.lanes-header');
     if (header) {
         // 2026-06-14 成绩发布 表头: 名次在最前, 其余同比赛视图: 名次 → 道次 → 姓名 → 代表队 → 组别 → 成绩 → 备注
+        // 2026-10-08 同 updateRaceHeader 那处——这里原来也是写死中文, 没走 WebLoc.t()。
         header.innerHTML =
-            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">名次</div>' +
-            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
+            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">'+WebLoc.t('Str_Display_ColRank')+'</div>' +
+            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">'+WebLoc.t('Str_Display_ColLane')+'</div>' +
             '<div style="flex:' + pf1 + ';min-width:0;text-align:center;margin-right:1vw;">' + ph1 + '</div>' +
             '<div style="flex:' + pf2 + ';min-width:0;text-align:center;margin-right:1vw;">' + ph2 + '</div>' +
-            '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">组别</div>' +
-            '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;">成绩</div>' +
-            '<div style="flex:7;min-width:0;text-align:center;">备注</div>';
+            '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">'+WebLoc.t('Str_Display_ColAgeGroup')+'</div>' +
+            '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;">'+WebLoc.t('Str_Display_ColResult')+'</div>' +
+            '<div style="flex:7;min-width:0;text-align:center;">'+WebLoc.t('Str_Display_ColRemark')+'</div>';
     }
 
     // 同样过滤掉空泳道占位条目

@@ -4567,6 +4567,12 @@ namespace SwimmingScoreboard
 
             return new {
                 staticOmitted = staticOmitted,
+                // 2026-10-08 现场反馈: 主服务器切到 English 后, display.html(大屏)还是中文——
+                //   网页端(webloc.js)原来是各自独立的 localStorage 语言选择, 故意不被服务器
+                //   权威语言覆盖(给 query.html/register.html 等"操作员自己的工具"保留个人偏好
+                //   是对的), 但大屏是纯展示给观众看的, 应该始终跟着当前赛事用的语言走, 不该
+                //   自己另有主张。带上当前权威语言, display.html 收到后跟 webloc.js 同步。
+                lang = Loc.CurrentLanguage,
                 webAssetVersion = WEB_ASSET_VERSION,   // 2026-09-13 页面版本对不上时自查用
                 competitionName = _competitionName,
                 competitionMode = _competitionMode,
@@ -4940,6 +4946,10 @@ namespace SwimmingScoreboard
         /// </summary>
         private Dictionary<string, object> DisplayCommon() {
             return new Dictionary<string, object> {
+                // 2026-10-08 大屏跟着主服务器当前语言走 (见 GetStatusData 同一条说明)——
+                //   这里才是 display.html 实际收到的那条路(BuildDisplayPayload/DisplayCommon),
+                //   GetStatusData 那边的 lang 字段只有走整包兜底时才会被 display.html 用到。
+                { "lang", Loc.CurrentLanguage },
                 { "webAssetVersion", WEB_ASSET_VERSION },   // 2026-09-13 页面版本对不上时自查用
                 { "competitionName", _competitionName },
                 { "resultConfirmed", _resultConfirmed },
@@ -5055,12 +5065,18 @@ namespace SwimmingScoreboard
                 if (!MatchesAgeGroup(s, ageGroup)) continue;
                 if (isRelay && IsRelayMemberNote(s.Notes)) continue;   // 接力只取代表队条目
 
+                // 2026-10-08 现场反馈: 大屏接力项目出现两个"3道"、其中一队("张掖市")根本
+                //   不在分组表里——根因就是这里 sa==null 时退回 s.CurrentStage/s.Heat/s.Lane
+                //   这三个"顶层字段"兜底。StageAssignment 是"赛次分组记录（保存每个赛次的
+                //   分组/泳道分配，不会被后续赛次覆盖）"(见 Swimmer.cs 类注释)——真正分组过
+                //   的运动员/接力队, SetStageAssignment 一定会写一条, 20+ 处分组/调整/导入
+                //   代码路径全部经这一个方法落地, 没有例外。顶层 CurrentStage/Heat/Lane 只是
+                //   "最后一次"的单值快照, 一个运动员报了预赛+决赛两个赛次时这三个字段只能
+                //   记一份, 旧赛次/旧分组的残留值很容易被误判成"属于当前这组"。
+                //   改成跟用户要求的一致: 分组表(StageAssignment)说了算, 没有就不算这组的——
+                //   不再用顶层字段去猜。
                 var sa = s.GetAssignmentForStage(stage);
-                if (sa != null) {
-                    if (sa.Heat != heat) continue;                     // 分组记录说了算
-                } else {
-                    if (s.CurrentStage != stage || s.Heat != heat) continue;
-                }
+                if (sa == null || sa.Heat != heat) continue;
                 list.Add(s);
             }
 
@@ -24916,7 +24932,12 @@ namespace SwimmingScoreboard
         /// (_registrationToolSockets)、RemoteDisplayControl.exe(_rdcSockets)。故意不对
         /// _editorSockets/_registerSockets/_displayControlSockets 整体广播——那几个列表混着
         /// query.html/register.html/control.html 这些网页端, 网页端已经有自己独立的 localStorage
-        /// 语言选择(第十二阶段 webloc.js), 不该被服务器权威语言覆盖。</summary>
+        /// 语言选择(第十二阶段 webloc.js), 不该被服务器权威语言覆盖。
+        /// 2026-10-08 _displaySockets(display.html, 大屏) 是这条规则唯一的例外——用户明确要求
+        /// 大屏不该有自己的语言主张, 必须跟主服务器当前语言一致。常规状态广播里也带了 lang
+        /// 字段(GetStatusData/DisplayCommon), 但那条路只在"下一次有数据变化"时才会把新语言
+        /// 带过去; 这里额外立刻推一次, 不用等——否则切语言按钮点下去, 大屏要等到下次比赛/
+        /// 状态变化才会跟着变, 现场体验是"按了跟没按一样"。</summary>
         private void BroadcastLanguageSync() {
             try {
                 string json = BuildLanguageSyncJson();
@@ -24924,6 +24945,7 @@ namespace SwimmingScoreboard
                     .Concat(_timingExeSockets)
                     .Concat(_registrationToolSockets)
                     .Concat(_rdcSockets)
+                    .Concat(_displaySockets)
                     .Distinct().ToList();
                 foreach (var s in targets) EnqueueToSocket(s, json);
             } catch { }
