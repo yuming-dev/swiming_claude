@@ -10915,7 +10915,12 @@ namespace SwimmingScoreboard
         /// 2026-05-27 加 ageGroup 参数, 只晋级该组的运动员; 之前混合所有组的 bug 已修.
         /// </summary>
         private void ExecutePromotion(string ageGroup, string gender, string eventName, string fromStage, string nextStage, int promoCount) {
-            var filtered = _swimmers.Where(s => SgMatch(s.Gender, gender) && s.EventName == eventName
+            // 2026-10-08 用户要求全系统排查同类问题后发现: SgMatch 靠全局缓存判断
+            // "是不是混合接力", 跟本项目自己的真实情况可能脱节——晋级是会实际写新
+            // 分组数据的操作, 筛错人会把别的并列子项目的运动员晋级进下一轮。改用
+            // 本项目+本组别精确判定。
+            bool hasMixedPromo = HasExplicitMixedEntry(eventName, ageGroup);
+            var filtered = _swimmers.Where(s => GenderMatchEx(s.Gender, gender, hasMixedPromo) && s.EventName == eventName
                                                 && MatchesAgeGroup(s, ageGroup)).ToList();
             var promoted = HeatScheduler.GetPromotedSwimmers(filtered, eventName, fromStage, promoCount);
 
@@ -17106,8 +17111,13 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_RejectCancelPromotionFmt", Loc.GenderDisplay(gender), evName, Loc.StageDisplay(stage), lockedH, lockedW));
                 return;
             }
+            // 2026-10-08 用户要求全系统排查同类问题后发现: SgMatch 靠全局缓存判断
+            // "是不是混合接力", 跟本项目自己的真实情况可能脱节——这里是真的会删
+            // StageAssignment 的操作, 筛错人会把别的并列子项目运动员的分组记录
+            // 一起删掉。改用本项目+本组别精确判定。
+            bool hasMixedCancelPromo = HasExplicitMixedEntry(evName, ageGroup);
             int removed = 0;
-            foreach (var sw in _swimmers.Where(s => SgMatch(s.Gender, gender) && s.EventName == evName
+            foreach (var sw in _swimmers.Where(s => GenderMatchEx(s.Gender, gender, hasMixedCancelPromo) && s.EventName == evName
                     && (string.IsNullOrEmpty(ageGroup) || (s.AgeCategory ?? "") == ageGroup))) {
                 if (sw.StageAssignments != null && sw.StageAssignments.ContainsKey(stage)) {
                     sw.StageAssignments.Remove(stage);
@@ -31025,14 +31035,17 @@ namespace SwimmingScoreboard
                 if (!evtMap.TryGetValue((gender ?? "") + "|" + (ev ?? "") + "|" + (ageGroup ?? ""), out evNo))
                     evtMap.TryGetValue((gender ?? "") + "|" + (ev ?? ""), out evNo);
                 string period = ParseSessionPeriod(schedItem.Time);
+                // 2026-10-08 用户要求全系统排查同类问题后发现: 这是分组表 Excel 导出(正式
+                // 文档), SgMatch 的全局缓存判定 + 顶层字段兜底, 两个都是已经出过事的坑——
+                // 改成本项目精确判定 + 只认 StageAssignment。
+                bool hasMixedExcel = HasExplicitMixedEntry(ev, ageGroup);
                 foreach (var s in _swimmers) {
-                    if (!SgMatch(s.Gender, gender) || s.EventName != ev) continue;
+                    if (!GenderMatchEx(s.Gender, gender, hasMixedExcel) || s.EventName != ev) continue;
                     if (!MatchesAgeGroup(s, ageGroup)) continue;
                     if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
                     var sa = s.GetAssignmentForStage(stage);
                     int h = 0, ln = 0; string seed = "";
                     if (sa != null && sa.Heat > 0) { h = sa.Heat; ln = sa.Lane; seed = sa.EntryTime ?? s.EntryTime ?? ""; }
-                    else if (s.CurrentStage == stage && s.Heat > 0) { h = s.Heat; ln = s.Lane; seed = s.EntryTime ?? ""; }
                     if (h <= 0) continue;
                     rows.Add(new HeatExcelService.HeatRow {
                         SessionNumber = schedItem.SessionNumber,
@@ -33296,8 +33309,15 @@ namespace SwimmingScoreboard
                     string schedAge = schedItem.AgeGroup ?? "";   // 2026-06-01 同年龄组过滤
                     bool ffRelay = (eventName ?? "").IndexOf("接力", StringComparison.Ordinal) >= 0;
 
+                    // 2026-10-08 用户要求全系统排查同类问题后发现: SgMatch 用的是【全场
+                    // 任意一处有没有混合接力】这个全局缓存(AnyExplicitMixedSwimmer, 按
+                    // _swimmers.Count 变化重算), 不是"这个项目+组别自己有没有混合条目"——
+                    // 跟最初 GetHeatEntries 那处同一类坑, 只是换了个全局缓存当退路。
+                    // 改用按本项目+本组别精确判定的 HasExplicitMixedEntry, 不依赖全局缓存
+                    // 的新鲜度。
+                    bool hasMixedBulletin = HasExplicitMixedEntry(eventName, schedAge);
                     var matched = _swimmers.Where(s =>
-                        SgMatch(s.Gender, gender) && s.EventName == eventName &&
+                        GenderMatchEx(s.Gender, gender, hasMixedBulletin) && s.EventName == eventName &&
                         MatchesAgeGroup(s, schedAge) &&
                         !IsRelayMemberNote(s.Notes) &&
                         s.GetResultForStage(stage) != null
@@ -33666,8 +33686,13 @@ namespace SwimmingScoreboard
             //   【全部】视图那两处的表现一致(那两处的总排名下面就带着 DSQ/DNF/DNS 这几行)。
             //   原来这里连 DSQ/DNF/DNS 也一并过滤掉了, 这几个人在成绩册"名次公告"里直接
             //   消失, 跟另外两处对不上号(用户实拍到)。
+            // 2026-10-08 用户要求全系统排查同类问题后发现: SgMatch 靠全局缓存
+            // (AnyExplicitMixedSwimmer)判断"这项目是不是混合接力", 跟本项目自己的
+            // 真实情况可能脱节(同 GetHeatEntries 那处原始 bug 同一类坑)。这里是
+            // "名次公告"(颁奖/奖牌榜等多处公用), 改用本项目+本组别精确判定。
+            bool hasMixedFinal = HasExplicitMixedEntry(eventName, ageGroup);
             var list = _swimmers
-                .Where(s => SgMatch(s.Gender, gender) && s.EventName == eventName && !IsRelayMemberNote(s.Notes)
+                .Where(s => GenderMatchEx(s.Gender, gender, hasMixedFinal) && s.EventName == eventName && !IsRelayMemberNote(s.Notes)
                             && MatchesAgeGroup(s, ageGroup))
                 .Select(s => new { Swimmer = s, R = s.GetResultForStage("决赛") })
                 .Where(x => x.R != null)
