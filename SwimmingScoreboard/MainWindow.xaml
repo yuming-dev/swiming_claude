@@ -2274,7 +2274,13 @@
                                 <RowDefinition Height="36"/>
                                 <RowDefinition Height="36"/>
                                 <RowDefinition Height="36"/>
-                                <RowDefinition Height="36"/>
+                                <!-- 2026-10-08 状态行改 Auto 高度: 英文的连接失败提示(例如
+                                     "TCP connection failed: No connection could be made
+                                     because the target machine actively refused it")比中文
+                                     长得多, 固定 36 高 + 不换行会被右边的 Disconnect 按钮截断
+                                     看不全(用户截图发现)。配合下面 TimingStatusText 加
+                                     TextWrapping="Wrap", 这一行按内容自动撑高。 -->
+                                <RowDefinition Height="Auto" MinHeight="36"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Str_Settings_SerialPort}" VerticalAlignment="Center"/>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -2297,9 +2303,9 @@
                             <Button Grid.Row="2" Grid.Column="2" Content="{DynamicResource Str_Settings_ListenUdp}" Click="ConnectUdp_Click" Padding="12,4" Margin="8,0,0,0"/>
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Str_Settings_UdpSend}" VerticalAlignment="Center"/>
                             <TextBox x:Name="UdpSendBox" Grid.Row="3" Grid.Column="1" Text="127.0.0.1:5002" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Str_Settings_Status}" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TimingStatusText" Grid.Row="4" Grid.Column="1" Text="{DynamicResource Str_Settings_NotConnected}" VerticalAlignment="Center" Foreground="#EF4444"/>
-                            <Button x:Name="DisconnectTimingButton" Grid.Row="4" Grid.Column="2" Content="{DynamicResource Str_Settings_Disconnect}" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Str_Settings_Status}" VerticalAlignment="Center" Margin="0,6,0,6"/>
+                            <TextBlock x:Name="TimingStatusText" Grid.Row="4" Grid.Column="1" Text="{DynamicResource Str_Settings_NotConnected}" VerticalAlignment="Center" Foreground="#EF4444" TextWrapping="Wrap" Margin="0,6,8,6"/>
+                            <Button x:Name="DisconnectTimingButton" Grid.Row="4" Grid.Column="2" Content="{DynamicResource Str_Settings_Disconnect}" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,6,0,6" VerticalAlignment="Top"/>
                         </Grid>
 
                         <TextBlock Text="{DynamicResource Str_Settings_ChiefJudge}" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
