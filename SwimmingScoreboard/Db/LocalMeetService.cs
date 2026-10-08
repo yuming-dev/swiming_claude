@@ -525,7 +525,7 @@ namespace SwimmingScoreboard.Db
                 Id = L(r,"heat_entry_id"), RoundId = L(r,"round_id"), EntryId = L(r,"entry_id"),
                 EventId = L(r,"event_id"), Heat = NI(r,"组次"), Lane = NI(r,"道次"), ReserveNo = NI(r,"替补号"),
                 Stage = S(r,"赛次"), EvNum = I(r,"项目号"), AgeGroup = S(r,"组别"), Gender = S(r,"性别"),
-                EventName = S(r,"项目"), Name = S(r,"姓名"), UnitName = S(r,"单位"),
+                EventName = S(r,"项目"), Name = S(r,"姓名"), BibNumber = S(r,"参赛号"), UnitName = S(r,"单位"),
                 BirthDate = S(r,"出生日期"), JointUnit = S(r,"联合培养单位"), Coach = S(r,"教练员"),
                 IsRelay = B(r,"是接力"),
                 SeedTime = S(r,"报名成绩"), SeedTimeSeconds = D(r,"seed_time_seconds"),

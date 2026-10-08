@@ -5107,16 +5107,22 @@ namespace SwimmingScoreboard
             catch { return null; }
             if (dbRows == null || dbRows.Count == 0) return null;
 
-            // 候选集合: 跟内存兜底那条路一样的项目/性别/组别过滤, 只是不再用道次/StageAssignment
-            // 去判"算不算这组的"——这件事交给上面查出来的 dbRows, 候选集合只用来"按身份
-            // (姓名+单位)在内存里找到具体是哪个对象"。
-            var candidates = new List<Swimmer>();
+            // 候选集合: 跟内存兜底那条路一样的项目/性别/组别过滤(先把范围圈对, 同一
+            // EventName 下"男"/"男女"这类并列子项目分开, 不互相串)。
+            // 2026-10-08 用户订正: 候选集合内再按【本项目参赛号】(Swimmer.BibNumber,
+            // 对应 entries.bib_number)精确认人——这才是库里/内存两边唯一都认、本来
+            // 就是为"这个项目里是哪一个人"设计的身份键(20+ 处既有代码早就是拿它当
+            // 唯一键用, 见 BibNumber+EventName 的既有用法); 按姓名+单位字符串去猜
+            // (前一版的做法)原理上就可能认错——同名、单位改名都会让库里一条对应
+            // 不上内存任何对象, 或者更糟, 对应到错的对象上。
+            var byBib = new Dictionary<string, Swimmer>();
             foreach (var s in _swimmers) {
                 if (s.EventName != eventName) continue;
                 if (!GenderMatchEx(s.Gender, gender, hasMixed)) continue;
                 if (!MatchesAgeGroup(s, ageGroup)) continue;
                 if (isRelay && IsRelayMemberNote(s.Notes)) continue;
-                candidates.Add(s);
+                if (string.IsNullOrEmpty(s.BibNumber)) continue;
+                if (!byBib.ContainsKey(s.BibNumber)) byBib[s.BibNumber] = s;
             }
 
             var list = new List<Swimmer>();
@@ -5124,11 +5130,9 @@ namespace SwimmingScoreboard
             foreach (var row in dbRows) {
                 if (row.Lane == null) continue;   // 替补没有道次, 不站道, 大屏/检录都不该列进泳道表
                 laneRowCount++;
-                Swimmer sw = row.IsRelay
-                    ? candidates.FirstOrDefault(s => s.Country == row.Name)
-                    : candidates.FirstOrDefault(s => s.Name == row.Name
-                        && (string.IsNullOrEmpty(row.UnitName) || s.Country == row.UnitName));
-                if (sw == null) continue;   // 库里有这一行但内存里配不上号(改名/换单位之类)——跳过这一道, 不是整组放弃
+                Swimmer sw;
+                if (string.IsNullOrEmpty(row.BibNumber) || !byBib.TryGetValue(row.BibNumber, out sw)) continue;
+                // 库里有这一行但内存里按参赛号配不上(号码没同步/老档案缺号)——跳过这一道, 不是整组放弃
                 // 库里的赛次/组次/道次是权威值——写回内存这份"赛次分组记录", 后面
                 // LaneOfStage/BuildSwimmerPayload 等照常读 StageAssignment 就行, 不用
                 // 再对着 LaneRow 另开一套字段。

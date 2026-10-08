@@ -89,6 +89,11 @@ namespace SwimmingScoreboard.Db
         {
             using (var tx = _cn.BeginTransaction())
             {
+                // 2026-10-08 视图不像表那样能 ALTER 加列——"CREATE VIEW IF NOT EXISTS"
+                // 对已经建过的老库永远不会生效, 给 v_startlist 新加的列(比如这次的
+                // 参赛号)老赛事(从开赛那天起就是同一个 meet.db 文件)永远读不到。
+                // 视图不存数据, 每次开库先删了让下面重建, 零风险。
+                Exec("DROP VIEW IF EXISTS v_startlist; DROP VIEW IF EXISTS v_schedule;", tx);
                 Exec(_schemaSql, tx);
                 tx.Commit();
             }

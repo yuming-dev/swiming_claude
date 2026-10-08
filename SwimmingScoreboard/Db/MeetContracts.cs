@@ -201,6 +201,10 @@ namespace SwimmingScoreboard.Db
         public string Stage;
         public int EvNum; public string AgeGroup, Gender, EventName;
         public string Name, UnitName, BirthDate, JointUnit, Coach;
+        // 2026-10-08 本项目参赛号(entries.bib_number)——同一运动员/接力队报多个项目时
+        // 各项目各一个号, 是库里和内存(Swimmer.BibNumber+EventName)两边唯一都认的身份键。
+        // 分组表回读时按它认人, 不按姓名/单位字符串猜(两边同名、单位改名都会导致猜错)。
+        public string BibNumber;
         public bool IsRelay;
         public double SeedTimeSeconds; public string SeedTime;   // 半决赛名单上那列「预赛成绩」
         public string CheckinStatus, CheckinAt;
