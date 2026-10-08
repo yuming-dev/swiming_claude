@@ -458,6 +458,26 @@ class SetupForm : Form
                 }
             } catch { }
 
+            // 2026-10-08 主服务器的"Web页面"(大屏/查询/检录等远程终端用的 http://IP:8080/
+            // 那条路)靠 HttpListener 绑 "http://+:8080/"(= 监听所有网卡), Windows 上这个
+            // 绑定没有 URL ACL 预留或管理员权限会直接失败, 服务器那边只能降级成
+            // "http://localhost:8080/"(只有主服务器自己这台机器能访问), 别的电脑打不开
+            // 大屏网页——现场症状是"大屏电脑连不上, 一查日志全是 HTTP 8080 远程绑定失败"。
+            // 装机这一步本来就需要管理员权限(复制到 Program Files、建开始菜单), 这里顺手
+            // 把 URL ACL 预留一次性注册好, 以后主服务器不用每次都用管理员身份启动就能绑
+            // 全网卡。失败(比如这次安装确实没拿到管理员权限)不拦装机——那种情况下服务器
+            // 本来就还是会退回 localhost-only, 跟没加这一步之前行为一致, 不会更差。
+            SetProgress(94, "注册 HTTP 远程访问权限 (8080端口)...");
+            try {
+                var psiAcl = new System.Diagnostics.ProcessStartInfo("netsh.exe",
+                    "http add urlacl url=http://+:8080/ user=Everyone");
+                psiAcl.UseShellExecute = true;
+                psiAcl.WindowStyle = ProcessWindowStyle.Hidden;
+                psiAcl.CreateNoWindow = true;
+                var pAcl = System.Diagnostics.Process.Start(psiAcl);
+                if (pAcl != null) pAcl.WaitForExit(10000);
+            } catch { }
+
             SetProgress(95, "创建卸载程序...");
             CreateUninstaller(desktop, startMenu);
 
