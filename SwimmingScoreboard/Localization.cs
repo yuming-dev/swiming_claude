@@ -3034,9 +3034,9 @@ namespace SwimmingScoreboard
             { "Str_Win_EditAgeGroups_Title", new[] { "组别编辑", "Edit Age Groups" } },
             { "Str_EM_GenderNameCol", new[] { "性别名称", "Gender Name" } },
             { "Str_EM_StageNameCol", new[] { "赛次名称", "Stage Name" } },
-            { "Str_AppTitle_Main", new[] { "游泳赛事管理系统", "Swimming Event Management System" } },
-            { "Str_AppTitle_Rtc",  new[] { "游泳赛事管理系统 — 远程计时控制", "Swimming Event Management System — Remote Timing Control" } },
-            { "Str_AppTitle_ScheduleEditor", new[] { "游泳赛事管理系统 — 编排记录及成绩处理", "Swimming Event Management System — Schedule & Results Editor" } },
+            { "Str_AppTitle_Main", new[] { "游泳赛事管理系统", "Swimming Management System" } },
+            { "Str_AppTitle_Rtc",  new[] { "游泳赛事管理系统 — 远程计时控制", "Swimming Management System — Remote Timing Control" } },
+            { "Str_AppTitle_ScheduleEditor", new[] { "游泳赛事管理系统 — 编排记录及成绩处理", "Swimming Management System — Schedule & Results Editor" } },
 
             // 2026-09-22 第九阶段 Part B 续：SaveFileDialog/OpenFileDialog Title/Filter
             { "Str_Filter_Csv",       new[] { "CSV文件|*.csv", "CSV Files|*.csv" } },
@@ -3287,8 +3287,8 @@ namespace SwimmingScoreboard
             { "Str_FileName_HeatCountsTemplate", new[] { "组数模板", "Heat Counts Template" } },
             { "Str_EM_EventNameCol", new[] { "比赛项目", "Event Name" } },
             { "Str_EM_AgeGroupNameCol", new[] { "组别名称", "Age Group Name" } },
-            { "Str_LoginWin_TitleMain", new[] { "游泳赛事管理系统 — 登录", "Swimming Event Management System — Login" } },
-            { "Str_LoginWin_TitleRtc", new[] { "游泳赛事管理系统 — 比赛控制", "Swimming Event Management System — Race Control" } },
+            { "Str_LoginWin_TitleMain", new[] { "游泳赛事管理系统 — 登录", "Swimming Management System — Login" } },
+            { "Str_LoginWin_TitleRtc", new[] { "游泳赛事管理系统 — 比赛控制", "Swimming Management System — Race Control" } },
             { "Str_LoginWin_SubtitleMain", new[] { "请输入管理员账号登录", "Please sign in with your admin account" } },
             { "Str_LoginWin_SubtitleScheduleEditor", new[] { "编排记录及成绩处理", "Schedule & Results Editor" } },
             { "Str_LoginWin_Username", new[] { "用户名", "Username" } },
@@ -3358,9 +3358,9 @@ namespace SwimmingScoreboard
             { "Str_Fmt_PoolEventHeatFmt", new[] { "{0} {1}{2} {3} 第{4}组", "{0} {1}{2} {3} Heat {4}" } },
 
             // 2026-09-22 第十阶段：RegistrationTool.exe / RemoteDisplayControl.exe 登录窗
-            { "Str_RegTool_LoginTitle", new[] { "游泳赛事管理系统 — 运动员报名", "Swimming Event Management System — Registration" } },
+            { "Str_RegTool_LoginTitle", new[] { "游泳赛事管理系统 — 运动员报名", "Swimming Management System — Registration" } },
             { "Str_RegTool_Subtitle",   new[] { "运动员报名", "Registration" } },
-            { "Str_RDC_LoginTitle",     new[] { "游泳赛事管理系统 — 显示控制", "Swimming Event Management System — Display Control" } },
+            { "Str_RDC_LoginTitle",     new[] { "游泳赛事管理系统 — 显示控制", "Swimming Management System — Display Control" } },
 
             // 2026-09-28 第十一阶段 Step2："参赛单位及号码分配"tab（暂停期间新增，之前全是中文字面量）
             { "Str_EM_Tab_UnitBibAlloc", new[] { "参赛单位及号码分配", "Units & Bib Numbers" } },
@@ -3820,7 +3820,7 @@ namespace SwimmingScoreboard
                     RenameShortcutIfExists(Path.Combine(startMenu, oldName + ".lnk"), Path.Combine(startMenu, newName + ".lnk"), target, workDir);
                 }
                 // 卸载快捷方式只在开始菜单, 没有桌面那份(见 Setup.cs CreateShortcut 调用点)
-                string uninstZh = "卸载游泳赛事管理系统", uninstEn = "Uninstall Swimming Event Management System";
+                string uninstZh = "卸载游泳赛事管理系统", uninstEn = "Uninstall Swimming Management System";
                 string uOld = toEn ? uninstZh : uninstEn;
                 string uNew = toEn ? uninstEn : uninstZh;
                 RenameShortcutIfExists(Path.Combine(startMenu, uOld + ".lnk"), Path.Combine(startMenu, uNew + ".lnk"),

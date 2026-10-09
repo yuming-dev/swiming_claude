@@ -99,7 +99,7 @@ var WebLoc = (function () {
         "Str_Checkin_ConfirmSwitchHeat": ["当前组有未保存的备注修改，切换后将丢失。确定切换？", "This heat has unsaved note changes that will be lost if you switch. Continue?"],
 
         // ── 更多通用词（register/query/display 共用） ──────────
-        "Str_Common_SystemName": ["游泳赛事管理系统", "Swimming Event Management System"],
+        "Str_Common_SystemName": ["游泳赛事管理系统", "Swimming Management System"],
         "Str_Common_Fullscreen": ["全屏", "Fullscreen"],
         "Str_Common_Query": ["查询", "Search"],
         "Str_Common_Name": ["姓名", "Name"],
@@ -422,6 +422,12 @@ var WebLoc = (function () {
         "Str_Display_ColAgeGroup": ["组别", "Age Group"],
         "Str_Display_ColResult": ["成绩", "Result"],
         "Str_Display_ColRemark": ["备注", "Remark"],
+        // 2026-10-09 比赛实况标题行"第N项"/"第X/Y组"——原来是 renderRace() 里拼死的中文,
+        //   英文模式下这两截没翻, 跟同一行里已翻译的性别/赛次混在一起显得很突兀。
+        "Str_Display_EventNoFmt": ["第{0}项 ", "No.{0} "],
+        "Str_Display_HeatOfTotalFmt": ["第{0}/{1}组", "Heat {0}/{1}"],
+        "Str_Display_HeatStartListFmt": ["第{0}组 出发表", "Heat {0} Start List"],
+        "Str_Display_HeatResultFmt": ["第{0}组 成绩", "Heat {0} Results"],
         "Str_Display_Welcome": ["欢迎", "Welcome"],
         "Str_Display_AwardCeremony": ["颁奖典礼", "Award Ceremony"],
         "Str_Display_BgSettingsTip": ["大屏底色设置", "Display Background"],

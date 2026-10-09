@@ -972,7 +972,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260922-4';
+var PAGE_VER = '20261009-1';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1425,8 +1425,11 @@ function isRelayEvent() { return (data.currentEvent||'').indexOf('接力') >= 0;
 
 // 2026-06-01 性别显示规范: 男 → "男子", 女 → "女子", 混合 → "混合" (不加子),
 //   修复混合性别接力赛标题里显示"混合子"的 bug. 数据层保留 "男"/"女"/"混合" 不变.
+// 2026-10-09 英文模式原来直接原样返回"男"/"女"(没走翻译), 跟 query.html/race_control.html
+//   已有的同名 fmtGender() 对齐: 英文模式走 WebLoc.genderDisplay() -> Male/Female/Mixed。
 function fmtGender(g) {
     g = g || '';
+    if (WebLoc.currentLang() === 'en') return WebLoc.genderDisplay(g);
     if (g === '男' || g === '女') return g + '子';
     return g;   // 混合 / 已经是 男子/女子 / 空串 都原样返回
 }
@@ -1550,12 +1553,15 @@ function renderRace() {
     // ── 1) 顶部静态文字（仅变化才写入） ──
     // 2026-06-04 标题最前加 项次 '第N项 ' (= 服务器 currentEventNumber, 0 时为空)
     // 2026-06-04 顺序统一改为 性别 组别 项目 (= 性别 在前)
+    // 2026-10-09 "第N项"/赛次下面那行"第X/Y组"原来是拼死的中文, 英文模式没翻,
+    //   跟同一行已翻译的表头/性别混在一起很突兀——改走 WebLoc.f()。
     var evNo = data.currentEventNumber || 0;
-    var titleText = (evNo > 0 ? ('第' + evNo + '项 ') : '')
+    var titleText = (evNo > 0 ? WebLoc.f('Str_Display_EventNoFmt', evNo) : '')
         + fmtGender(data.currentGender) + ' '
         + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '')
         + (data.currentEvent||'');
-    var stageText = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
+    var stageText = WebLoc.stageDisplay(data.currentStage||'') + ' '
+        + WebLoc.f('Str_Display_HeatOfTotalFmt', data.currentHeat||0, data.totalHeats||0);
     var en = document.getElementById('eventName');
     if (en && en.textContent !== titleText) en.textContent = titleText;
     // 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (= server applicableRecords)
@@ -1732,7 +1738,7 @@ function getRelayCurrentLegName(sw) {
     if (currentLeg < 0) currentLeg = 0;
     if (sw.isFinished) currentLeg = legCount - 1;
     var legName = (currentLeg < names.length) ? names[currentLeg].trim() : names[0].trim();
-    return '第' + (currentLeg + 1) + '棒: ' + legName;
+    return WebLoc.f('Str_Common_LegFmt', currentLeg + 1) + ': ' + legName;
 }
 
 // 2026-05-31 比赛视图接力行: 同列显示 4 棒+姓名, 当前棒高亮金色.
@@ -2014,10 +2020,10 @@ function renderStartList() {
     var lv = document.getElementById('listView');
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
     // 2026-06-04 顺序统一: 性别 组别 项目 赛次 组数
-    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' ' + WebLoc.stageDisplay(data.currentStage||'') + ' ' + WebLoc.f('Str_Display_HeatStartListFmt', data.currentHeat||'') + '</h2>';
     var slRelay = isRelayEvent();
-    var slH1 = slRelay ? '代表队' : '姓名';
-    var slH2 = slRelay ? '姓名' : '代表队';
+    var slH1 = slRelay ? WebLoc.t('Str_Display_ColTeam') : WebLoc.t('Str_Display_ColName');
+    var slH2 = slRelay ? WebLoc.t('Str_Display_ColName') : WebLoc.t('Str_Display_ColTeam');
     // 2026-06-01 出发表去掉"号码"栏
     // 2026-06-04 td 加 t-lane/t-name/t-team class, 颜色/字体 = 比赛视图/组成绩/总排名 同款 CSS 变量
     //   接力 出发表: 姓名列 允许换行 + 单元格高度自适应, 4 棒姓名全部显示 (default td 是 nowrap+ellipsis)
@@ -2109,10 +2115,10 @@ function renderHeatResult() {
     // 使用和比赛视图相同的布局和字体
     document.getElementById('raceView').classList.remove('hidden');
     // 2026-06-04 顺序统一: 性别 组别 项目
-    document.getElementById('eventName').textContent = (data.currentGender||'') + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'');
+    document.getElementById('eventName').textContent = fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'');
     // 2026-06-05 项目名称下 显示 本项目所有组别 纪录
     _renderApplicableRecords(data.applicableRecords);
-    document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
+    document.getElementById('stageHeat').textContent = WebLoc.stageDisplay(data.currentStage||'') + ' ' + WebLoc.f('Str_Display_HeatResultFmt', data.currentHeat||0);
     document.getElementById('runningTime').textContent = '';
 
     // 2026-06-18 表头统一用 _setRaceHeader (跟比赛视图同源, 含 font-size 自适应),
