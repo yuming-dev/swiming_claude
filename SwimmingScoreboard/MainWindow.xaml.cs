@@ -2066,7 +2066,20 @@ namespace SwimmingScoreboard
                                 EnqueueToAll(json);
                             }
                         } catch { }
-                        break;
+                        // 2026-10-09 【严重回归根因】这里原来是 break, 会继续往下掉到整个
+                        //   switch 末尾(HandleMessage 结尾处)那句无条件 BroadcastSingle(socket)——
+                        //   等于"处理完任何消息都给发送方回发一份 278KB 整包"。RTC_FORWARD 是
+                        //   RTC 每 100ms(BroadcastImmediate)+ 硬件每 100ms(BroadcastRunningTime)
+                        //   两路高频帧共用的信封, 实测每秒 9~10 条——于是主服务器每秒把 9~10 份
+                        //   278KB 的 SHOW_LIVE_RACE 整包怼回 RTC 自己那条 EditorSyncClient 连接。
+                        //   RTC 这边 HandleEditorSyncMessage 对 SHOW_LIVE_RACE 这个类型根本
+                        //   没有对应 case(白白解析), 但 JObject.Parse 一个 278KB 字符串本身就要
+                        //   25~70ms, 这些全排在 UI 线程(Dispatcher Normal 优先级)上, 硬件帧(纵使
+                        //   给了 Send 优先级)排在它后面一样要等——这才是"远程计时控制连上主
+                        //   服务器后滚动时间跳跃、触板成绩延迟几秒、大屏延迟近十秒"的真正根源,
+                        //   跟今天早些时候修的按钮卡顿是同一个机制的另一种触发方式。RTC_FORWARD
+                        //   自己已经按 to 精确分发过了, 不需要也不应该再触发这个兜底整包回声。
+                        return;
                     // 2026-08-28 计时端确认成绩后回推本组 —— 让主服务器内存模型跟上,
                     //   否则赛程树的"已完赛"和项目成绩都看不到计时端跑出来的结果。
                     // 2026-08-31 计时端操作员确认过"生成组成绩"了, 主服务器也生成自己那份。
