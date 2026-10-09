@@ -5030,11 +5030,13 @@ namespace SwimmingScoreboard
             return st != "DNS" && st != "DNF";
         }
 
-        // 2026-06-06 P1-C: 50ms 单帧缓存 — 调用密集 (Broadcast / RefreshLaneRows / ProcessTouchpadHit etc.),
-        //   每次都 foreach _swimmers + OrderBy().ToList() 分配 list. 缓存复用同一 list 显著降 GC 压力.
-        //   注意: 返回的 List 是共享引用, 调用方不要 .Add/.Remove (= 当前只读使用 ok).
+        // 2026-06-06 P1-C 缓存, 2026-10-08 改成按 key 严格缓存(不再限时 50ms)——见
+        //   GetCurrentHeatSwimmers() 开头那段详细说明: RemoteTimingControl 联网时查一次
+        //   是网络 RPC, 不能当轮询接口 50ms 打一次。
+        //   注意: 返回的 List 现在【允许】被两处"空道试游占位运动员"增删代码直接
+        //   .Add/.Remove(这两处改的是真实同一份缓存, 不是另外拷贝一份)——除此之外的
+        //   调用方仍然只读使用。
         private List<Swimmer> _currentHeatSwimmersCache = null;
-        private DateTime _currentHeatSwimmersCacheAt = DateTime.MinValue;
         private string _currentHeatSwimmersCacheKey = null;
         // ══════════════════════════════════════════════════════════════
         // 2026-08-24 【分组名单唯一入口】"这一组有谁"
@@ -5091,6 +5093,33 @@ namespace SwimmingScoreboard
             return list;
         }
 
+        // 2026-10-08 用户现场实拍到的严重问题: RemoteTimingControl 联网后点比赛控制
+        // 面板按钮要卡好几秒。根因之一: HeatStatus()/GetEventRankingForStage() 等多处
+        // 都经 GetHeatEntries() 走到这里查一次分组表数据库——HeatStatus() 还是在
+        // GetStatusData() 的赛程循环里【每个项目每一组都查一次】这种用法, 一场比赛
+        // 四五十个项目、每项目两三组, 一次整包状态刷新就是上百次。在主服务器本机,
+        // _meetDb 背后是 LocalMeetService, 一条本地 SQL, 上百次也感觉不出来；但
+        // RemoteTimingControl 联网时背后是 RemoteMeetService——每一次都是一趟同步阻塞
+        // 的网络 RPC(SendAndWait), UI 线程被这么多趟网络往返的队伍堵死, 鼠标点按钮
+        // 自然要排到最后才轮到处理。
+        //
+        // 这里加一层短时缓存(2 秒)——同一个(组别,性别,项目,赛次,组次)2 秒内无论被
+        // 问多少次, 只真正查一次库/网络, 把"每次都查"摊薄成"大多数时候用缓存"。2 秒
+        // 这个量级跟分组表数据库写入防抖(0.5秒)、SHOW_LIVE_RACE 10Hz 刷新比起来足够
+        // 新鲜(远没到"看着像没更新"的程度), 但对多处热路径的调用量能砍掉绝大部分。
+        private Dictionary<string, object[]> _readBackHeatCache = new Dictionary<string, object[]>();
+        private List<SwimmingScoreboard.Db.LaneRow> ReadBackHeatCached(string ageGroup, string gender, string eventName, string stage, int heat) {
+            string key = (ageGroup ?? "") + "|" + (gender ?? "") + "|" + (eventName ?? "") + "|" + (stage ?? "") + "|" + heat;
+            object[] cached;
+            if (_readBackHeatCache.TryGetValue(key, out cached) && (DateTime.Now - (DateTime)cached[0]).TotalSeconds < 2) {
+                return (List<SwimmingScoreboard.Db.LaneRow>)cached[1];
+            }
+            List<SwimmingScoreboard.Db.LaneRow> rows = null;
+            try { rows = _meetDb.ReadBackHeat(ageGroup, gender, eventName, stage, heat); } catch { rows = null; }
+            _readBackHeatCache[key] = new object[] { DateTime.Now, rows };
+            return rows;
+        }
+
         // 2026-10-08 用户最终订正, 定调: "分组表数据库就是基准...调出分组表数据库内容
         // 就直接显示（不要再进行比较，也不要自己造，没有就不显）"——前几版在这里跟
         // 内存 _swimmers 做参赛号/姓名/单位/道次的多级匹配, 本身就是多余的复杂度:
@@ -5106,9 +5135,7 @@ namespace SwimmingScoreboard
         private List<Swimmer> GetHeatRosterFromDb(string ageGroup, string gender, string eventName, string stage,
                                                     int heat, bool isRelay, bool hasMixed) {
             if (_meetDb == null) return null;
-            List<SwimmingScoreboard.Db.LaneRow> dbRows;
-            try { dbRows = _meetDb.ReadBackHeat(ageGroup, gender, eventName, stage, heat); }
-            catch { return null; }
+            List<SwimmingScoreboard.Db.LaneRow> dbRows = ReadBackHeatCached(ageGroup, gender, eventName, stage, heat);
             if (dbRows == null || dbRows.Count == 0) return null;
 
             var list = new List<Swimmer>();
@@ -5155,26 +5182,37 @@ namespace SwimmingScoreboard
 
         private List<Swimmer> GetCurrentHeatSwimmers() {
             string key = (_currentEvent ?? "") + "|" + (_currentGender ?? "") + "|" + (_currentAgeGroup ?? "") + "|" + _currentStage + "|" + _currentHeat;
+            // 2026-10-08 用户现场实拍到的严重问题: RemoteTimingControl 连上主服务器后,
+            // 点比赛控制面板按钮要卡好几秒才有反应, 主服务器本机的比赛控制完全正常。
+            //
+            // 根因: 这条缓存原来只按 50ms 限时, 同一个 key 过了 50ms 也会重新调
+            // EnsureCurrentHeatSwimmersFromDb() → _meetDb.ReadBackHeat()。在主服务器
+            // 本机, _meetDb 背后是 LocalMeetService, 就是一条本地 SQL, 50ms 查一次毫无
+            // 感觉；但 RemoteTimingControl 联网时 _meetDb 背后是 RemoteMeetService——
+            // 见该类自己的文档: "真正走网络的只有: 选组时 OpenHeat 取一次名单; 确认时
+            // CommitHeat 回写一次成绩", 不该被当成轮询接口用。这里卡 50ms 就重新算一次,
+            // 等于把"这组开赛前查一次库"变成了"只要还显示着这组, 每秒重查约20次网络
+            // RPC"——UI 线程(SendAndWait 是同步阻塞调用)被这些排队的网络往返堵死,
+            // 鼠标点按钮自然要等好几秒才轮到处理。
+            //
+            // 改成按 key 严格缓存(不再限时)——同一个 key(同一组)不管隔多久再调用,
+            // 只要上次真的建到了人(Count>0)就直接用那份对象(这正是用户最初要的"开始
+            // 计时前建好、之后一直用这组对象"); 只有 key 变了(真的切组了)或者上次
+            // 确实一个人都没建到(库里当时还没数据, 留着机会等分组同步过来后再试一次)
+            // 才会再查一次库/网络。
             if (_currentHeatSwimmersCache != null
                 && _currentHeatSwimmersCacheKey == key
-                && (DateTime.Now - _currentHeatSwimmersCacheAt).TotalMilliseconds < 50) {
+                && _currentHeatSwimmersCache.Count > 0) {
                 return _currentHeatSwimmersCache;
             }
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
                 _currentHeatSwimmersCache = new List<Swimmer>();
                 _currentHeatSwimmersCacheKey = key;
-                _currentHeatSwimmersCacheAt = DateTime.Now;
                 return _currentHeatSwimmersCache;
             }
-            // 2026-10-08 用户订正: 实时比赛控制跟检录/大屏不是一回事——这里拿到的对象,
-            // 后面计时硬件要在它上面持续记触板/手动时间、直到"确认本组成绩", 不能每次
-            // 调用都从库现造一份新对象扔掉上一份(会把刚记的计时数据丢了)。改成"开始
-            // 计时前从分组表数据库把这一组的对象建好、留进 _swimmers, 之后一直用这
-            // 同一批对象"——不是每次都重新查库。
             var ordered = EnsureCurrentHeatSwimmersFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
             _currentHeatSwimmersCache = ordered;
             _currentHeatSwimmersCacheKey = key;
-            _currentHeatSwimmersCacheAt = DateTime.Now;
             return ordered;
         }
 
@@ -5196,10 +5234,7 @@ namespace SwimmingScoreboard
         // 不再用内存自己去筛"这一组有谁"。
         private List<Swimmer> EnsureCurrentHeatSwimmersFromDb(string ageGroup, string gender, string eventName, string stage, int heat) {
             List<SwimmingScoreboard.Db.LaneRow> dbRows = null;
-            if (_meetDb != null) {
-                try { dbRows = _meetDb.ReadBackHeat(ageGroup, gender, eventName, stage, heat); }
-                catch { dbRows = null; }
-            }
+            if (_meetDb != null) dbRows = ReadBackHeatCached(ageGroup, gender, eventName, stage, heat);
 
             if (dbRows != null && dbRows.Count > 0) {
                 var byBib = new Dictionary<string, Swimmer>();
@@ -16383,7 +16418,11 @@ namespace SwimmingScoreboard
             // 2026-06-12 空道试游 占位运动员: 取消备注 = 整条移除 (无报名信息, 不应残留空行)
             if (swimmer.Notes == EmptyTriMarker) {
                 _swimmers.Remove(swimmer);
-                _currentHeatSwimmersCacheAt = DateTime.MinValue;
+                // 2026-10-08 直接从已建好的缓存名单里摘掉这个对象, 不整体invalidate——
+                // 整体失效会逼 GetCurrentHeatSwimmers() 下次重新查库/走网络(RemoteTimingControl
+                // 联网时是 RPC), 而且空道试游占位运动员本来就没有分组表数据库那一行,
+                // 查库重建反而会把这个"本机本地加的人"凭空吞掉(库里压根没有这一条)。
+                if (_currentHeatSwimmersCache != null) _currentHeatSwimmersCache.Remove(swimmer);
                 var lsTri = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
                 if (lsTri != null) lsTri.IsFinished = false;
                 if (_timingBridge != null && _timingBridge.IsConnected) {
@@ -17606,7 +17645,13 @@ namespace SwimmingScoreboard
             };
             sw.SetStageAssignment(_currentStage, _currentHeat, lane, 0, "");
             _swimmers.Add(sw);
-            _currentHeatSwimmersCacheAt = DateTime.MinValue;   // 失效 50ms 缓存, 让显示/计时立即包含新道
+            // 2026-10-08 直接把这个新对象加进已建好的缓存名单, 不整体invalidate——
+            // 整体失效会逼 GetCurrentHeatSwimmers() 下次重新查库/走网络(RemoteTimingControl
+            // 联网时是 RPC), 而且这个空道试游占位运动员本来就没有分组表数据库那一行,
+            // 查库重建反而会把刚加的这个人凭空吞掉(库里压根没有这一条)。
+            if (_currentHeatSwimmersCache != null
+                && _currentHeatSwimmersCacheKey == ((_currentEvent ?? "") + "|" + (_currentGender ?? "") + "|" + (_currentAgeGroup ?? "") + "|" + _currentStage + "|" + _currentHeat))
+                _currentHeatSwimmersCache.Add(sw);
 
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState != null) laneState.IsFinished = false;
