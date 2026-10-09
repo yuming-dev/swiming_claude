@@ -30651,10 +30651,23 @@ namespace SwimmingScoreboard
                             if (nm.Length > 0 && !colMap.ContainsKey(nm)) colMap[nm] = c;
                         }
                     }
+                    // 2026-10-09 原来 col() 只认中文表头，英文模板(Session/Gender/Event/...)
+                    //   一个字段都对不上，必弹"缺少必需列"。改成每个字段认一组中英文别名，
+                    //   不分哪种语言的表头都能导——跟 Str_Col_Group/Str_DocC_ColGender 等
+                    //   既有翻译对齐，同时兼容"Age Group"这个在别处(如 SchedWizard)用过的说法。
                     Func<string, int> col = nm => colMap.ContainsKey(nm) ? colMap[nm] : -1;
-                    int cSession = col("场次"), cTime = col("时间"), cEvNum = col("编号"),
-                        cGender = col("性别"), cAgeGroup = col("组别"), cEvent = col("项目"),
-                        cStage = col("赛次"), cHeatCount = col("组数");
+                    Func<string[], int> colAny = names => {
+                        foreach (var nm in names) { int c = col(nm); if (c >= 0) return c; }
+                        return -1;
+                    };
+                    int cSession = colAny(new[] { "场次", "Session" }),
+                        cTime = colAny(new[] { "时间", "Time" }),
+                        cEvNum = colAny(new[] { "编号", "No.", "No", "EvNum" }),
+                        cGender = colAny(new[] { "性别", "Gender", "Sex" }),
+                        cAgeGroup = colAny(new[] { "组别", "Group", "Age Group" }),
+                        cEvent = colAny(new[] { "项目", "Event" }),
+                        cStage = colAny(new[] { "赛次", "Stage" }),
+                        cHeatCount = colAny(new[] { "组数", "Heats", "Heat Count" });
                     if (cGender < 0 || cEvent < 0 || cStage < 0) {
                         AppMessageBox.Show(Loc.T("Str_Msg_HeaderMissingRequiredCols"), Loc.T("Str_MsgTitle_Error")); return;
                     }
