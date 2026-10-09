@@ -188,18 +188,20 @@ if (Test-Path $rdcWebView2Profile) {
     Write-Host "  ✂  删除 RemoteDisplayControl.exe.WebView2 (开发机残留数据)"
 }
 
-# 2026-10-09 按 FINA/World Aquatics 规则生成的中/英文、长池/短池赛程模板(各42/48个单项,
-#   预赛+决赛两轮, 800/1500自由泳按 FINA SW 3.1.1.6 只设决赛)——"赛事管理与报名→导入其它
-#   赛程(Excel)"认表头(场次/性别/组别/项目/赛次/组数, 英文模板走同一入口新加的英文别名)。
-#   体积很小(4个文件共约30KB), -Lite 也照常带上, 不受那个开关影响。
-$schedTplSrc = Join-Path $root "Installer\ScheduleTemplates"
-if (Test-Path $schedTplSrc) {
-    $schedTplDst = Join-Path $installerBuild "ScheduleTemplates"
-    if (Test-Path $schedTplDst) { Remove-Item -Recurse -Force $schedTplDst }
-    Copy-Item $schedTplSrc $schedTplDst -Recurse -Force
-    Write-Host "  ✓ FINA 赛程模板(中/英文 × 长/短池) 已收入安装包"
+# 2026-10-09 按 FINA/World Aquatics 规则(= MainWindow.xaml.cs 的 DefaultEvents/DefaultGenders/
+#   DefaultStages/DefaultAgeGroups/DefaultHeatCounts, 新建赛事就是拿这几个函数做初始值)生成的
+#   中/英文版"比赛项目/组别/性别/赛次/组数"五张表, 对应"赛事管理与报名→比赛参数设置管理"
+#   里那五块各自的 导入/下载模板 按钮——用户反馈这几张表才是正确的落点, 不是赛程整表。
+#   走各自的 CSV 导入入口(这几个入口不认 .xlsx, 只认 .csv)。体积很小(10个文件共约2KB),
+#   -Lite 也照常带上, 不受那个开关影响。
+$paramTplSrc = Join-Path $root "Installer\CompetitionParamsTemplates"
+if (Test-Path $paramTplSrc) {
+    $paramTplDst = Join-Path $installerBuild "CompetitionParamsTemplates"
+    if (Test-Path $paramTplDst) { Remove-Item -Recurse -Force $paramTplDst }
+    Copy-Item $paramTplSrc $paramTplDst -Recurse -Force
+    Write-Host "  ✓ FINA 比赛参数模板(项目/组别/性别/赛次/组数 × 中/英文) 已收入安装包"
 } else {
-    Write-Host "    [提示] 找不到 Installer\ScheduleTemplates\, 安装包不含赛程模板" -ForegroundColor Yellow
+    Write-Host "    [提示] 找不到 Installer\CompetitionParamsTemplates\, 安装包不含参数模板" -ForegroundColor Yellow
 }
 
 $rtsTxt = Join-Path $root "Installer\RemoteTimingControl\RemoteTimingServer.txt"
