@@ -6,6 +6,14 @@
 #   3. 把 5 个 WPF EXE 输出 + Web/Records + 工具 EXE 收集到 InstallerBuild\
 # 运行：powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
 #
+# 2026-10-09 加 -Lite 开关：只打运行程序本体(5个EXE+Web/Records+Tools)，跳过
+#   VC++运行库(227MB)+Edge离线安装包(203MB)+四份用户手册(PDF/DOCX，约18MB)——
+#   这430多MB是"装到没装过这些依赖的客户机"才需要的安全网，日常内部测试包
+#   (开发机/测试机本来就有这些东西)带着它纯粹是净重。正式对外发布版本不要
+#   加这个开关，带全套。用法：powershell ... .\build_installer.ps1 -Lite
+param(
+    [switch]$Lite
+)
 # 2026-09-21 用户明确要求"整理安装包, 去掉不要的部分"——排查发现两类不该进客户包的东西:
 #   1. ParamDebugBot.exe(硬件参数调试机器人) 和 Web\test_bot.html(测试机器人网页)都是
 #      开发/调试专用工具(使用说明书里查无这两样), 不进包。ParamDebugBot 需要的话在
@@ -64,6 +72,17 @@ foreach ($sub in @("SwimmingScoreboard","RemoteTimingControl","RemoteDisplayCont
     $p = Join-Path $installerBuild $sub
     if (Test-Path $p) { Remove-Item -Recurse -Force $p }
     New-Item -ItemType Directory -Path $p | Out-Null
+}
+# 2026-10-09 -Lite 模式下面的步骤会跳过 prereq\运行库/Edge/四份手册/速查卡的拷贝——
+#   但如果 InstallerBuild\ 之前跑过一次【非 Lite】的完整打包, 这些文件/目录早就躺在
+#   根目录下了, "跳过拷贝"不等于"没有", 不先删掉的话 -Lite 包体积根本不会变小。
+if ($Lite) {
+    foreach ($staleBig in @("prereq","使用说明书.pdf","使用说明书.docx",
+        "Swimming_Meet_Management_System_User_Manual.pdf","Swimming_Meet_Management_System_User_Manual.docx",
+        "现场速查卡.pdf")) {
+        $sp3 = Join-Path $installerBuild $staleBig
+        if (Test-Path $sp3) { Remove-Item -Recurse -Force $sp3; Write-Host "  ✂  删除 $staleBig (-Lite, 上次完整打包的残留)" }
+    }
 }
 # 2026-09-21 ParamDebugBot.exe 不再编译进包(见上面的说明)，但旧版本打的包里这个文件已经
 # 躺在 InstallerBuild 根目录——这一层只清子目录，清不到根目录的散文件，得单独删一次，
@@ -174,6 +193,9 @@ if (Test-Path $rtsTxt) {
     Copy-Item $rtsTxt (Join-Path $installerBuild "RemoteTimingControl\") -Force
 }
 
+if ($Lite) {
+    Write-Host "[Lite] 跳过用户手册 + VC++运行库 + Edge离线安装包 (约430MB) —— 测试包不带"
+} else {
 $manualSrc = Join-Path $root "Installer\使用说明书.pdf"
 if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使用说明书.pdf") -Force }
 # 2026-09-28 中文版也一并收录 docx(此前只出 PDF; 用户要了中文 docx 之后补上, 跟英文版同一套来源)。
@@ -243,6 +265,7 @@ if (Test-Path $vcExe) {
     Write-Host "            然后重新跑一遍本脚本。" -ForegroundColor Yellow
     Write-Host ""
 }
+} # end if (-not $Lite)
 # 2026-07-13 通讯协议.pdf 是开发者文档, 不进客户包 (原 2026-06-18 打包这行已移除). 客户包只放 使用说明书.pdf.
 
 # ── 新版模拟计时器(图形界面, 10 道泳池) ───────────────────────────────
@@ -274,7 +297,7 @@ if (Test-Path $simProj) {
     Write-Host "  ! 找不到 $simProj, 跳过新版模拟计时器"
 }
 
-Write-Host "[5/5] 打包完成。InstallerBuild 目录清单："
+Write-Host ("[5/5] 打包完成" + $(if ($Lite) { " (-Lite, 不含运行库/Edge/手册)" } else { "" }) + "。InstallerBuild 目录清单：")
 Get-ChildItem $installerBuild | ForEach-Object {
     if ($_.PSIsContainer) {
         $count = (Get-ChildItem $_.FullName -Recurse -File).Count
