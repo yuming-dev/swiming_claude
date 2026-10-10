@@ -7341,9 +7341,9 @@ namespace SwimmingScoreboard
             if (LaneEventLogText == null) return;
             string content;
             if (_selectedLane < 0) {
-                content = "(请先点击或输入泳道号)";
+                content = Loc.T("Str_RC_RaceLogPickLane");
             } else if (!_laneEventLog.ContainsKey(_selectedLane) || _laneEventLog[_selectedLane].Length == 0) {
-                content = string.Format("道{0}: 本组暂无事件记录", _selectedLane);
+                content = Loc.F("Str_RC_RaceLogEmptyFmt", _selectedLane);
             } else {
                 content = _laneEventLog[_selectedLane].ToString();
             }
@@ -14358,6 +14358,9 @@ namespace SwimmingScoreboard
             };
             // 2026-10-10 英文模式下这几处窄列表头原来硬编码中文, 从未随语言切换——用户要求
             //   缩写英文(RT/TP/MB1.../St/Lap), 字不要多, 列宽不变。
+            // 2026-10-10 v2: TP/MB1/MB2/MB3 单行塞不进 11~22px 的窄列(跟中文单字不一样, 英文
+            //   最窄也要 2 个字符), 导致相邻标签文字互相覆盖("MB1"糊成"MB˙"、"TP"糊成"TF")——
+            //   改成跟中文一样用 "\n" 拆成上下 2 行, 列宽仍不变。
             bool enLbl = Loc.CurrentLanguage == Loc.En;
             addLabel(0, Loc.T("Str_Col_Lane"), 32);
 
@@ -14371,7 +14374,7 @@ namespace SwimmingScoreboard
             // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
             string[] leftLabelDefs = enLbl
-                ? new[] { "[T]:80", "MB3:22", "MB2:22", "MB1:22", "St:26", "TP:11", "Lap:44" }
+                ? new[] { "[T]:80", "MB\n3:22", "MB\n2:22", "MB\n1:22", "St:26", "T\nP:11", "Lap:44" }
                 : new[] { "[T]:80", "盲\n3:22", "盲\n2:22", "盲\n1:22", "出\n发:26", "触\n板:11", "圈:44" };
             int leftBwc = _laneCloseSettings.LeftBlindWatchCount;
             for (int li = 0; li < leftLabelDefs.Length; li++) {
@@ -14397,7 +14400,7 @@ namespace SwimmingScoreboard
             // 2026-06-16 圈 50→44 = rightSpinner(18)+rightRemainText(26), 跟下方 rightDev 对齐
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             string[] rightLabelDefs = enLbl
-                ? new[] { "Lap:44", "TP:11", "St:26", "MB1:22", "MB2:22", "MB3:22", "[T]:80" }
+                ? new[] { "Lap:44", "T\nP:11", "St:26", "MB\n1:22", "MB\n2:22", "MB\n3:22", "[T]:80" }
                 : new[] { "圈:44", "触\n板:11", "出\n发:26", "盲\n1:22", "盲\n2:22", "盲\n3:22", "[T]:80" };
             int rightBwc = _laneCloseSettings.RightBlindWatchCount;
             for (int ri = 0; ri < rightLabelDefs.Length; ri++) {

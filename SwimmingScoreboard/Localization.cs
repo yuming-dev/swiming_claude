@@ -157,6 +157,8 @@ namespace SwimmingScoreboard
             { "Str_RC_DeviceTestExit",  new[] { "退出测试", "Exit Test" } },
             { "Str_RC_StateWaiting",    new[] { "等待", "Waiting" } },
             { "Str_RC_RaceLogHint",     new[] { "本组所选道次的实时事件 — 出发反应时 / 触板 / 盲表 (切道次可调出该道历史)", "Live events for the selected lane in this heat — start reaction time / touchpad / backup watch (switch lanes to pull up its history)" } },
+            { "Str_RC_RaceLogPickLane", new[] { "(请先点击或输入泳道号)", "(Click or enter a lane number first)" } },
+            { "Str_RC_RaceLogEmptyFmt", new[] { "道{0}: 本组暂无事件记录", "Lane {0}: no events recorded for this heat yet" } },
 
             // "设置" 页：界面语言（新增）
             { "Str_Settings_Language",     new[] { "界面语言", "Interface Language" } },
@@ -3249,7 +3251,7 @@ namespace SwimmingScoreboard
             // 两支走了 Loc, 真身这支一直是硬编码中文, 完整性核查+实机联调时一并发现补上。
             { "Str_Mode_MainServerAddrFmt", new[] { "服务器地址: ws://{0}:3002  |  Web页面: http://{0}:8080", "Server address: ws://{0}:3002  |  Web pages: http://{0}:8080" } },
             { "Str_Col_NameTeam", new[] { "姓名/代表队", "Name / Team" } },
-            { "Str_Col_DirectionProgress", new[] { "方向/进度", "Direction / Progress" } },
+            { "Str_Col_DirectionProgress", new[] { "方向/进度", "Dir/Prog" } },
             { "Str_Label_EmptyLaneParen", new[] { "（空泳道）", "(Empty Lane)" } },
             { "Str_BlindWatch_Desc", new[] { "每道使用的盲表数量（0-3, 0=该侧无盲表）。修改后将同步到三个计时控制台和硬件计时控制器。", "Number of backup watches used per lane (0-3, 0 = none on that side). Changes sync to all three timing consoles and the hardware timing controller." } },
             { "Str_Win_ManualButtonsUse_Title", new[] { "手动按键 用/不用 设置", "Manual Button Use / Not-Use Settings" } },

@@ -1118,7 +1118,7 @@
                                 </TabItem>
                                 <TabItem Header="{DynamicResource Str_RC_TabRaceLog}">
                                     <DockPanel Margin="4">
-                                        <TextBlock DockPanel.Dock="Top" Foreground="#94A3B8" FontSize="11" Margin="0,4,0,4">
+                                        <TextBlock DockPanel.Dock="Top" Foreground="#94A3B8" FontSize="11" Margin="0,4,0,4" TextWrapping="Wrap">
                                             <Run Text="{DynamicResource Str_RC_RaceLogHint}"/>
                                         </TextBlock>
                                         <ScrollViewer x:Name="LaneEventLogScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
