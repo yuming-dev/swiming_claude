@@ -12,8 +12,12 @@ namespace ScheduleEditor
         private TextBlock _status;
 
         public ChangePasswordWindow() {
+            // 2026-10-10 英文标签("Confirm New Password"等)比中文("确认新密码")长不少, 原固定
+            //   90px 标签列塞不下导致被截断("Confirm New"...)——英文模式下标签列和整窗都加宽。
+            bool enStand = SwimmingScoreboard.Loc.CurrentLanguage == SwimmingScoreboard.Loc.En;
+            double labelColW = enStand ? 165 : 90;
             Title = SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_Title");
-            Width = 420; Height = 360;
+            Width = enStand ? 480 : 420; Height = 360;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ResizeMode = ResizeMode.NoResize;
             Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x29, 0x3B));
@@ -24,10 +28,10 @@ namespace ScheduleEditor
                 Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 12)
             });
 
-            _userBox = AddRow(sp, SwimmingScoreboard.Loc.T("Str_Win_ChangePwd_NewUsername"), CredentialStore.CurrentUser());
-            _oldBox = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_OldPassword"));
-            _newBox = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_Win_ChangePwd_New"));
-            _newBox2 = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_ConfirmNew"));
+            _userBox = AddRow(sp, SwimmingScoreboard.Loc.T("Str_Win_ChangePwd_NewUsername"), CredentialStore.CurrentUser(), labelColW);
+            _oldBox = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_OldPassword"), labelColW);
+            _newBox = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_Win_ChangePwd_New"), labelColW);
+            _newBox2 = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_ConfirmNew"), labelColW);
 
             _status = new TextBlock {
                 Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)),
@@ -59,14 +63,14 @@ namespace ScheduleEditor
             Content = sp;
         }
 
-        private TextBox AddRow(StackPanel parent, string label, string value) {
+        private TextBox AddRow(StackPanel parent, string label, string value, double labelColW) {
             var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(labelColW) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var lbl = new TextBlock {
                 Text = label, FontSize = 14,
                 Foreground = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap
             };
             Grid.SetColumn(lbl, 0);
             var tb = new TextBox {
@@ -83,14 +87,14 @@ namespace ScheduleEditor
             return tb;
         }
 
-        private PasswordBox AddPwdRow(StackPanel parent, string label) {
+        private PasswordBox AddPwdRow(StackPanel parent, string label, double labelColW) {
             var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(labelColW) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var lbl = new TextBlock {
                 Text = label, FontSize = 14,
                 Foreground = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap
             };
             Grid.SetColumn(lbl, 0);
             var pb = new PasswordBox {
