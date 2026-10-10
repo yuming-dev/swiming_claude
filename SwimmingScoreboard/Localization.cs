@@ -559,8 +559,8 @@ namespace SwimmingScoreboard
             // LanguageToggle_Click 里新增的 RefreshOverviewStats() 调用。
             { "Str_EM_RegStats_Teams",   new[] { "代表队", "Teams" } },
             { "Str_EM_RegStats_Entries", new[] { "总人次", "Entries" } },
-            { "Str_EM_RegStats_Male",    new[] { "男", "Male" } },
-            { "Str_EM_RegStats_Female",  new[] { "女", "Female" } },
+            { "Str_EM_RegStats_Male",    new[] { "男", "Men" } },
+            { "Str_EM_RegStats_Female",  new[] { "女", "Women" } },
             { "Str_EM_RegStats_Mixed",   new[] { "混合", "Mixed" } },
             { "Str_EM_RegStats_EventCount", new[] { "项目数", "Events" } },
             { "Str_EM_RegStats_ColIndex",new[] { "#", "#" } },
@@ -3429,10 +3429,10 @@ namespace SwimmingScoreboard
             { "Str_UnitBibAlloc_GroupLabel", new[] { "比赛组别：", "Group:" } },
             { "Str_UnitBibAlloc_NoLimit", new[] { "（不限）", "(Any)" } },
             { "Str_UnitBibAlloc_RangeSectionTitle", new[] { "运动员号码范围〈设置〉", "Athlete Number Range 〈Setup〉" } },
-            { "Str_UnitBibAlloc_MaleLabel", new[] { "运动员男子：", "Male Athletes:" } },
+            { "Str_UnitBibAlloc_MaleLabel", new[] { "运动员男子：", "Men:" } },
             { "Str_UnitBibAlloc_To", new[] { " 到 ", " to " } },
-            { "Str_UnitBibAlloc_FemaleLabel", new[] { "运动员女子：", "Female Athletes:" } },
-            { "Str_UnitBibAlloc_GenderHintShared", new[] { "（男女号码段留空 = 共用下面的合并范围）", "(Leave male/female blank to share the combined range below)" } },
+            { "Str_UnitBibAlloc_FemaleLabel", new[] { "运动员女子：", "Women:" } },
+            { "Str_UnitBibAlloc_GenderHintShared", new[] { "（男女号码段留空 = 共用下面的合并范围）", "(Leave men's/women's blank to share the combined range below)" } },
             { "Str_UnitBibAlloc_CombinedLabel", new[] { "合并范围：", "Combined Range:" } },
             { "Str_UnitBibAlloc_WidthLabel", new[] { "  补零位数：", "  Zero-pad Width:" } },
             { "Str_UnitBibAlloc_BtnAddRow", new[] { "新增单位行", "Add Unit Row" } },
@@ -3454,7 +3454,7 @@ namespace SwimmingScoreboard
                 "1. Same unit name with different groups counts as entering multiple groups (each with its own number range).\n" +
                 "2. Register unit names one by one, setting number range and group as needed.\n" +
                 "3. Once an athlete is using a unit's number range, that range is locked (shown in red) — to change it, first clear the athlete's bib number in \"Athlete Management\".\n" +
-                "4. Number ranges for the same unit name may not overlap with other units; male/female ranges may be shared (just leave blank)."
+                "4. Number ranges for the same unit name may not overlap with other units; men's/women's ranges may be shared (just leave blank)."
             } },
             { "Str_UnitBibAlloc_LockHint", new[] { "⚠ 该单位/组别已有运动员在使用这个号码段，范围不能再修改（需要改请先清空相关运动员的参赛号）。", "⚠ Athletes are already using this unit/group's number range — it can no longer be changed (clear their bib numbers first)." } },
             { "Str_UnitBibAlloc_MsgLockedNoDelete", new[] { "该单位/组别已有运动员在使用这个号码段，不能删除。", "Athletes are already using this unit/group's number range — it cannot be deleted." } },
@@ -3470,7 +3470,7 @@ namespace SwimmingScoreboard
             { "Str_UnitBibAlloc_AutoDistTitle", new[] { "自动分布参数", "Auto-distribute Parameters" } },
             { "Str_UnitBibAlloc_LabelStartNum", new[] { "起始号码", "Start Number" } },
             { "Str_UnitBibAlloc_LabelPerUnit", new[] { "每单位号码数量", "Numbers per Unit" } },
-            { "Str_UnitBibAlloc_UnitPerUnitHint", new[] { "(男女各半)", "(half male, half female)" } },
+            { "Str_UnitBibAlloc_UnitPerUnitHint", new[] { "(男女各半)", "(half men, half women)" } },
             { "Str_UnitBibAlloc_LabelGap", new[] { "单位间隔", "Gap Between Units" } },
             { "Str_UnitBibAlloc_UnitGapCount", new[] { "个号", "numbers" } },
             { "Str_UnitBibAlloc_LabelWidth", new[] { "补零位数", "Zero-pad Width" } },
@@ -3487,8 +3487,8 @@ namespace SwimmingScoreboard
             { "Str_UnitBibAlloc_OptimizeDoneFmt", new[] { "号码优化完成：{0} 个单位已按实际人数重新压紧号码段（{1} 个因已有人使用未调整），记得点「保存设置」。", "Optimization done: {0} unit(s) repacked by actual headcount ({1} left unchanged because already in use) — remember to click \"Save Settings\"." } },
             { "Str_UnitBibAlloc_ReportTitle", new[] { "参赛单位号码分布", "Unit Number Distribution" } },
             { "Str_UnitBibAlloc_ReportColGroup", new[] { "组别", "Group" } },
-            { "Str_UnitBibAlloc_ReportColMale", new[] { "男子号码分布", "Male Numbers" } },
-            { "Str_UnitBibAlloc_ReportColFemale", new[] { "女子号码分布", "Female Numbers" } },
+            { "Str_UnitBibAlloc_ReportColMale", new[] { "男子号码分布", "Men's Numbers" } },
+            { "Str_UnitBibAlloc_ReportColFemale", new[] { "女子号码分布", "Women's Numbers" } },
             { "Str_UnitBibAlloc_Unlimited", new[] { "不限", "Any" } },
             { "Str_UnitBibAlloc_MsgDupUnitFmt", new[] { "单位「{0}」（组别「{1}」）重复，请检查。", "Duplicate unit \"{0}\" (group \"{1}\") — please check." } },
             { "Str_UnitBibAlloc_MsgOverlapFmt", new[] { "号码范围重叠：「{0}」({1}-{2}) 与 「{3}」({4}-{5})，请检查。", "Number ranges overlap: \"{0}\" ({1}-{2}) and \"{3}\" ({4}-{5}) — please check." } },

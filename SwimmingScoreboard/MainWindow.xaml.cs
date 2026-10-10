@@ -19590,8 +19590,8 @@ namespace SwimmingScoreboard
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")) });
 
             var maleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            // 2026-10-10 原来固定 Width=90 是按中文"运动员男子："(6字)量的, 英文 "Female Athletes:"/
-            //   "Combined Range:" 比中文长得多, 固定宽度框不出来的部分会直接盖到右边输入框上——
+            // 2026-10-10 原来固定 Width=90 是按中文"运动员男子："(6字)量的, 英文 "Combined Range:"
+            //   比中文长得多, 固定宽度框不出来的部分会直接盖到右边输入框上——
             //   改 MinWidth 让它按内容自然撑开, 不够宽才扩, 不会裁切/重叠。
             maleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_MaleLabel"), MinWidth = 90, VerticalAlignment = VerticalAlignment.Center });
             _baMaleStart = new TextBox { Width = 60, Padding = new Thickness(4) };
