@@ -14341,7 +14341,10 @@ namespace SwimmingScoreboard
                 Grid.SetColumn(tb, col);
                 PoolHeader.Children.Add(tb);
             };
-            addLabel(0, "道", 32);
+            // 2026-10-10 英文模式下这几处窄列表头原来硬编码中文, 从未随语言切换——用户要求
+            //   缩写英文(RT/TP/MB1.../St/Lap), 字不要多, 列宽不变。
+            bool enLbl = Loc.CurrentLanguage == Loc.En;
+            addLabel(0, Loc.T("Str_Col_Lane"), 32);
 
             // 左发令标志
             var leftHdrInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Background = _laneCloseSettings.StartPosition == "left" ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) : Brushes.Transparent, Margin = new Thickness(0, 4, 0, 4) };
@@ -14352,7 +14355,9 @@ namespace SwimmingScoreboard
             // 2026-06-16 加 Margin(2,0,0,0) 跟下方 leftDev 对齐. 圈 50→44 = leftRemainText(26)+leftSpinner(18)
             // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
-            string[] leftLabelDefs = new[] { "[T]:80", "盲\n3:22", "盲\n2:22", "盲\n1:22", "出\n发:26", "触\n板:11", "圈:44" };
+            string[] leftLabelDefs = enLbl
+                ? new[] { "[T]:80", "MB3:22", "MB2:22", "MB1:22", "St:26", "TP:11", "Lap:44" }
+                : new[] { "[T]:80", "盲\n3:22", "盲\n2:22", "盲\n1:22", "出\n发:26", "触\n板:11", "圈:44" };
             int leftBwc = _laneCloseSettings.LeftBlindWatchCount;
             for (int li = 0; li < leftLabelDefs.Length; li++) {
                 string[] p = leftLabelDefs[li].Split(':');
@@ -14376,7 +14381,9 @@ namespace SwimmingScoreboard
             // 2026-06-16 列宽与下方指示灯一致 + 5 个设备标签都两行显示
             // 2026-06-16 圈 50→44 = rightSpinner(18)+rightRemainText(26), 跟下方 rightDev 对齐
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string[] rightLabelDefs = new[] { "圈:44", "触\n板:11", "出\n发:26", "盲\n1:22", "盲\n2:22", "盲\n3:22", "[T]:80" };
+            string[] rightLabelDefs = enLbl
+                ? new[] { "Lap:44", "TP:11", "St:26", "MB1:22", "MB2:22", "MB3:22", "[T]:80" }
+                : new[] { "圈:44", "触\n板:11", "出\n发:26", "盲\n1:22", "盲\n2:22", "盲\n3:22", "[T]:80" };
             int rightBwc = _laneCloseSettings.RightBlindWatchCount;
             for (int ri = 0; ri < rightLabelDefs.Length; ri++) {
                 string[] p = rightLabelDefs[ri].Split(':');
@@ -14397,7 +14404,10 @@ namespace SwimmingScoreboard
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             // 2026-06-16 "反应" 列改成两行 "反应/盲表" 跟下方上下两行对齐. 宽度 55→90 容纳 "1:25:42.78"
-            foreach (string s in new[] { "反应\n盲表:90", "成绩:110", "名次:44", "备注:40" }) {
+            string[] infoLabelDefs = enLbl
+                ? new[] { "RT/MB:90", "Result:110", "Rank:44", "Note:40" }
+                : new[] { "反应\n盲表:90", "成绩:110", "名次:44", "备注:40" };
+            foreach (string s in infoLabelDefs) {
                 string[] p = s.Split(':');
                 var tb = new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 if (p[0].Contains("\n")) { tb.TextWrapping = TextWrapping.Wrap; tb.FontSize = 10; tb.LineHeight = 13; }
@@ -16163,10 +16173,10 @@ namespace SwimmingScoreboard
                 int prevIdx = SplitSelectCombo.SelectedIndex;
                 SplitSelectCombo.SelectionChanged -= SplitSelect_Changed;
                 SplitSelectCombo.Items.Clear();
-                SplitSelectCombo.Items.Add("终点");
+                SplitSelectCombo.Items.Add(Loc.T("Str_RC_SplitFinish"));
                 if (result != null) {
                     foreach (var sp in result.Splits) {
-                        SplitSelectCombo.Items.Add(string.Format("第{0}段({1}m)", sp.Lap, sp.Distance));
+                        SplitSelectCombo.Items.Add(Loc.F("Str_RC_TSSplitItemFmt", sp.Lap, sp.Distance));
                     }
                 }
                 if (prevIdx >= 0 && prevIdx < SplitSelectCombo.Items.Count)
@@ -16195,20 +16205,20 @@ namespace SwimmingScoreboard
             int selIdx = SplitSelectCombo != null ? SplitSelectCombo.SelectedIndex : 0;
 
             var sb = new StringBuilder();
-            sb.AppendFormat("道{0}  {1}\n", _selectedLane, targetSw.Name ?? "");
+            sb.AppendFormat(Loc.T("Str_RC_TSLaneNameFmt") + "\n", _selectedLane, targetSw.Name ?? "");
 
             if (selIdx <= 0) {
-                sb.Append("【终点】\n");
+                sb.Append(Loc.T("Str_RC_TSFinishHeader") + "\n");
                 if (_laneCloseSettings.ReactionTimeEnabled) {
                     string rt = ls != null && ls.ReactionTime != 0 ? ls.ReactionTime.ToString("F2") : "-";
-                    sb.AppendFormat("反应时间: {0}\n", rt);
+                    sb.AppendFormat(Loc.T("Str_RC_TSReactionFmt") + "\n", rt);
                 } else {
-                    sb.Append("反应时间: 已关闭\n");
+                    sb.Append(Loc.T("Str_RC_TSReactionOff") + "\n");
                 }
-                sb.AppendFormat("触  板:  {0}\n", result != null && result.TouchpadTime > 0 ? TimeFormatter.Format(result.TouchpadTime) : "-");
-                sb.AppendFormat("盲表 1:  {0}\n", result != null && result.PushButton1Time > 0 ? TimeFormatter.Format(result.PushButton1Time) : "-");
-                sb.AppendFormat("盲表 2:  {0}\n", result != null && result.PushButton2Time > 0 ? TimeFormatter.Format(result.PushButton2Time) : "-");
-                sb.AppendFormat("盲表 3:  {0}\n", result != null && result.PushButton3Time > 0 ? TimeFormatter.Format(result.PushButton3Time) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSTouchpadFmt") + "\n", result != null && result.TouchpadTime > 0 ? TimeFormatter.Format(result.TouchpadTime) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSBlind1Fmt") + "\n", result != null && result.PushButton1Time > 0 ? TimeFormatter.Format(result.PushButton1Time) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSBlind2Fmt") + "\n", result != null && result.PushButton2Time > 0 ? TimeFormatter.Format(result.PushButton2Time) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSBlind3Fmt") + "\n", result != null && result.PushButton3Time > 0 ? TimeFormatter.Format(result.PushButton3Time) : "-");
                 string manual = "";
                 if (result != null && result.Splits.Count > 0 && result.Splits.Last().ManualTouchTime > 0)
                     manual = TimeFormatter.Format(result.Splits.Last().ManualTouchTime);
@@ -16216,18 +16226,18 @@ namespace SwimmingScoreboard
                     double m = _laneCloseSettings.FinishPosition == "right" ? ls.RightManualTouchTime : ls.LeftManualTouchTime;
                     if (m > 0) manual = TimeFormatter.Format(m);
                 }
-                sb.AppendFormat("手  动:  {0}\n", !string.IsNullOrEmpty(manual) ? manual : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSManualFmt") + "\n", !string.IsNullOrEmpty(manual) ? manual : "-");
             } else if (result != null && selIdx - 1 < result.Splits.Count) {
                 var sp = result.Splits[selIdx - 1];
-                sb.AppendFormat("【第{0}段  {1}m】\n", sp.Lap, sp.Distance);
+                sb.AppendFormat(Loc.T("Str_RC_TSSplitHeaderFmt") + "\n", sp.Lap, sp.Distance);
                 if (_laneCloseSettings.ReactionTimeEnabled && ls != null && ls.ReactionTime != 0)
-                    sb.AppendFormat("反应时间: {0}\n", ls.ReactionTime.ToString("F2"));
-                sb.AppendFormat("触  板:  {0}\n", sp.TouchpadTime > 0 ? TimeFormatter.Format(sp.TouchpadTime) : "-");
-                sb.AppendFormat("盲表 1:  {0}\n", sp.PushButton1Time > 0 ? TimeFormatter.Format(sp.PushButton1Time) : "-");
-                sb.AppendFormat("盲表 2:  {0}\n", sp.PushButton2Time > 0 ? TimeFormatter.Format(sp.PushButton2Time) : "-");
-                sb.AppendFormat("盲表 3:  {0}\n", sp.PushButton3Time > 0 ? TimeFormatter.Format(sp.PushButton3Time) : "-");
-                sb.AppendFormat("手  动:  {0}\n", sp.ManualTouchTime > 0 ? TimeFormatter.Format(sp.ManualTouchTime) : "-");
-                sb.AppendFormat("计时源:  {0}\n", !string.IsNullOrEmpty(sp.TimingSource) ? sp.TimingSource : "-");
+                    sb.AppendFormat(Loc.T("Str_RC_TSReactionFmt") + "\n", ls.ReactionTime.ToString("F2"));
+                sb.AppendFormat(Loc.T("Str_RC_TSTouchpadFmt") + "\n", sp.TouchpadTime > 0 ? TimeFormatter.Format(sp.TouchpadTime) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSBlind1Fmt") + "\n", sp.PushButton1Time > 0 ? TimeFormatter.Format(sp.PushButton1Time) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSBlind2Fmt") + "\n", sp.PushButton2Time > 0 ? TimeFormatter.Format(sp.PushButton2Time) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSBlind3Fmt") + "\n", sp.PushButton3Time > 0 ? TimeFormatter.Format(sp.PushButton3Time) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSManualFmt") + "\n", sp.ManualTouchTime > 0 ? TimeFormatter.Format(sp.ManualTouchTime) : "-");
+                sb.AppendFormat(Loc.T("Str_RC_TSSourceFmt") + "\n", !string.IsNullOrEmpty(sp.TimingSource) ? sp.TimingSource : "-");
             }
             TimingSourceInfo.Text = sb.ToString();
         }
