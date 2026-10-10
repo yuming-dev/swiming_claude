@@ -3403,6 +3403,8 @@ namespace SwimmingScoreboard
             { "Str_Fmt_PoolInfo", new[] { "{0}米 {1}道", "{0}m {1} lanes" } },
             { "Str_Fmt_HeatDoneOfTotal", new[] { "第{0}组已完赛 / 共{1}组", "Heat {0} finished / {1} total" } },
             { "Str_Fmt_HeatOfTotal", new[] { "第{0}组 / 共{1}组", "Heat {0} / {1} total" } },
+            { "Str_Fmt_HeatNum", new[] { "第{0}组", "Heat {0}" } },
+            { "Str_Common_TimingClientSuffix", new[] { "（计时端）", " (Timing Client)" } },
             { "Str_Action_ReadyPlain", new[] { "就位", "ready" } },
             { "Str_Fmt_ConfirmResultInfo", new[] { "{0} {1} {2} 第{3}组", "{0} {1} {2} Heat {3}" } },
             { "Str_Fmt_PoolEventDoneFmt", new[] { "{0} {1}{2} {3} 已完赛", "{0} {1}{2} {3} Finished" } },

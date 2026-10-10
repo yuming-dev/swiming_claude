@@ -11184,7 +11184,7 @@ namespace SwimmingScoreboard
                 CurrentStageText.Text = (hasLocal && !string.IsNullOrEmpty(_currentStage)) ? _currentStage : "-";
             if (CurrentHeatText != null)
                 CurrentHeatText.Text = (hasLocal && _currentHeat > 0)
-                    ? string.Format("第{0}组 / 共{1}组", _currentHeat, _totalHeats) : "-";
+                    ? Loc.F("Str_Fmt_HeatOfTotal", _currentHeat, _totalHeats) : "-";
             try { UpdateRaceStateDisplay(); } catch { }   // 状态框回到本机自己的 _raceState
             AddLog(Loc.F("Str_Log_CurrentRaceClearedFmt", why));
         }
@@ -11215,17 +11215,19 @@ namespace SwimmingScoreboard
                     CurrentEventText.Text = string.IsNullOrEmpty(_rtcEvent) ? "-"
                         : ((string.IsNullOrEmpty(_rtcAgeGroup) ? "" : "[" + _rtcAgeGroup + "] ") + _rtcGender + " " + _rtcEvent);
                 if (CurrentStageText != null) CurrentStageText.Text = string.IsNullOrEmpty(_rtcStage) ? "-" : _rtcStage;
+                string rtcSuffix = Loc.T("Str_Common_TimingClientSuffix");
                 if (CurrentHeatText != null)
                     CurrentHeatText.Text = _rtcHeat > 0
-                        ? ("第" + _rtcHeat + "组" + (total > 0 ? " / 共" + total + "组" : "") + "（计时端）") : "-";
+                        ? ((total > 0 ? Loc.F("Str_Fmt_HeatOfTotal", _rtcHeat, total) : Loc.F("Str_Fmt_HeatNum", _rtcHeat)) + rtcSuffix)
+                        : "-";
                 _rtcDrivesCurrentRaceText = true;   // 2026-09-13 记一笔: 这块现在归计时端驱动
                 if (RaceStateText != null && !string.IsNullOrEmpty(rs)) {
                     string label; string bg;
                     switch (rs) {
-                        case "READY":    label = "已就位（计时端）";   bg = "#F59E0B"; break;
-                        case "RACING":   label = "比赛中（计时端）";   bg = "#EF4444"; break;
-                        case "FINISHED": label = "本组已完赛（计时端）"; bg = "#64748B"; break;
-                        default:         label = "等待（计时端）";     bg = "#3B82F6"; break;
+                        case "READY":    label = Loc.T("Str_RC_Ready") + rtcSuffix;        bg = "#F59E0B"; break;
+                        case "RACING":   label = Loc.T("Str_Msg_Racing") + rtcSuffix;      bg = "#EF4444"; break;
+                        case "FINISHED": label = Loc.T("Str_HeatStatus_Done") + rtcSuffix; bg = "#64748B"; break;
+                        default:         label = Loc.T("Str_RC_StateWaiting") + rtcSuffix; bg = "#3B82F6"; break;
                     }
                     RaceStateText.Text = label;
                     RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg));
