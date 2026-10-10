@@ -1394,6 +1394,10 @@ namespace SwimmingScoreboard
             // ScheduleGrid replaced by ScheduleGroupedPanel
             RecordGrid.ItemsSource = _records;
             RefreshRecordFilterCombos();
+            // 2026-10-10 这里原来没调 ApplyRecordFilter(), "共N条(总N条)"计数框从启动起就是空的,
+            //   要等用户碰一下筛选框或纪录数据变化才第一次被赋值——补一下, 跟上面 ItemsSource
+            //   赋值配一对, 开着就是满的。
+            try { ApplyRecordFilter(); } catch { }
 
             // 初始化默认项目列表
             _events = DefaultEvents();
