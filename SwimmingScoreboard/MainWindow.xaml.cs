@@ -7256,25 +7256,26 @@ namespace SwimmingScoreboard
             // 2026-07-13 直通模式: PC 自算反应时, 硬件"SB 超时无反应"帧 (StartingBlockTimeout = 出[N]=---) 冗余 → 不入日志/不打印.
             if (cmdType == "StartingBlockTimeout" && _laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) return;
             // 2026-05-27 用户要求简化显示文字
+            // 2026-10-11 label/sideLabel/道 全走 Loc, 英文模式下跟表头一致的缩写(TP/SB/MB1-3/L/R)
             string label;
             switch (cmdType) {
-                case "StartingBlock":     label = "出";   break;
-                case "StartingBlockTimeout": label = "出";   break;   //2026-05-31 接力 SB 超时无 TP/MB (d10=2), time 字段统一显示 "---"
-                case "Touchpad":          label = "触";   break;
-                case "ManualTouchpad":    label = "触代"; break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result=1); 2026-06-14 cmdType 由 "TouchpadMb" 改为 "ManualTouchpad" (= 跟 enum 一致)
-                case "BackstrokeRelease": label = "触放"; break;   //2026-06-14 仰泳出发松开 TP (= 反应时锚点, 时间字段为 PreStart 计数器值)
-                case "PushButton1":       label = "盲1";  break;
-                case "PushButton2":       label = "盲2";  break;
-                case "PushButton3":       label = "盲3";  break;
-                case "ManualTouchLeft":   label = "手左"; break;
-                case "ManualTouchRight":  label = "手右"; break;
+                case "StartingBlock":     label = Loc.T("Str_EvtLog_Start");        break;
+                case "StartingBlockTimeout": label = Loc.T("Str_EvtLog_Start");     break;   //2026-05-31 接力 SB 超时无 TP/MB (d10=2), time 字段统一显示 "---"
+                case "Touchpad":          label = Loc.T("Str_EvtLog_Touch");        break;
+                case "ManualTouchpad":    label = Loc.T("Str_EvtLog_TouchMB");      break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result=1); 2026-06-14 cmdType 由 "TouchpadMb" 改为 "ManualTouchpad" (= 跟 enum 一致)
+                case "BackstrokeRelease": label = Loc.T("Str_EvtLog_TouchRelease"); break;   //2026-06-14 仰泳出发松开 TP (= 反应时锚点, 时间字段为 PreStart 计数器值)
+                case "PushButton1":       label = Loc.T("Str_EvtLog_Backup1");      break;
+                case "PushButton2":       label = Loc.T("Str_EvtLog_Backup2");      break;
+                case "PushButton3":       label = Loc.T("Str_EvtLog_Backup3");      break;
+                case "ManualTouchLeft":   label = Loc.T("Str_EvtLog_ManualLeft");   break;
+                case "ManualTouchRight":  label = Loc.T("Str_EvtLog_ManualRight");  break;
                 default: return;   // 其它类型跳过
             }
             string elapsed = _raceStartTime > DateTime.MinValue
                 ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
                 : "—";
             //2026-05-31 加左/右标志 + 圈数 [N] 标注 (N = 该侧剩余触板次数, 跟 PC UI 一致)
-            string sideLabel = side == "left" ? "左" : (side == "right" ? "右" : "");
+            string sideLabel = side == "left" ? Loc.T("Str_EvtLog_Left") : (side == "right" ? Loc.T("Str_EvtLog_Right") : "");
             string lapLabel = lapRemain >= 0 ? string.Format("[{0}]", lapRemain) : "";
             //2026-05-31 v2: 没数据 (= 接力 SB 超时 d10=2) 显示 "---"; 其他场景 0/正/负 都显示数值 (= 0 → "0.00", 负 → "-X.XX")
             string timeStr;
@@ -7283,8 +7284,8 @@ namespace SwimmingScoreboard
             else if (time < 0) timeStr = "-" + TimeFormatter.Format(-time);   // TimeFormatter 对 <=0 返空, 用 abs+前缀
             else timeStr = TimeFormatter.Format(time);
             // 2026-06-16 简化日志格式: 去掉 "[T=" 和 "]", 直接显示时间值. 原 `[T=    3.06]` → `   3.06`
-            AppendLaneEventLog(lane, string.Format("{0,8} 道{1}{2} {3}{4}={5}{6}\r\n",
-                elapsed, lane, sideLabel, label, lapLabel, timeStr,
+            AppendLaneEventLog(lane, string.Format("{0,8} {1}{2}{3} {4}{5}={6}{7}\r\n",
+                elapsed, Loc.T("Str_EvtLog_LaneAbbrev"), lane, sideLabel, label, lapLabel, timeStr,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")")));
             // 2026-06-12 USB 热敏打印机 实时打印: 仅 TP/SB/MB 三类 (出/触/盲1-3), 不含 手动触板/触代.
             //   打印同一行 = 跟比赛日志一致 (现场纸质流水留底). 入队即返回, 不阻塞 UI.
@@ -9480,8 +9481,8 @@ namespace SwimmingScoreboard
             if (laneState == null) return;
             laneState.ReactionTime = reaction;
             // 写比赛日志 — 用"出"标签 + 加 basisKind 注释
-            string label = "出";
-            string sideLabel = side == "left" ? "左" : (side == "right" ? "右" : "");
+            string label = Loc.T("Str_EvtLog_Start");
+            string sideLabel = side == "left" ? Loc.T("Str_EvtLog_Left") : (side == "right" ? Loc.T("Str_EvtLog_Right") : "");
             int lapRemain = GetTouchRemain(laneState, side == "left");
             string lapLabel = lapRemain >= 0 ? string.Format("[{0}]", lapRemain) : "";
             string timeStr;
@@ -9489,7 +9490,7 @@ namespace SwimmingScoreboard
             else if (reaction < 0) timeStr = "-" + TimeFormatter.Format(-reaction);
             else timeStr = TimeFormatter.Format(reaction);
             // 加 basis 注释 (= TP / MB / HandTP)
-            string basisNote = basisKind == "TP" ? "" : (basisKind == "MB" ? " (基准:MB)" : (basisKind == "HandTP" ? " (基准:手动)" : ""));
+            string basisNote = basisKind == "TP" ? "" : (basisKind == "MB" ? Loc.T("Str_EvtLog_BasisMB") : (basisKind == "HandTP" ? Loc.T("Str_EvtLog_BasisHandTP") : ""));
             string elapsed = _raceStartTime > DateTime.MinValue
                 ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
                 : "—";
@@ -9501,8 +9502,8 @@ namespace SwimmingScoreboard
             if (sw2 != null) swimmerName = sw2.Name ?? "";
             // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
             // 2026-06-16 简化日志格式: 去掉 "[T=" 和 "]"
-            AppendLaneEventLog(lane, string.Format("{0,8} 道{1}{2} {3}{4}={5}*{6}{7}\r\n",
-                elapsed, lane, sideLabel, label, lapLabel, timeStr, basisNote,
+            AppendLaneEventLog(lane, string.Format("{0,8} {1}{2}{3} {4}{5}={6}*{7}{8}\r\n",
+                elapsed, Loc.T("Str_EvtLog_LaneAbbrev"), lane, sideLabel, label, lapLabel, timeStr, basisNote,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")")));
             // 写到接力 LegReactionTimes (= 棒次反应时表)
             if (_isRelay) {
@@ -18417,9 +18418,15 @@ namespace SwimmingScoreboard
 
         // 2026-06-12 比赛泳池、设备状态设置 子窗口 (从 参数设置 拆出 终点位置/反应时/盲表代触板/硬件设备/出发边沿/道次顺序/泳池触板 + 设备管理按钮). 确认=应用并同步; 取消=不改.
         private void ShowPoolDeviceSettingsDialog() {
+            // 2026-10-11 英文标签("Backup Watch Replaces Touchpad"等)和单选项文字("On (auto-replace
+            //   with backup watch median)"等)都比中文长很多, 原固定 440px 窗口+140px 标签列塞不下,
+            //   被硬裁到窗口外(看不见, 不是显示省略号)。英文模式下窗口/标签列都加宽, 每行再从
+            //   StackPanel 换成 WrapPanel 兜底——哪行实在还是太长, 自动换到下一行而不是被裁掉。
+            bool enPD = Loc.CurrentLanguage == Loc.En;
+            double pdLabelW = enPD ? 230 : 140;
             var dlg = new Window {
                 Title = Loc.T("Str_Win_PoolDevice_Title"),
-                Width = 440,
+                Width = enPD ? 640 : 440,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize,
@@ -18429,8 +18436,8 @@ namespace SwimmingScoreboard
             sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_PoolDevice_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
             // 终点位置
-            var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            finishRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_FinishPos"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var finishRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            finishRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_FinishPos"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbLeft = new RadioButton { Content = Loc.T("Str_Radio_FinishLeft"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "left", GroupName = "FinPos", Margin = new Thickness(0, 0, 12, 0) };
             var rbRight = new RadioButton { Content = Loc.T("Str_Radio_FinishRight"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "right", GroupName = "FinPos" };
             finishRow.Children.Add(rbLeft);
@@ -18438,8 +18445,8 @@ namespace SwimmingScoreboard
             sp.Children.Add(finishRow);
 
             // 反应时检测（RT）开关：关闭后所有出发反应时相关处理跳过
-            var rtRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            rtRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ReactionTime"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rtRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            rtRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ReactionTime"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbRtOn = new RadioButton { Content = Loc.T("Str_Radio_On"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch", Margin = new Thickness(0, 0, 12, 0) };
             var rbRtOff = new RadioButton { Content = Loc.T("Str_Radio_Off"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch" };
             rtRow.Children.Add(rbRtOn);
@@ -18447,8 +18454,8 @@ namespace SwimmingScoreboard
             sp.Children.Add(rtRow);
 
             // 2026-06-06 盲表代替触板 (PC 端自动用盲表中位数补当前段缺失的触板成绩)
-            var blindRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            blindRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_BlindReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var blindRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            blindRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_BlindReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbBlindOn = new RadioButton { Content = Loc.T("Str_Radio_BlindOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace", Margin = new Thickness(0, 0, 12, 0) };
             var rbBlindOff = new RadioButton { Content = Loc.T("Str_Radio_BlindOff"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace" };
             blindRow.Children.Add(rbBlindOn);
@@ -18456,8 +18463,8 @@ namespace SwimmingScoreboard
             sp.Children.Add(blindRow);
 
             // 2026-06-14 手动 TP 代替真 TP: 开=手动 TP 即使该段已有真触板也覆盖; 关=仅无 TP 时应急, 已有真 TP 只记备份
-            var manualTpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            manualTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ManualTpReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var manualTpRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            manualTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ManualTpReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbManualTpOn = new RadioButton { Content = Loc.T("Str_Radio_ManualTpOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace", Margin = new Thickness(0, 0, 12, 0) };
             var rbManualTpOff = new RadioButton { Content = Loc.T("Str_Radio_ManualTpOff"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace" };
             manualTpRow.Children.Add(rbManualTpOn);
@@ -18467,8 +18474,8 @@ namespace SwimmingScoreboard
             // 2026-06-02 硬件设备状态: 一直打开 / 按比赛流程
             //   "一直打开" = 硬件 TP/SB/MB 按键路径忽略 *_Open_Close_State 关闭状态, 只跳过 ==3 坏 / ==4 未装. 让 PC 端拿到所有按键事件
             //   "按流程"   = 原行为 (硬件按比赛流程时序自动开/关设备)
-            var hwOpenRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            hwOpenRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_HwDevice"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var hwOpenRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            hwOpenRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_HwDevice"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbHwAlwaysOpen = new RadioButton { Content = Loc.T("Str_Radio_HwAlwaysOpen"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode", Margin = new Thickness(0, 0, 12, 0) };
             var rbHwFlow = new RadioButton { Content = Loc.T("Str_Radio_HwFlow"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode" };
             hwOpenRow.Children.Add(rbHwAlwaysOpen);
@@ -18476,8 +18483,8 @@ namespace SwimmingScoreboard
             sp.Children.Add(hwOpenRow);
 
             // 2026-06-03 出发信号边沿 — 硬件 SB 按键有效边沿 (下降沿 / 上升沿), 0x41 帧 d7 下发硬件
-            var edgeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            edgeRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_StartEdge"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var edgeRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            edgeRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_StartEdge"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbEdgeFall = new RadioButton { Content = Loc.T("Str_Radio_EdgeFall"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge", Margin = new Thickness(0, 0, 12, 0) };
             var rbEdgeRise = new RadioButton { Content = Loc.T("Str_Radio_EdgeRise"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge" };
             edgeRow.Children.Add(rbEdgeFall);
@@ -18485,8 +18492,8 @@ namespace SwimmingScoreboard
             sp.Children.Add(edgeRow);
 
             // 道次显示顺序：正序=顶到底为 0→9；逆序=顶到底为 9→0（同步给硬件计时器及所有 UI）
-            var orderRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            orderRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_LaneOrder"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var orderRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            orderRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_LaneOrder"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbOrderFwd = new RadioButton { Content = Loc.T("Str_Radio_OrderFwd"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder != "reverse", GroupName = "LaneOrder", Margin = new Thickness(0, 0, 12, 0) };
             var rbOrderRev = new RadioButton { Content = Loc.T("Str_Radio_OrderRev"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder == "reverse", GroupName = "LaneOrder" };
             orderRow.Children.Add(rbOrderFwd);
@@ -18496,8 +18503,8 @@ namespace SwimmingScoreboard
             //2026-05-12 新增：泳池触板安装方式（单边/两端）
             //  HasRightStartBlock=true  -> 两端都有触板
             //  HasRightStartBlock=false -> 只有一端有触板（单边）
-            var poolTpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            poolTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_PoolTp"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var poolTpRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            poolTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_PoolTp"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
             var rbTpBoth = new RadioButton { Content = Loc.T("Str_Radio_TpBoth"), Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && _poolConfig.HasRightStartBlock, GroupName = "PoolTP", Margin = new Thickness(0, 0, 12, 0) };
             var rbTpSingle = new RadioButton { Content = Loc.T("Str_Radio_TpSingle"), Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && !_poolConfig.HasRightStartBlock, GroupName = "PoolTP" };
             poolTpRow.Children.Add(rbTpBoth);

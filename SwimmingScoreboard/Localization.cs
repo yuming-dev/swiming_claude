@@ -159,6 +159,22 @@ namespace SwimmingScoreboard
             { "Str_RC_RaceLogHint",     new[] { "本组所选道次的实时事件 — 出发反应时 / 触板 / 盲表 (切道次可调出该道历史)", "Live events for the selected lane in this heat — start reaction time / touchpad / backup watch (switch lanes to pull up its history)" } },
             { "Str_RC_RaceLogPickLane", new[] { "(请先点击或输入泳道号)", "(Click or enter a lane number first)" } },
             { "Str_RC_RaceLogEmptyFmt", new[] { "道{0}: 本组暂无事件记录", "Lane {0}: no events recorded for this heat yet" } },
+            // 2026-10-11 "比赛日志"每一行实时事件 (AppendToLaneEventLog/OnRelayReactionReady 拼出来的,
+            //   原来全硬编码中文缩写), 英文模式下换成跟前面"泳道实时状态"表头一致的缩写(TP/SB/MB1-3/L/R)。
+            { "Str_EvtLog_LaneAbbrev",    new[] { "道", "Ln" } },
+            { "Str_EvtLog_Left",          new[] { "左", "L" } },
+            { "Str_EvtLog_Right",         new[] { "右", "R" } },
+            { "Str_EvtLog_Start",         new[] { "出", "SB" } },
+            { "Str_EvtLog_Touch",         new[] { "触", "TP" } },
+            { "Str_EvtLog_TouchMB",       new[] { "触代", "TP(MB)" } },
+            { "Str_EvtLog_TouchRelease",  new[] { "触放", "Rel" } },
+            { "Str_EvtLog_Backup1",       new[] { "盲1", "MB1" } },
+            { "Str_EvtLog_Backup2",       new[] { "盲2", "MB2" } },
+            { "Str_EvtLog_Backup3",       new[] { "盲3", "MB3" } },
+            { "Str_EvtLog_ManualLeft",    new[] { "手左", "ManL" } },
+            { "Str_EvtLog_ManualRight",   new[] { "手右", "ManR" } },
+            { "Str_EvtLog_BasisMB",       new[] { " (基准:MB)", " (Basis: MB)" } },
+            { "Str_EvtLog_BasisHandTP",   new[] { " (基准:手动)", " (Basis: Manual)" } },
 
             // "设置" 页：界面语言（新增）
             { "Str_Settings_Language",     new[] { "界面语言", "Interface Language" } },
