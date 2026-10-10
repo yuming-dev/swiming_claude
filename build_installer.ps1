@@ -188,18 +188,25 @@ if (Test-Path $rdcWebView2Profile) {
     Write-Host "  ✂  删除 RemoteDisplayControl.exe.WebView2 (开发机残留数据)"
 }
 
-# 2026-10-09 按 FINA/World Aquatics 规则(= MainWindow.xaml.cs 的 DefaultEvents/DefaultGenders/
-#   DefaultStages/DefaultAgeGroups/DefaultHeatCounts, 新建赛事就是拿这几个函数做初始值)生成的
-#   中/英文版"比赛项目/组别/性别/赛次/组数"五张表, 对应"赛事管理与报名→比赛参数设置管理"
-#   里那五块各自的 导入/下载模板 按钮——用户反馈这几张表才是正确的落点, 不是赛程整表。
-#   走各自的 CSV 导入入口(这几个入口不认 .xlsx, 只认 .csv)。体积很小(10个文件共约2KB),
+# 2026-10-10 对应"赛事管理与报名→比赛参数设置管理"顶部"比赛规则"下拉的三个选项
+#   (国际比赛FINA / 国内大赛中国游协 / U系列青少年游泳比赛)，各自一套"比赛项目/组别/
+#   性别/赛次/组数"五张表 × 中/英文 = 3×2×5 = 30 个 CSV，按规则分 3 个子目录。数据来源
+#   (均为实查，非猜测)：
+#     国际比赛(FINA)   — World Aquatics Swimming Rules 2023-2025 SW14(年龄组=公开组)
+#     国内大赛(中国游协) — 《2026年全国游泳锦标赛竞赛规程》原文 + 竞赛日程(不分年龄组，
+#                         单项36+接力9=45项)
+#     U系列            — 《2026年全国青少年游泳U系列比赛总决赛》参赛名单(按项目)176页
+#                         逐项核实：5个年龄组(U9-U10至U17-U18)共用17个单项，仅U9-U10
+#                         不设800/1500自由泳；无接力。(17×5-2)×2性别=166，与名单最后
+#                         一个项目号完全吻合。
+#   走各自的 CSV 导入入口(这几个入口不认 .xlsx, 只认 .csv)。体积很小(30个文件共约5KB),
 #   -Lite 也照常带上, 不受那个开关影响。
 $paramTplSrc = Join-Path $root "Installer\CompetitionParamsTemplates"
 if (Test-Path $paramTplSrc) {
     $paramTplDst = Join-Path $installerBuild "CompetitionParamsTemplates"
     if (Test-Path $paramTplDst) { Remove-Item -Recurse -Force $paramTplDst }
     Copy-Item $paramTplSrc $paramTplDst -Recurse -Force
-    Write-Host "  ✓ FINA 比赛参数模板(项目/组别/性别/赛次/组数 × 中/英文) 已收入安装包"
+    Write-Host "  ✓ 比赛参数模板(国际FINA/国内CSA/U系列 × 项目/组别/性别/赛次/组数 × 中/英文) 已收入安装包"
 } else {
     Write-Host "    [提示] 找不到 Installer\CompetitionParamsTemplates\, 安装包不含参数模板" -ForegroundColor Yellow
 }
