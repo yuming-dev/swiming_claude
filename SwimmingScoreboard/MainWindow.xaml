@@ -1537,8 +1537,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#3B82F6" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE8F1;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowStartList}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE8F1;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowStartList}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1549,8 +1549,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#2563EB" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowLiveRace}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowLiveRace}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1562,8 +1562,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#059669" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE9D5;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowHeatResult}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE9D5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowHeatResult}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1574,8 +1574,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#10B981" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE8CB;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowEventRanking}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE8CB;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowEventRanking}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1587,8 +1587,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#D97706" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE8D1;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowTeamStandings}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE8D1;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowTeamStandings}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1599,8 +1599,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#F59E0B" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE8A0;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowAwards}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE8A0;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowAwards}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1612,8 +1612,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#DC2626" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowReferees}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowReferees}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1624,8 +1624,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#8B5CF6" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowWelcome}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowWelcome}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1639,7 +1639,7 @@
                                                 <Border Background="#F59E0B" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_PublishResult}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_PublishResult}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1652,7 +1652,7 @@
                                                 <Border Background="#0D9488" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowSchedule}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowSchedule}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1667,7 +1667,7 @@
                                                 <Border Background="#0EA5E9" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8B9;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_ShowMedia}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowMedia}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1680,7 +1680,7 @@
                                                 <Border Background="#FB923C" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE786;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="{DynamicResource Str_RC_PlayPpt}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_PlayPpt}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1704,22 +1704,29 @@
                                          用 Button.Content (而不是 ControlTemplate) 装 StackPanel,
                                          这样 x:Name="RecordsHiddenBtnText" 在 code-behind 可访问 -->
                                     <!-- Row 7: 记录显示 / 显反应时 (2026-06-25 用户要求合一行, "备注: 显反应时" 去"备注: ") -->
+                                    <!-- 2026-10-10 这两个按钮原来 HorizontalContentAlignment 吃 Button 默认值 Center,
+                                         里面的 Border 只贴着文字内容的宽度居中, 不像同组其它按钮(走 Button.Template,
+                                         Border 直接就是模板根节点, 天然撑满)——同一个 28px 格子里, "Records"跟"RT On"
+                                         文字长短不一, 色块宽度就跟着不一样, 看着两个按钮宽度对不上。显式 Stretch 让
+                                         Border 撑满格子, 跟其它按钮视觉一致。 -->
                                     <Button Grid.Row="7" Grid.Column="0" x:Name="RecordsHiddenBtn" Click="ToggleRecordsHidden_Click" Margin="2" Padding="0" BorderThickness="0" Cursor="Hand" Background="Transparent"
+                                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                             ToolTip="{DynamicResource Str_RC_RecordsHiddenTip}">
                                         <Border Background="#475569" CornerRadius="5">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="&#xED1A;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                <TextBlock x:Name="RecordsHiddenBtnText" Text="{DynamicResource Str_RC_RecordsShow}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="&#xED1A;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                <TextBlock x:Name="RecordsHiddenBtnText" Text="{DynamicResource Str_RC_RecordsShow}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </Button>
                                     <!-- 2026-06-04 备注栏 是否显示 出发反应时 切换 (= display.html lane-row .remark 反应时窗口期内显示) -->
                                     <Button Grid.Row="7" Grid.Column="1" x:Name="RemarkReactionBtn" Click="ToggleRemarkReaction_Click" Margin="2" Padding="0" BorderThickness="0" Cursor="Hand" Background="Transparent"
+                                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                             ToolTip="{DynamicResource Str_RC_RemarkReactionTip}">
                                         <Border Background="#475569" CornerRadius="5">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE91F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                <TextBlock x:Name="RemarkReactionBtnText" Text="{DynamicResource Str_RC_RemarkReaction}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="RemarkReactionBtnText" Text="{DynamicResource Str_RC_RemarkReaction}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </Button>

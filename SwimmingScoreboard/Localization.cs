@@ -536,6 +536,18 @@ namespace SwimmingScoreboard
             { "Str_HeatStatus_Done",      new[] { "已完赛", "Done" } },
             { "Str_HeatStatus_Confirmed", new[] { "已确认", "Confirmed" } },
             { "Str_HeatStatus_Cancelled", new[] { "已取消", "Cancelled" } },
+            // 2026-10-10 "比赛控制"左侧 Schedule 导航树: "第X场"/"第X组(共X组)"同属上面这类
+            // "拼进 TreeViewItem.Header 的静态文本", 原来整个漏翻——BuildScheduleTree() 里
+            // 直接用 string.Format("第{0}场"...)/"第{0}组 (共{1}组)" 硬编码, 跟语言完全无关。
+            { "Str_Sched_SessionFmt",       new[] { "第{0}场", "Session {0}" } },
+            { "Str_Sched_SessionWithPeriodFmt", new[] { "第{0}场（{1}{2}）", "Session {0} ({1} {2})" } },
+            { "Str_Sched_HeatOfTotalFmt",   new[] { "第{0}组 (共{1}组)", "Heat {0} (of {1})" } },
+            { "Str_Sched_HeatStatusFmt",    new[] { "第{0}组 {1}", "Heat {0} {1}" } },
+            { "Str_Sched_HeatCancelledFmt", new[] { "第{0}组 [{1}]", "Heat {0} [{1}]" } },
+            { "Str_Sched_CancelledMergedFmt", new[] { "已取消 并入第{0}组", "Cancelled, merged into Heat {0}" } },
+            { "Str_Common_PeriodAM",      new[] { "上午", "AM" } },
+            { "Str_Common_PeriodPM",      new[] { "下午", "PM" } },
+            { "Str_Common_PeriodEvening", new[] { "晚上", "Evening" } },
 
             // 2026-09-21 【中文/English 第五阶段】四块纯 C# 运行时拼出来的动态面板之一：
             // 赛事概览的报名统计(RefreshOverviewStats)。跟静态 XAML 不一样，这些字符串

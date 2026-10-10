@@ -13636,7 +13636,7 @@ namespace SwimmingScoreboard
             foreach (var session in sessions) {
                 bool sessionAllDone = true;
                 var sessionItem = new TreeViewItem {
-                    Header = session.First().SessionName ?? string.Format("第{0}场", session.Key)
+                    Header = BuildSessionHeaderText(session.Key, session.First())
                 };
 
                 int evSeq = 0;
@@ -13660,8 +13660,8 @@ namespace SwimmingScoreboard
                     if (ev.CancelledHeats != null) {
                         foreach (var cc in ev.CancelledHeats) {
                             cancelLabels[cc.Heat] = cc.MergedInto > 0
-                                ? string.Format("已取消 并入第{0}组", cc.MergedInto)
-                                : (string.IsNullOrEmpty(cc.Reason) ? "已取消" : "已取消 " + cc.Reason);
+                                ? Loc.F("Str_Sched_CancelledMergedFmt", cc.MergedInto)
+                                : (string.IsNullOrEmpty(cc.Reason) ? Loc.T("Str_HeatStatus_Cancelled") : Loc.T("Str_HeatStatus_Cancelled") + " " + cc.Reason);
                         }
                     }
                     // Tag 扩展：event:AgeGroup|Gender|Event|Stage  或  heat/done:AgeGroup|Gender|Event|Stage|Heat
@@ -13694,8 +13694,8 @@ namespace SwimmingScoreboard
                             // 2026-08-24 已取消(并组)的组要标出来, 不然是个点进去空白的组——保留
                             //   "并入第X组"这层细节, 不走通用的 StatusLabel(那边只会说"[已取消]")。
                             Header = cancelled
-                                ? string.Format("第{0}组 [{1}]", h, cancelLabels[h])
-                                : (hStatus == HeatDisplayStatus.Pending ? string.Format("第{0}组 (共{1}组)", h, heatCount) : string.Format("第{0}组 {1}", h, StatusLabel(hStatus))),
+                                ? Loc.F("Str_Sched_HeatCancelledFmt", h, cancelLabels[h])
+                                : (hStatus == HeatDisplayStatus.Pending ? Loc.F("Str_Sched_HeatOfTotalFmt", h, heatCount) : Loc.F("Str_Sched_HeatStatusFmt", h, StatusLabel(hStatus))),
                             Foreground = StatusBrush(hStatus)
                         };
                         eventItem.Items.Add(heatItem);
@@ -13713,7 +13713,7 @@ namespace SwimmingScoreboard
                 // 场内所有项目都完赛时收起，否则展开
                 sessionItem.IsExpanded = !sessionAllDone;
                 if (sessionAllDone) {
-                    sessionItem.Header = (session.First().SessionName ?? string.Format("第{0}场", session.Key)) + " " + StatusLabel(HeatDisplayStatus.Done);
+                    sessionItem.Header = BuildSessionHeaderText(session.Key, session.First()) + " " + StatusLabel(HeatDisplayStatus.Done);
                     sessionItem.Foreground = new SolidColorBrush(Colors.Gray);
                 }
 
@@ -23520,6 +23520,29 @@ namespace SwimmingScoreboard
             if (hour >= 18) return "晚上";
             if (hour >= 12) return "下午";
             return "上午";
+        }
+
+        // 2026-10-10 "上午"/"下午"/"晚上" 这几个哨兵值(InferTimePeriod/ParseSessionPeriod 等
+        //   多处函数的返回值)本身不翻译(跟性别哨兵"男"/"女"一个道理, 内部比较/排序都靠它),
+        //   展示时过一道这个函数换成当前语言的文字。
+        private static string PeriodDisplay(string period) {
+            if (period == "上午") return Loc.T("Str_Common_PeriodAM");
+            if (period == "下午") return Loc.T("Str_Common_PeriodPM");
+            if (period == "晚上") return Loc.T("Str_Common_PeriodEvening");
+            return period ?? "";
+        }
+
+        // 2026-10-10 "比赛控制"左侧 Schedule 导航树的场次标题——session.SessionName 是赛程
+        //   生成那一刻按当时界面语言拼好存下来的缓存串("第1场（2026-08-22上午）"), 不会跟着
+        //   语言切换重新翻译(跟 TreeViewItem.Header 其它静态文本同一个毛病)。这里改成每次
+        //   画树都从 SessionNumber/Date/Time 这几个活字段现拼, 不信那份缓存串, 保证左侧导航树
+        //   任何时候显示的都是当前界面语言。只影响这棵树的显示, 不改 SessionName 本身的存档值
+        //   (其它用到 SessionName 的报表/导出路径不受影响)。
+        private string BuildSessionHeaderText(int sessionKey, ScheduleItem first) {
+            if (first == null || string.IsNullOrEmpty(first.Date))
+                return Loc.F("Str_Sched_SessionFmt", sessionKey);
+            string period = PeriodDisplay(InferTimePeriod(first.Time));
+            return Loc.F("Str_Sched_SessionWithPeriodFmt", sessionKey, first.Date, period);
         }
 
         private void RebuildScheduleGroupedView() {
