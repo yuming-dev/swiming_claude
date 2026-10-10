@@ -396,11 +396,12 @@ namespace SwimmingScoreboard
             //   规则文件, 但预置一套取自真实赛事数据(tools\fenzu_parsed.json, 甘肃某地区运动会
             //   游泳比赛实际项目设置)的模板起点: 项目/组别/性别/赛次均来自真实比赛, 含"男女"
             //   同组同赛(用户明确要的"男女一起比赛")和全程直接决赛(无预赛/半决赛)。
-            //   不满足的话主办方在下方五张表里自行增删, 改完随这份赛事存档一起保存——
+            //   不满足的话主办方在下方四张表里自行增删, 改完随这份赛事存档一起保存——
             //   下次新建赛事再选这条规则时, 还是加载这份出厂预置(跟另外三条规则现有行为
-            //   一致, 不会记住上次改过的内容)。
+            //   一致, 不会记住上次改过的内容)。("组数"原本是第5张表, 2026-10-10 已去掉,
+            //   见 _heatCounts 字段声明处的说明。)
             { "Str_EM_RuleRegional",   new[] { "地区级比赛", "Regional / Local Meet" } },
-            { "Str_EM_RuleRegionalDesc", new[] { "地区级比赛 (省/市/区/校运动会等): 预置项目/组别/性别/赛次模板(取自真实地区赛事数据), 允许男女同组比赛、全程直接决赛; 不满足可在下方五张表自行增删", "Regional / Local Meet (provincial, district, school games, etc.): preset Events/Age Groups/Genders/Stages template (drawn from a real regional meet), with men and women racing in the same heat and all events run as direct finals. Use the five tables below to add, edit, or remove entries if it doesn't fit your meet." } },
+            { "Str_EM_RuleRegionalDesc", new[] { "地区级比赛 (省/市/区/校运动会等): 预置项目/组别/性别/赛次模板(取自真实地区赛事数据), 允许男女同组比赛、全程直接决赛; 不满足可在下方四张表自行增删", "Regional / Local Meet (provincial, district, school games, etc.): preset Events/Age Groups/Genders/Stages template (drawn from a real regional meet), with men and women racing in the same heat and all events run as direct finals. Use the four tables below to add, edit, or remove entries if it doesn't fit your meet." } },
             { "Str_EM_EventGroupConfig",new[] { "比赛项目 / 组别配置（数据库持久化，支持手动编辑、导入、导出）", "Events / Age Groups (stored in the database; edit, import or export)" } },
             { "Str_EM_Events",         new[] { "比赛项目", "Events" } },
             { "Str_EM_EditEvents",     new[] { "比赛项目编辑", "Edit Events" } },
@@ -422,11 +423,6 @@ namespace SwimmingScoreboard
             { "Str_EM_ImportStages",   new[] { "导入赛次表", "Import Stages" } },
             { "Str_EM_ExportStages",   new[] { "导出赛次表", "Export Stages" } },
             { "Str_EM_DownloadStagesTemplate",new[] { "下载赛次模板", "Download Template" } },
-            { "Str_EM_HeatCounts",     new[] { "组数", "Heat Counts" } },
-            { "Str_EM_EditHeatCounts", new[] { "组数编辑", "Edit Heat Counts" } },
-            { "Str_EM_ImportHeatCounts",new[] { "导入组数表", "Import Heat Counts" } },
-            { "Str_EM_ExportHeatCounts",new[] { "导出组数表", "Export Heat Counts" } },
-            { "Str_EM_DownloadHeatCountsTemplate",new[] { "下载组数模板", "Download Template" } },
             { "Str_EM_TeamScoring",    new[] { "团体计分 — 名次分", "Team Scoring — Points" } },
             { "Str_EM_TeamScoringDesc",new[] { "编辑各名次得分（个人 / 接力）、组别系数、取分人数与破纪录加分；保存后立即重算团体积分。", "Edit points per place (individual/relay), age-group multipliers, how many places count, and record-break bonus; team totals recalc immediately on save." } },
             { "Str_EM_ScoringConfig",  new[] { "名次分设置", "Scoring Setup" } },
@@ -1440,7 +1436,6 @@ namespace SwimmingScoreboard
             { "Str_Entity_RecordsList",  new[] { "纪录列表", "Records List" } },
             { "Str_Entity_GendersList",  new[] { "性别列表", "Gender List" } },
             { "Str_Entity_StagesList",   new[] { "赛次列表", "Stage List" } },
-            { "Str_Entity_HeatCountsList", new[] { "组数列表", "Heat Count List" } },
             { "Str_Entity_EventsList",   new[] { "比赛项目列表", "Event List" } },
             { "Str_Entity_AgeGroupsList",new[] { "组别列表", "Age Group List" } },
             { "Str_Entity_RecordEntryFmt", new[] { "纪录 [{0} {1} {2}]", "Record [{0} {1} {2}]" } },
@@ -2015,12 +2010,14 @@ namespace SwimmingScoreboard
             { "Str_Log_AutoAddedNewUnitFmt", new[] { "已自动添加新参赛单位: {0}", "Automatically added new participating unit: {0}" } },
             { "Str_Log_RegisterSwimmerFmt", new[] { "注册运动员: {0}({1}) 新增 {2} 项 / 更新 {3} 项 / 跳过 {4} 项", "Registered swimmer: {0}({1}) {2} added / {3} updated / {4} skipped" } },
             { "Str_Log_CompetitionRuleSwitchedFmt", new[] { "比赛规则切换为: {0}", "Competition rules switched to: {0}" } },
+            // 2026-10-10 "组数"设置整张表去掉了(实际分几组按报名人数自动算, 不需要配置)——
+            //   自动导入从"五张表"变成"四张表", 这两条提示文案跟着改。
             { "Str_Msg_ConfirmAutoLoadCompParamsFmt", new[] {
-                "切换比赛规则为「{0}」后，是否自动导入该规则对应的\n比赛项目 / 组别 / 性别 / 赛次 / 组数 五张表？\n\n这会替换当前这五张表的全部内容（不影响已排好的赛程/已报名的运动员）。",
-                "Switch the competition rule to \"{0}\" and automatically import its\nEvents / Age Groups / Genders / Stages / Heats tables?\n\nThis replaces the current content of all five tables (your schedule and swimmer registrations are not affected)." } },
+                "切换比赛规则为「{0}」后，是否自动导入该规则对应的\n比赛项目 / 组别 / 性别 / 赛次 四张表？\n\n这会替换当前这四张表的全部内容（不影响已排好的赛程/已报名的运动员）。",
+                "Switch the competition rule to \"{0}\" and automatically import its\nEvents / Age Groups / Genders / Stages tables?\n\nThis replaces the current content of all four tables (your schedule and swimmer registrations are not affected)." } },
             { "Str_MsgTitle_ConfirmAutoLoadCompParams", new[] { "自动导入比赛参数?", "Auto-Import Competition Parameters?" } },
             { "Str_Log_CompRuleTemplateFolderMissingFmt", new[] { "未找到「{0}」的内置参数模板目录，跳过自动导入", "Built-in parameter template folder for \"{0}\" not found; skipped auto-import" } },
-            { "Str_Log_CompRuleAutoLoadedFmt", new[] { "已按「{0}」自动导入 {1} 张比赛参数表（项目/组别/性别/赛次/组数）", "Auto-imported {1} competition parameter table(s) (Events/Age Groups/Genders/Stages/Heats) for \"{0}\"" } },
+            { "Str_Log_CompRuleAutoLoadedFmt", new[] { "已按「{0}」自动导入 {1} 张比赛参数表（项目/组别/性别/赛次）", "Auto-imported {1} competition parameter table(s) (Events/Age Groups/Genders/Stages) for \"{0}\"" } },
             { "Str_Log_AssignPreviewAllFmt", new[] { "编排预览: {0} {1} {2} 全部 → {3}人", "Assignment preview: {0} {1} {2} all → {3} swimmer(s)" } },
             { "Str_Log_AssignPreviewHeatFmt", new[] { "编排预览: {0} {1} {2} 第{3}组 → {4}人", "Assignment preview: {0} {1} {2} heat {3} → {4} swimmer(s)" } },
             { "Str_Log_MovedToEmptyLaneFmt", new[] { "移动到空道: {0}(第{1}组{2}道) → 第{3}组{4}道", "Moved to empty lane: {0} (heat {1} lane {2}) → heat {3} lane {4}" } },
@@ -2215,8 +2212,6 @@ namespace SwimmingScoreboard
             { "Str_Log_GenderListImportedFmt", new[] { "导入性别: 共{0}条", "Imported genders: {0} total" } },
             { "Str_Log_StageListUpdatedFmt", new[] { "已更新赛次列表（{0} 条）", "Updated stage list ({0} entry(ies))" } },
             { "Str_Log_StageListImportedFmt", new[] { "导入赛次: 共{0}条", "Imported stages: {0} total" } },
-            { "Str_Log_HeatCountListUpdatedFmt", new[] { "已更新组数列表（{0} 条）", "Updated heat-count list ({0} entry(ies))" } },
-            { "Str_Log_HeatCountListImportedFmt", new[] { "导入组数: 共{0}条", "Imported heat counts: {0} total" } },
             { "Str_Log_EventListUpdated2Fmt", new[] { "已更新比赛项目列表（{0} 条）", "Updated event list ({0} entry(ies))" } },
             { "Str_Log_AgeGroupListUpdated2Fmt", new[] { "已更新组别列表（{0} 条）", "Updated age group list ({0} entry(ies))" } },
             { "Str_Log_EventListImportedFmt", new[] { "导入比赛项目: 共{0}条", "Imported events: {0} total" } },
@@ -3118,8 +3113,6 @@ namespace SwimmingScoreboard
             { "Str_Win_SaveGendersTemplate_Title", new[] { "保存性别模板", "Save Gender Template" } },
             { "Str_Win_ExportStages_Title", new[] { "导出赛次表", "Export Stage List" } },
             { "Str_Win_SaveStagesTemplate_Title", new[] { "保存赛次模板", "Save Stage Template" } },
-            { "Str_Win_ExportHeatCounts_Title", new[] { "导出组数表", "Export Heat Count List" } },
-            { "Str_Win_SaveHeatCountsTemplate_Title", new[] { "保存组数模板", "Save Heat Count Template" } },
             { "Str_Win_ExportSwimmers_Title", new[] { "导出运动员报名数据", "Export Swimmer Registration Data" } },
             { "Str_Win_SaveSwimmersTemplate_Title", new[] { "保存个人报名模板", "Save Individual Registration Template" } },
             { "Str_Win_ImportSwimmersCsv_Title", new[] { "导入运动员CSV", "Import Swimmer CSV" } },
@@ -3339,8 +3332,6 @@ namespace SwimmingScoreboard
             { "Str_FileName_GendersTemplate", new[] { "性别模板", "Genders Template" } },
             { "Str_FileName_StagesTable", new[] { "赛次表", "Stages" } },
             { "Str_FileName_StagesTemplate", new[] { "赛次模板", "Stages Template" } },
-            { "Str_FileName_HeatCountsTable", new[] { "组数表", "Heat Counts" } },
-            { "Str_FileName_HeatCountsTemplate", new[] { "组数模板", "Heat Counts Template" } },
             { "Str_EM_EventNameCol", new[] { "比赛项目", "Event Name" } },
             { "Str_EM_AgeGroupNameCol", new[] { "组别名称", "Age Group Name" } },
             { "Str_LoginWin_TitleMain", new[] { "游泳赛事管理系统 — 登录", "Swimming Management System — Login" } },

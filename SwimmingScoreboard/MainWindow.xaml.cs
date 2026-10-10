@@ -50,7 +50,12 @@ namespace SwimmingScoreboard
         //   保证哨兵值和显示文字一致（Loc.GenderDisplay/StageDisplay 对这些英文值会原样透传）。
         private List<string> _genders = DefaultGenders();
         private List<string> _stages = DefaultStages();
-        private List<string> _heatCounts = DefaultHeatCounts();
+        // 2026-10-10 用户明确要求去掉"组数"设置(实际分几组按报名人数自动算, 这张表从不
+        //   参与那个计算)——默认改空, 赛程编辑表格"组数"列就一直走手动输入数字那条分支
+        //   (CountHeatsForEvent 附近), 不再出现下拉候选。_heatCounts 字段/HeatCountRegistry/
+        //   CompetitionPackage.HeatCounts 本身保留(旧存档可能还带着这个字段, 兼容读取),
+        //   只是不再有 UI 能写它了。
+        private List<string> _heatCounts = new List<string>();
         private List<BibRange> _bibRanges = new List<BibRange>();
         // 2026-05-24 P0-3 参赛单位实体表（领队/教练/联系电话）
         private System.Collections.ObjectModel.ObservableCollection<Unit> _units = new System.Collections.ObjectModel.ObservableCollection<Unit>();
@@ -100,7 +105,7 @@ namespace SwimmingScoreboard
         // 2026-10-10 加载已存赛事包时会程序化设置 CompRuleCombo.SelectedIndex 来还原
         //   当时的"比赛规则"——这会触发跟用户手动切换同一个 SelectionChanged 事件。
         //   如果不挡住，打开一份"U系列"的存档会被当成"用户手动切到U系列"，自动拿
-        //   模板库的通用五张表去覆盖这份存档里本来就有的真实项目/组别数据。
+        //   模板库的通用四张表去覆盖这份存档里本来就有的真实项目/组别数据。
         //   LoadCompetitionFromFile 设置下拉前把这个置 true，设置完立刻还原。
         private bool _suppressCompRuleAutoLoad = false;
         private PoolConfig _poolConfig = new PoolConfig();
@@ -1333,11 +1338,6 @@ namespace SwimmingScoreboard
                 ? new List<string> { "Prelim", "Semifinal", "Final" }
                 : new List<string> { "预赛", "半决赛", "决赛" };
         }
-        private static List<string> DefaultHeatCounts() {
-            var list = new List<string>();
-            for (int n = 1; n <= 8; n++) list.Add(Loc.F("Str_HeatCountSuffixFmt", n));
-            return list;
-        }
         // 项目名用标准国际泳联英文术语(50m Freestyle / 4x100m Medley Relay 等); "个人混合泳"/
         //   "混合泳接力" 都含"混合泳(Medley)"子串、"接力"对应"Relay"子串——特意保持跟中文
         //   同构, 全系统靠 .Contains("接力")/.Contains("混合泳") 判断接力/混氧泳项目的逻辑,
@@ -1910,7 +1910,7 @@ namespace SwimmingScoreboard
                     case "REGISTER_TERMINAL_IDENTITY":
                         if (!_registerSockets.Contains(socket)) _registerSockets.Add(socket);
                         AddLog(Loc.T("Str_Log_RegisterTerminalConnected"));
-                        // 2026-09-03 一上线就把【比赛参数设置管理】的五张表发过去 ——
+                        // 2026-09-03 一上线就把【比赛参数设置管理】的四张表发过去 ——
                         //   它是独立 exe, 不发它就只能用自己写死的那几个性别/组别。
                         try { socket.Send(BuildMetaListsJson()); } catch { }
                         break;
@@ -13146,7 +13146,8 @@ namespace SwimmingScoreboard
             switch (target) {
                 case "genders": _genders = items.Select(t => t.ToString()).ToList(); RefreshGendersPreview(); break;
                 case "stages": _stages = items.Select(t => t.ToString()).ToList(); RefreshStagesPreview(); break;
-                case "heatCounts": _heatCounts = items.Select(t => t.ToString()).ToList(); RefreshHeatCountsPreview(); break;
+                // 2026-10-10 "heatCounts" 补丁类型连同"组数"设置 UI 一起去掉了(见
+                //   _heatCounts 字段声明处的说明)——没有任何客户端还会发这个补丁了。
                 case "events": _events = items.Select(t => t.ToString()).ToList(); RefreshEventsPreview(); break;
                 case "ageGroups":
                     _ageGroups = items.Select(t => { try { return t.ToObject<AgeGroup>(); } catch { return null; } })
@@ -13155,7 +13156,6 @@ namespace SwimmingScoreboard
                     RefreshAgeGroupsPreview();
                     RefreshGendersPreview();
                     RefreshStagesPreview();
-                    RefreshHeatCountsPreview();
                     break;
                 case "bibRanges":
                     _bibRanges = items.Select(t => { try { return t.ToObject<BibRange>(); } catch { return null; } })
@@ -21902,7 +21902,7 @@ namespace SwimmingScoreboard
             //   但跟前三项一样预置一套模板(内容来自真实赛事数据 tools\fenzu_parsed.json,
             //   甘肃某地区运动会游泳比赛的实际项目/组别/性别/赛次设置, 含"男女"同组同赛
             //   和纯决赛制), 行为跟其它三项完全一样: 切换时问是否自动导入, 不满足用户
-            //   自己在下方五张表改, 改完照常存进这份赛事存档, 不是改模板本身——下次新建
+            //   自己在下方四张表改, 改完照常存进这份赛事存档, 不是改模板本身——下次新建
             //   赛事再选这条规则, 还是加载这份出厂预置, 不会记住上次的修改(跟另外三条
             //   规则的既有行为一致)。
             string[] rules = { "国际比赛", "国内大赛", "U系列青少年游泳比赛", "地区级比赛" };
@@ -21915,7 +21915,7 @@ namespace SwimmingScoreboard
                 if (CompRuleDescText != null) CompRuleDescText.Text = Loc.T(descKeys[i]);
                 if (_initialized) AddLog(Loc.F("Str_Log_CompetitionRuleSwitchedFmt", _competitionRule));
                 // 2026-10-10 用户手动切规则(不是加载存档时程序化设置)才问要不要自动导入
-                //   对应的五张表——这是替换性操作, 跟五个"导入XX表"按钮一样先问一句。
+                //   对应的四张表——这是替换性操作, 跟四个"导入XX表"按钮一样先问一句。
                 if (_initialized && !_suppressCompRuleAutoLoad) {
                     string ruleLabelForPrompt = (sender as ComboBox) != null
                         ? (((ComboBox)sender).SelectedItem as ComboBoxItem)?.Content?.ToString() ?? _competitionRule
@@ -21929,9 +21929,9 @@ namespace SwimmingScoreboard
         }
 
         // 2026-10-10 "比赛规则"下拉切换后, 把对应规则(国际FINA/国内CSA/U系列/地区级)在当前
-        //   界面语言下的"比赛项目/组别/性别/赛次/组数"五张表从安装包自带的
-        //   CompetitionParamsTemplates\ 读进来, 省得用户自己点五次"导入XX表"再挑文件。
-        //   五张表各自的解析逻辑照搬对应 Import*CSV_Click 里已经在用的那一套
+        //   界面语言下的"比赛项目/组别/性别/赛次"四张表从安装包自带的
+        //   CompetitionParamsTemplates\ 读进来, 省得用户自己点四次"导入XX表"再挑文件。
+        //   四张表各自的解析逻辑照搬对应 Import*CSV_Click 里已经在用的那一套
         //   (表头跳过/去重/CsvEscape 兼容), 只是文件来源从"用户选的路径"换成
         //   "装机自带模板的固定路径"。
         private void AutoLoadCompetitionParamsForRule(int ruleIndex) {
@@ -21996,15 +21996,14 @@ namespace SwimmingScoreboard
             var stages = readSimpleList(IOPath.Combine(folder, "赛次_" + suffix + ".csv"));
             if (stages != null) { _stages = stages; RefreshStagesPreview(); loadedTables++; }
 
-            var heatCounts = readSimpleList(IOPath.Combine(folder, "组数_" + suffix + ".csv"));
-            if (heatCounts != null) { _heatCounts = heatCounts; RefreshHeatCountsPreview(); loadedTables++; }
+            // 2026-10-10 "组数"不再是设置项(见 _heatCounts 字段声明处说明), 这里不再找
+            //   "组数_*.csv" 去套——模板目录里即使还留着这个文件也不读了。
 
             if (loadedTables > 0) {
                 FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
                 FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
                 FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
-                FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(Loc.F("Str_Log_CompRuleAutoLoadedFmt", folders[ruleIndex], loadedTables));
             }
@@ -22183,7 +22182,7 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>
-        /// 2026-09-03 把【比赛参数设置管理】里的五张表推给注册终端(独立 exe)。
+        /// 2026-09-03 把【比赛参数设置管理】里的四张表推给注册终端(独立 exe)。
         ///
         /// 它原来的性别/组别下拉是 XAML 里写死的 男/女/混合/男女 —— 源码里那条注释
         /// 自己也写着"本程序没有配置推送通道，暂时写死；治本要加 genderList 下发"。
@@ -28562,7 +28561,6 @@ namespace SwimmingScoreboard
                 RefreshDisplayRecordLabelText();
                 RefreshGendersPreview();
                 RefreshStagesPreview();
-                RefreshHeatCountsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 _bibRanges = package.BibRanges ?? new List<BibRange>();
                 // 2026-05-24 P0-3 参赛单位
@@ -29908,10 +29906,8 @@ namespace SwimmingScoreboard
             if (StagesPreviewGrid == null) return;
             StagesPreviewGrid.ItemsSource = _stages.Select((n, i) => new { Index = i + 1, Name = n }).ToList();
         }
-        private void RefreshHeatCountsPreview() {
-            if (HeatCountsPreviewGrid == null) return;
-            HeatCountsPreviewGrid.ItemsSource = _heatCounts.Select((n, i) => new { Index = i + 1, Name = n }).ToList();
-        }
+        // 2026-10-10 RefreshHeatCountsPreview()/HeatCountsPreviewGrid 连同"组数"设置 UI 一起
+        //   去掉了, 见 _heatCounts 字段声明处的说明。
 
         // 通用：弹出"序号 + 名称"的可编辑列表对话框，确认时回调
         private void EditStringListDialog(string title, string nameHeader, List<string> source, string[] defaults, Action<List<string>> onSave) {
@@ -30112,27 +30108,8 @@ namespace SwimmingScoreboard
             DownloadStringListTemplate(Loc.T("Str_Win_SaveStagesTemplate_Title"), Loc.T("Str_FileName_StagesTemplate") + ".csv", Loc.T("Str_DocC_ColStage"), new[] { "预赛", "半决赛", "决赛", "A决赛", "B决赛" });
         }
 
-        // —— 组数 ——
-        private void EditHeatCountsList_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("heatcounts-list", Loc.T("Str_Entity_HeatCountsList"), delegate {
-                EditStringListDialog(Loc.T("Str_EM_EditHeatCounts"), Loc.T("Str_EM_HeatCounts"), _heatCounts, DefaultHeatCounts().ToArray(), list => {
-                    _heatCounts = list; RefreshHeatCountsPreview();
-                    FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
-                    NotifyMetadataChanged();
-                    AddLog(Loc.F("Str_Log_HeatCountListUpdatedFmt", _heatCounts.Count));
-                });
-            });
-        }
-        private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportHeatCounts_Title"), Loc.T("Str_FileName_HeatCountsTable") + ".csv", Loc.T("Str_Col_HeatCount"), _heatCounts); }
-        private void ImportHeatCountsCSV_Click(object sender, RoutedEventArgs e) {
-            ImportStringListCsv(Loc.T("Str_EM_ImportHeatCounts"), Loc.T("Str_Col_HeatCount"), list => { _heatCounts = list; RefreshHeatCountsPreview();
-                FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
-                NotifyMetadataChanged();
-                AddLog(Loc.F("Str_Log_HeatCountListImportedFmt", _heatCounts.Count)); }, "组数");
-        }
-        private void DownloadHeatCountsTemplate_Click(object sender, RoutedEventArgs e) {
-            DownloadStringListTemplate(Loc.T("Str_Win_SaveHeatCountsTemplate_Title"), Loc.T("Str_FileName_HeatCountsTemplate") + ".csv", Loc.T("Str_Col_HeatCount"), new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" });
-        }
+        // 2026-10-10 "组数"设置的编辑/导入/导出/下载模板四个按钮连同它们的 Click 处理函数
+        //   一起去掉了——用户明确要求去掉这张表, 见 _heatCounts 字段声明处的说明。
 
         private void EditEventsList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("events-list", Loc.T("Str_Entity_EventsList"), delegate { EditEventsListCore(); });
@@ -30294,7 +30271,6 @@ namespace SwimmingScoreboard
                 RefreshAgeGroupsPreview();
                 RefreshGendersPreview();
                 RefreshStagesPreview();
-                RefreshHeatCountsPreview();
                 RecomputeAllAgeCategories();
                 FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 NotifyMetadataChanged();
@@ -30431,7 +30407,6 @@ namespace SwimmingScoreboard
                 RefreshAgeGroupsPreview();
                 RefreshGendersPreview();
                 RefreshStagesPreview();
-                RefreshHeatCountsPreview();
                 RecomputeAllAgeCategories();
                 FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 NotifyMetadataChanged();
