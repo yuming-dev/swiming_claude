@@ -799,7 +799,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <script>
 // 2026-06-01 性别显示规范: 男→"男子", 女→"女子", 混合→"混合" (不加子)
 // 2026-09-28 纯展示函数(5处调用全是拼confirm()/addLog的info字符串, 不发给服务器), 双语化：
-//   中文模式保留原来的"男子/女子/混合"措辞; 英文模式走 WebLoc.genderDisplay -> Male/Female/Mixed。
+//   中文模式保留原来的"男子/女子/混合"措辞; 英文模式走 WebLoc.genderDisplay -> Men/Women/Mixed。
 function fmtGender(g) {
     g = g || '';
     if (WebLoc.currentLang() === 'en') return WebLoc.genderDisplay(g);
@@ -952,7 +952,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261010-4';
+var PAGE_VER = '20261010-5';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}

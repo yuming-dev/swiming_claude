@@ -995,7 +995,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261010-4';
+var PAGE_VER = '20261010-5';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1466,7 +1466,9 @@ function isRelayEvent() { return (data.currentEvent||'').indexOf('接力') >= 0;
 // 2026-06-01 性别显示规范: 男 → "男子", 女 → "女子", 混合 → "混合" (不加子),
 //   修复混合性别接力赛标题里显示"混合子"的 bug. 数据层保留 "男"/"女"/"混合" 不变.
 // 2026-10-09 英文模式原来直接原样返回"男"/"女"(没走翻译), 跟 query.html/race_control.html
-//   已有的同名 fmtGender() 对齐: 英文模式走 WebLoc.genderDisplay() -> Male/Female/Mixed。
+//   已有的同名 fmtGender() 对齐: 英文模式走 WebLoc.genderDisplay() -> Men/Women/Mixed。
+// 2026-10-10 Men/Women 而非 Male/Female: 按世界泳联竞赛规则正式译法(成年组 SW12.1/12.12
+//   用 Men/Women; Male/Female 不是官方措辞)。
 function fmtGender(g) {
     g = g || '';
     if (WebLoc.currentLang() === 'en') return WebLoc.genderDisplay(g);
