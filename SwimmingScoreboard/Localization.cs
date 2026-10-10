@@ -545,6 +545,14 @@ namespace SwimmingScoreboard
             { "Str_Sched_HeatStatusFmt",    new[] { "第{0}组 {1}", "Heat {0} {1}" } },
             { "Str_Sched_HeatCancelledFmt", new[] { "第{0}组 [{1}]", "Heat {0} [{1}]" } },
             { "Str_Sched_CancelledMergedFmt", new[] { "已取消 并入第{0}组", "Cancelled, merged into Heat {0}" } },
+            // 2026-10-10 "赛程管理"/"出场编排微调"/"成绩与排名"三个 tab 左侧共用同一棵导航树
+            // (RebuildNavTree), 跟"比赛控制"那棵 ScheduleTree 是两套独立代码、同一类毛病——
+            // 这两条是它专属的 heat 行格式("阶段 第X组 状态"/"阶段 第X组 [取消原因]")。
+            { "Str_Nav_HeatLabelFmt",          new[] { "{0} 第{1}组 {2}", "{0} Heat {1} {2}" } },
+            { "Str_Nav_HeatCancelledLabelFmt", new[] { "{0} 第{1}组 [{2}]", "{0} Heat {1} [{2}]" } },
+            { "Str_Nav_NoMatchingFilter", new[] { "(无符合筛选的赛程节点)", "(No schedule items match the filter)" } },
+            { "Str_Nav_NoSearchMatch",    new[] { "(搜索无匹配)", "(No search matches)" } },
+            { "Str_Common_HeatDoneFmt", new[] { "第{0}组 [已完赛]", "Heat {0} [Done]" } },
             { "Str_Common_PeriodAM",      new[] { "上午", "AM" } },
             { "Str_Common_PeriodPM",      new[] { "下午", "PM" } },
             { "Str_Common_PeriodEvening", new[] { "晚上", "Evening" } },

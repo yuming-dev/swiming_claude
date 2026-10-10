@@ -13955,9 +13955,9 @@ namespace SwimmingScoreboard
                         if (cancelled != null) {
                             status = "cancelled";
                             string cancelTag = cancelled.MergedInto > 0
-                                ? "已取消 并入第" + cancelled.MergedInto + "组"
-                                : (string.IsNullOrEmpty(cancelled.Reason) ? "已取消" : "已取消 " + cancelled.Reason);
-                            heatLabel = string.Format("{0} 第{1}组 [{2}]", ev.Stage ?? "", h, cancelTag).Trim();
+                                ? Loc.F("Str_Sched_CancelledMergedFmt", cancelled.MergedInto)
+                                : (string.IsNullOrEmpty(cancelled.Reason) ? Loc.T("Str_HeatStatus_Cancelled") : Loc.T("Str_HeatStatus_Cancelled") + " " + cancelled.Reason);
+                            heatLabel = Loc.F("Str_Nav_HeatCancelledLabelFmt", ev.Stage ?? "", h, cancelTag).Trim();
                         } else {
                             status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
                             // 2026-06-19 去掉 ev.Date + ev.Time: 父节点 "第X场（YYYY-MM-DD 上午）" 已含日期+时段,
@@ -13965,7 +13965,7 @@ namespace SwimmingScoreboard
                             // 2026-09-21 "已检录"现在是 HeatStatus() 数字表里的一档状态(见
                             //   HeatDisplayStatus.CheckedIn), 不再是外挂的字符串拼接——
                             //   StatusLabel(status) 已经会打印"[已检录]"。
-                            heatLabel = string.Format("{0} 第{1}组 {2}", ev.Stage ?? "", h, StatusLabel(status)).Trim();
+                            heatLabel = Loc.F("Str_Nav_HeatLabelFmt", ev.Stage ?? "", h, StatusLabel(status)).Trim();
                         }
                         // 2026-09-16 筛选按钮上"已结束"(Tag="done")一直是粗筛——不管这组是数据齐
                         //   (done)还是真点过确认(confirmed), 都算"比完了", 所以这里 done 桶要把
@@ -14003,7 +14003,7 @@ namespace SwimmingScoreboard
                 }
                 if (sessChildren.Count == 0) continue;
                 string sessStatus = AggregateStatus(sessChildStatuses);
-                string sessName = session.First().SessionName ?? string.Format("第{0}场", session.Key);
+                string sessName = BuildSessionHeaderText(session.Key, session.First());
                 var sessNode = new TreeViewItem {
                     Header = string.Format("{0} {1}", sessName, StatusLabel(sessStatus)),
                     Foreground = StatusBrush(sessStatus),
@@ -14017,7 +14017,7 @@ namespace SwimmingScoreboard
 
             if (tv.Items.Count == 0) {
                 tv.Items.Add(new TreeViewItem {
-                    Header = string.IsNullOrEmpty(q) ? "(无符合筛选的赛程节点)" : "(搜索无匹配)",
+                    Header = string.IsNullOrEmpty(q) ? Loc.T("Str_Nav_NoMatchingFilter") : Loc.T("Str_Nav_NoSearchMatch"),
                     Foreground = new SolidColorBrush(Colors.Gray)
                 });
             }
@@ -23266,7 +23266,7 @@ namespace SwimmingScoreboard
                 var grps = editList.GroupBy(s2 => s2.SessionNumber).OrderBy(g2 => g2.Key);
                 foreach (var grp in grps) {
                     var hdr = new TextBlock {
-                        Text = grp.First().SessionName ?? string.Format("第{0}场", grp.Key),
+                        Text = BuildSessionHeaderText(grp.Key, grp.First()),
                         FontWeight = FontWeights.Bold, FontSize = 15,
                         Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A5FB4")),
                         Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8F0FE")),
@@ -23572,7 +23572,10 @@ namespace SwimmingScoreboard
             // 按场分组只读显示
             var groups = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
             foreach (var group in groups) {
-                string label = group.First().SessionName ?? string.Format("第{0}场", group.Key);
+                // 2026-10-10 同 BuildSessionHeaderText 的说明: 不信 SessionName 那份按生成时
+                //   语言烤死的缓存串, 现拼保证显示永远跟当前界面语言一致。SessionName 字段本身
+                //   不动(上面仍写中文), 不影响其它读它当权威值的路径(打印/导出等)。
+                string label = BuildSessionHeaderText(group.Key, group.First());
 
                 var header = new TextBlock {
                     Text = label,
@@ -25656,7 +25659,7 @@ namespace SwimmingScoreboard
                     if (!string.IsNullOrWhiteSpace(sname)) nm = " " + sname;
                 }
                 string dt = (first != null && !string.IsNullOrWhiteSpace(first.Date)) ? ("  " + first.Date) : "";
-                combo.Items.Add(new ComboBoxItem { Content = string.Format("第{0}场{1}{2}", sn, nm, dt), Tag = sn });
+                combo.Items.Add(new ComboBoxItem { Content = Loc.F("Str_Sched_SessionFmt", sn) + nm + dt, Tag = sn });
             }
             combo.SelectedIndex = 0;
             sp.Children.Add(combo);
@@ -31901,7 +31904,7 @@ namespace SwimmingScoreboard
                         //   改成只认真正确认过的 IsHeatTrulyConfirmed, 跟提示语说的一致。
                         if (!IsHeatTrulyConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h)) continue;
                         var heatNode = new TreeViewItem {
-                            Header = string.Format("第{0}组 [已完赛]", h),
+                            Header = Loc.F("Str_Common_HeatDoneFmt", h),
                             Tag = new ConfirmedHeatPick { AgeGroup = ag, Gender = ev.Gender, EventName = ev.EventName, Stage = ev.Stage, Heat = h },
                             Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
                         };
@@ -31918,7 +31921,7 @@ namespace SwimmingScoreboard
                 }
                 if (sessionEvents.Count == 0) continue;
                 var sessionItem = new TreeViewItem {
-                    Header = session.First().SessionName ?? string.Format("第{0}场", session.Key),
+                    Header = BuildSessionHeaderText(session.Key, session.First()),
                     IsExpanded = true,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0F172A")),
                     FontWeight = FontWeights.Bold
