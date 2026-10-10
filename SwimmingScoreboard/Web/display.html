@@ -972,7 +972,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261009-1';
+var PAGE_VER = '20261010-1';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1340,17 +1340,34 @@ function showSchedPage() {
     // 固定场次抬头 (同一场多页时保持不变)
     if (pg.sess) {
         var it0 = pg.sess;
-        // 2026-06-16 SessionName 持久化可能含 "第N场" 或旧版 "第N单元" 前缀, 跟此处 "第X场" 重复 → 剥前缀, 只保留附加
+        // 2026-10-10 现场实拍"时间日期重复": sessionName 是后端按生成那一刻界面语言烤死的
+        //   缓存串("第1场（2026-08-22上午）"), 日期+时段已经嵌在里面; 下面又单独拼了一次
+        //   it0.date, 变成 "Session 1 (2026-08-22上午)  09:00  2026-08-22" ——日期出现两次,
+        //   "上午"这种嵌在缓存串里的文字也不会跟着切语言变。改成完全不信 sessionName 的
+        //   日期/时段部分, 只现拼: 场次号 + (日期 时段, 走 Loc) + 时间。sessionName 只保留
+        //   "第N场"前缀和紧跟的自动生成"（日期时段）"块之外、真正用户自定义的额外说明文字。
         var sname = '';
         if (it0.sessionName) {
-            var _sn = String(it0.sessionName).replace(/^\s*第\d+(场|单元)\s*/, '');
+            var _sn = String(it0.sessionName)
+                .replace(/^\s*第\d+(场|单元)\s*/, '')
+                .replace(/^\s*（[^（）]*）\s*/, '');
             if (_sn.trim()) sname = '  ' + _sn;
         }
-        var sdate = it0.date ? ('  ' + it0.date) : '';
+        var periodTxt = '';
+        if (it0.time) {
+            var hh = parseInt(String(it0.time).split(':')[0], 10);
+            if (isNaN(hh)) hh = 9;
+            periodTxt = hh >= 18 ? WebLoc.t('Str_Common_PeriodEvening') : (hh >= 12 ? WebLoc.t('Str_Common_PeriodPM') : WebLoc.t('Str_Common_PeriodAM'));
+        } else {
+            periodTxt = WebLoc.t('Str_Common_PeriodAM');
+        }
+        var sessionHeader = it0.date
+            ? WebLoc.f('Str_Common_SessionWithPeriodFmt', it0.session, it0.date, periodTxt)
+            : WebLoc.f('Str_Common_SessionNumFmt', it0.session);
         var stime = it0.time ? ('  ' + it0.time) : '';
         html += '<div style="padding:0.6vh 1.5vw 0.5vh 1.5vw;border-bottom:3px solid var(--accent);'
             + 'font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">'
-            + WebLoc.f('Str_Common_SessionNumFmt', it0.session) + _e(sname) + _e(stime) + _e(sdate) + '</div>';
+            + _e(sessionHeader) + _e(stime) + _e(sname) + '</div>';
     }
     // 日程行: class=lane-row fixed-row → 行高/行距/边框 同比赛视图; 字号颜色用运动员信息同款 CSS 变量
     for (var i = 0; i < pg.rows.length; i++) {
