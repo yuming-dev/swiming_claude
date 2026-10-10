@@ -97,6 +97,12 @@ namespace SwimmingScoreboard
         // 2026-06-05 比赛规则: '国际比赛'(FINA) / '国内大赛'(中国游协) / 'U系列青少年游泳比赛'.
         //   U 系列允许 男女并项, 跨年龄组并项, TRI 参赛, 多组直接决赛, 组内按时间排单一名次, 项目后按 性别×组别 拆总排名
         private string _competitionRule = "U系列青少年游泳比赛";
+        // 2026-10-10 加载已存赛事包时会程序化设置 CompRuleCombo.SelectedIndex 来还原
+        //   当时的"比赛规则"——这会触发跟用户手动切换同一个 SelectionChanged 事件。
+        //   如果不挡住，打开一份"U系列"的存档会被当成"用户手动切到U系列"，自动拿
+        //   模板库的通用五张表去覆盖这份存档里本来就有的真实项目/组别数据。
+        //   LoadCompetitionFromFile 设置下拉前把这个置 true，设置完立刻还原。
+        private bool _suppressCompRuleAutoLoad = false;
         private PoolConfig _poolConfig = new PoolConfig();
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
         // 2026-06-05 确认本组成绩 后 自动保存 成绩 txt 到此目录 (空 = 不自动保存; 默认 AppDomain/Documents/成绩txt)
@@ -21877,6 +21883,99 @@ namespace SwimmingScoreboard
                 _competitionRule = rules[i];
                 if (CompRuleDescText != null) CompRuleDescText.Text = descs[i];
                 if (_initialized) AddLog(Loc.F("Str_Log_CompetitionRuleSwitchedFmt", _competitionRule));
+                // 2026-10-10 用户手动切规则(不是加载存档时程序化设置)才问要不要自动导入
+                //   对应的五张表——这是替换性操作, 跟五个"导入XX表"按钮一样先问一句。
+                if (_initialized && !_suppressCompRuleAutoLoad) {
+                    string ruleLabelForPrompt = (sender as ComboBox) != null
+                        ? (((ComboBox)sender).SelectedItem as ComboBoxItem)?.Content?.ToString() ?? _competitionRule
+                        : _competitionRule;
+                    if (AppMessageBox.Show(Loc.F("Str_Msg_ConfirmAutoLoadCompParamsFmt", ruleLabelForPrompt),
+                        Loc.T("Str_MsgTitle_ConfirmAutoLoadCompParams"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
+                        AutoLoadCompetitionParamsForRule(i);
+                    }
+                }
+            }
+        }
+
+        // 2026-10-10 "比赛规则"下拉切换后, 把对应规则(国际FINA/国内CSA/U系列)在当前
+        //   界面语言下的"比赛项目/组别/性别/赛次/组数"五张表从安装包自带的
+        //   CompetitionParamsTemplates\ 读进来, 省得用户自己点五次"导入XX表"再挑文件。
+        //   五张表各自的解析逻辑照搬对应 Import*CSV_Click 里已经在用的那一套
+        //   (表头跳过/去重/CsvEscape 兼容), 只是文件来源从"用户选的路径"换成
+        //   "装机自带模板的固定路径"。
+        private void AutoLoadCompetitionParamsForRule(int ruleIndex) {
+            string[] folders = { "国际比赛(FINA)", "国内大赛(中国游协)", "U系列青少年游泳比赛" };
+            string[] suffixZh = { "国际比赛(FINA)_中文", "国内大赛(中国游协)_中文", "U系列青少年游泳比赛_中文" };
+            string[] suffixEn = { "International (FINA)_English", "Domestic (CSA)_English", "U-Series Youth Meet_English" };
+            if (ruleIndex < 0 || ruleIndex >= folders.Length) return;
+            string folder = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "CompetitionParamsTemplates", folders[ruleIndex]);
+            if (!Directory.Exists(folder)) {
+                AddLog(Loc.F("Str_Log_CompRuleTemplateFolderMissingFmt", folders[ruleIndex]));
+                return;
+            }
+            string suffix = (Loc.CurrentLanguage == Loc.En) ? suffixEn[ruleIndex] : suffixZh[ruleIndex];
+
+            Func<string, List<string>> readSimpleList = delegate(string path) {
+                if (!File.Exists(path)) return null;
+                var rows = ReadCsvLines(path);
+                var finalList = new List<string>(); var seen = new HashSet<string>();
+                for (int r = 0; r < rows.Count; r++) {
+                    var c = rows[r]; if (c.Length == 0) continue;
+                    string v = (c[0] ?? "").Trim(); if (string.IsNullOrEmpty(v)) continue;
+                    if (r == 0) continue;   // 模板第一行固定是表头
+                    if (seen.Contains(v)) continue;
+                    seen.Add(v); finalList.Add(v);
+                }
+                return finalList.Count > 0 ? finalList : null;
+            };
+
+            int loadedTables = 0;
+
+            var events = readSimpleList(IOPath.Combine(folder, "比赛项目_" + suffix + ".csv"));
+            if (events != null) {
+                var cleaned = new List<string>();
+                foreach (var name in events) cleaned.Add(System.Text.RegularExpressions.Regex.Replace(name, @"\s+", " ").Trim());
+                _events = cleaned; RefreshEventsPreview(); loadedTables++;
+            }
+
+            string agPath = IOPath.Combine(folder, "组别_" + suffix + ".csv");
+            if (File.Exists(agPath)) {
+                var rows = ReadCsvLines(agPath);
+                var finalList = new List<AgeGroup>(); var seen = new HashSet<string>();
+                for (int r = 0; r < rows.Count; r++) {
+                    var c = rows[r]; if (c.Length == 0) continue;
+                    string name = (c[0] ?? "").Trim(); if (string.IsNullOrEmpty(name)) continue;
+                    if (r == 0) continue;
+                    if (seen.Contains(name)) continue; seen.Add(name);
+                    int minA = 0, maxA = 0;
+                    if (c.Length > 1) int.TryParse((c[1] ?? "").Trim(), out minA);
+                    if (c.Length > 2) int.TryParse((c[2] ?? "").Trim(), out maxA);
+                    finalList.Add(new AgeGroup { Name = name, MinAge = minA, MaxAge = maxA });
+                }
+                if (finalList.Count > 0) {
+                    _ageGroups = finalList; AgeGroupRegistry.Set(_ageGroups);
+                    RefreshAgeGroupsPreview(); RecomputeAllAgeCategories();
+                    loadedTables++;
+                }
+            }
+
+            var genders = readSimpleList(IOPath.Combine(folder, "性别_" + suffix + ".csv"));
+            if (genders != null) { _genders = genders; RefreshGendersPreview(); loadedTables++; }
+
+            var stages = readSimpleList(IOPath.Combine(folder, "赛次_" + suffix + ".csv"));
+            if (stages != null) { _stages = stages; RefreshStagesPreview(); loadedTables++; }
+
+            var heatCounts = readSimpleList(IOPath.Combine(folder, "组数_" + suffix + ".csv"));
+            if (heatCounts != null) { _heatCounts = heatCounts; RefreshHeatCountsPreview(); loadedTables++; }
+
+            if (loadedTables > 0) {
+                FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
+                FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
+                FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
+                FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
+                FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
+                NotifyMetadataChanged();
+                AddLog(Loc.F("Str_Log_CompRuleAutoLoadedFmt", folders[ruleIndex], loadedTables));
             }
         }
 
@@ -28330,9 +28429,12 @@ namespace SwimmingScoreboard
                 CompNameBox.Text = _competitionName;
                 CompModeCombo.SelectedIndex = _competitionMode == "domestic" ? 0 : 1;
                 if (CompRuleCombo != null) {
-                    if (_competitionRule == "国际比赛") CompRuleCombo.SelectedIndex = 0;
-                    else if (_competitionRule == "国内大赛") CompRuleCombo.SelectedIndex = 1;
-                    else CompRuleCombo.SelectedIndex = 2;
+                    _suppressCompRuleAutoLoad = true;
+                    try {
+                        if (_competitionRule == "国际比赛") CompRuleCombo.SelectedIndex = 0;
+                        else if (_competitionRule == "国内大赛") CompRuleCombo.SelectedIndex = 1;
+                        else CompRuleCombo.SelectedIndex = 2;
+                    } finally { _suppressCompRuleAutoLoad = false; }
                 }
                 SetDatePicker(StartDatePicker, package.StartDate);
                 SetDatePicker(EndDatePicker, package.EndDate);

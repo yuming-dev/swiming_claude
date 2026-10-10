@@ -201,12 +201,26 @@ if (Test-Path $rdcWebView2Profile) {
 #                         一个项目号完全吻合。
 #   走各自的 CSV 导入入口(这几个入口不认 .xlsx, 只认 .csv)。体积很小(30个文件共约5KB),
 #   -Lite 也照常带上, 不受那个开关影响。
+#   2026-10-10 【坑】运行时是 AppDomain.CurrentDomain.BaseDirectory\CompetitionParamsTemplates\
+#   逐个 exe 自己目录下去找——但 Setup.cs 的 DoInstall() 只认 CopyDirDeep(SwimmingScoreboard→
+#   Server / RemoteTimingControl→RemoteControl / ScheduleEditor→ScheduleEditor) 这三个【点名】
+#   的源目录(含子目录一起深拷), 从不知道 InstallerBuild 根目录下还有旁的东西。放在
+#   InstallerBuild\CompetitionParamsTemplates\(根目录)的话, Setup.exe 永远不会把它搬到
+#   C:\SwimmingTimingSystem\ 下任何一个 exe 的目录里——装出来的客户机这个功能会静默失效
+#   (下拉切换没反应, 日志里是"模板目录不存在"）。必须放进那三个会被深拷的源目录各自里面,
+#   让 CopyDirDeep 把它当成子目录一起带走。RemoteDisplayControl/RegistrationTool 没有
+#   "比赛参数设置管理"这个 Tab, 不需要。
 $paramTplSrc = Join-Path $root "Installer\CompetitionParamsTemplates"
 if (Test-Path $paramTplSrc) {
-    $paramTplDst = Join-Path $installerBuild "CompetitionParamsTemplates"
-    if (Test-Path $paramTplDst) { Remove-Item -Recurse -Force $paramTplDst }
-    Copy-Item $paramTplSrc $paramTplDst -Recurse -Force
-    Write-Host "  ✓ 比赛参数模板(国际FINA/国内CSA/U系列 × 项目/组别/性别/赛次/组数 × 中/英文) 已收入安装包"
+    foreach ($proj in @("SwimmingScoreboard", "RemoteTimingControl", "ScheduleEditor")) {
+        $projDir = Join-Path $installerBuild $proj
+        if (Test-Path $projDir) {
+            $paramTplDst = Join-Path $projDir "CompetitionParamsTemplates"
+            if (Test-Path $paramTplDst) { Remove-Item -Recurse -Force $paramTplDst }
+            Copy-Item $paramTplSrc $paramTplDst -Recurse -Force
+        }
+    }
+    Write-Host "  ✓ 比赛参数模板(国际FINA/国内CSA/U系列 × 项目/组别/性别/赛次/组数 × 中/英文) 已收入 Server/RemoteControl/ScheduleEditor 三端"
 } else {
     Write-Host "    [提示] 找不到 Installer\CompetitionParamsTemplates\, 安装包不含参数模板" -ForegroundColor Yellow
 }

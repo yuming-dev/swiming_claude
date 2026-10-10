@@ -1965,6 +1965,12 @@ namespace SwimmingScoreboard
             { "Str_Log_AutoAddedNewUnitFmt", new[] { "已自动添加新参赛单位: {0}", "Automatically added new participating unit: {0}" } },
             { "Str_Log_RegisterSwimmerFmt", new[] { "注册运动员: {0}({1}) 新增 {2} 项 / 更新 {3} 项 / 跳过 {4} 项", "Registered swimmer: {0}({1}) {2} added / {3} updated / {4} skipped" } },
             { "Str_Log_CompetitionRuleSwitchedFmt", new[] { "比赛规则切换为: {0}", "Competition rules switched to: {0}" } },
+            { "Str_Msg_ConfirmAutoLoadCompParamsFmt", new[] {
+                "切换比赛规则为「{0}」后，是否自动导入该规则对应的\n比赛项目 / 组别 / 性别 / 赛次 / 组数 五张表？\n\n这会替换当前这五张表的全部内容（不影响已排好的赛程/已报名的运动员）。",
+                "Switch the competition rule to \"{0}\" and automatically import its\nEvents / Age Groups / Genders / Stages / Heats tables?\n\nThis replaces the current content of all five tables (your schedule and swimmer registrations are not affected)." } },
+            { "Str_MsgTitle_ConfirmAutoLoadCompParams", new[] { "自动导入比赛参数?", "Auto-Import Competition Parameters?" } },
+            { "Str_Log_CompRuleTemplateFolderMissingFmt", new[] { "未找到「{0}」的内置参数模板目录，跳过自动导入", "Built-in parameter template folder for \"{0}\" not found; skipped auto-import" } },
+            { "Str_Log_CompRuleAutoLoadedFmt", new[] { "已按「{0}」自动导入 {1} 张比赛参数表（项目/组别/性别/赛次/组数）", "Auto-imported {1} competition parameter table(s) (Events/Age Groups/Genders/Stages/Heats) for \"{0}\"" } },
             { "Str_Log_AssignPreviewAllFmt", new[] { "编排预览: {0} {1} {2} 全部 → {3}人", "Assignment preview: {0} {1} {2} all → {3} swimmer(s)" } },
             { "Str_Log_AssignPreviewHeatFmt", new[] { "编排预览: {0} {1} {2} 第{3}组 → {4}人", "Assignment preview: {0} {1} {2} heat {3} → {4} swimmer(s)" } },
             { "Str_Log_MovedToEmptyLaneFmt", new[] { "移动到空道: {0}(第{1}组{2}道) → 第{3}组{4}道", "Moved to empty lane: {0} (heat {1} lane {2}) → heat {3} lane {4}" } },
