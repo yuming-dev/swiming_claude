@@ -3177,7 +3177,7 @@ namespace SwimmingScoreboard
             { "Str_Win_ImportRelayLegListFmt", new[] { "读入 第{0}场 的接力棒次名单", "Import Relay Leg List — Session {0}" } },
             { "Str_PoolDevice_FinishPos", new[] { "终点位置", "Finish Position" } },
             { "Str_PoolDevice_ReactionTime", new[] { "反应时(RT)", "Reaction Time (RT)" } },
-            { "Str_PoolDevice_BlindReplace", new[] { "盲表代触板", "Backup Watch Replaces Touchpad" } },
+            { "Str_PoolDevice_BlindReplace", new[] { "盲表代触板", "Backup Watch Replaces TP" } },
             { "Str_PoolDevice_ManualTpReplace", new[] { "手动TP代替真TP", "Manual TP Replaces Real TP" } },
             { "Str_PoolDevice_HwDevice", new[] { "硬件设备", "Hardware Device" } },
             { "Str_PoolDevice_StartEdge", new[] { "出发信号边沿", "Start Signal Edge" } },

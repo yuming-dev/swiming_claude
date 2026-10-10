@@ -18418,10 +18418,11 @@ namespace SwimmingScoreboard
 
         // 2026-06-12 比赛泳池、设备状态设置 子窗口 (从 参数设置 拆出 终点位置/反应时/盲表代触板/硬件设备/出发边沿/道次顺序/泳池触板 + 设备管理按钮). 确认=应用并同步; 取消=不改.
         private void ShowPoolDeviceSettingsDialog() {
-            // 2026-10-11 英文标签("Backup Watch Replaces Touchpad"等)和单选项文字("On (auto-replace
-            //   with backup watch median)"等)都比中文长很多, 原固定 440px 窗口+140px 标签列塞不下,
-            //   被硬裁到窗口外(看不见, 不是显示省略号)。英文模式下窗口/标签列都加宽, 每行再从
-            //   StackPanel 换成 WrapPanel 兜底——哪行实在还是太长, 自动换到下一行而不是被裁掉。
+            // 2026-10-11 v3: v2 的"标签独占一行"纵向布局用户看了觉得还不如原来的左右布局——
+            //   退回"标签在左、单选项在右"一行式, 只做两处针对性修复:
+            //   1) "Backup Watch Replaces Touchpad"(31字符) 缩成 "...Replaces TP", 原标签列够装下;
+            //   2) 标签和单选项分成 Grid 两列(不再共用一个 WrapPanel)——这样"On"文字太长时,
+            //      "Off"换行只在单选项这一列内换, 自动对齐到"On"正下方, 不会对齐跑到标签下面。
             bool enPD = Loc.CurrentLanguage == Loc.En;
             double pdLabelW = enPD ? 230 : 140;
             var dlg = new Window {
@@ -18435,81 +18436,69 @@ namespace SwimmingScoreboard
             var sp = new StackPanel { Margin = new Thickness(20) };
             sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_PoolDevice_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
+            Action<string, RadioButton, RadioButton> addPdRow = delegate (string label, RadioButton r1, RadioButton r2) {
+                var row = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(pdLabelW) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                var lbl = new TextBlock {
+                    Text = label, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    FontSize = 15, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap
+                };
+                Grid.SetColumn(lbl, 0);
+                r1.Margin = new Thickness(0, 0, 12, 2);
+                r2.Margin = new Thickness(0, 0, 0, 2);
+                var wp = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+                wp.Children.Add(r1);
+                wp.Children.Add(r2);
+                Grid.SetColumn(wp, 1);
+                row.Children.Add(lbl);
+                row.Children.Add(wp);
+                sp.Children.Add(row);
+            };
+
             // 终点位置
-            var finishRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            finishRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_FinishPos"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbLeft = new RadioButton { Content = Loc.T("Str_Radio_FinishLeft"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "left", GroupName = "FinPos", Margin = new Thickness(0, 0, 12, 0) };
+            var rbLeft = new RadioButton { Content = Loc.T("Str_Radio_FinishLeft"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "left", GroupName = "FinPos" };
             var rbRight = new RadioButton { Content = Loc.T("Str_Radio_FinishRight"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "right", GroupName = "FinPos" };
-            finishRow.Children.Add(rbLeft);
-            finishRow.Children.Add(rbRight);
-            sp.Children.Add(finishRow);
+            addPdRow(Loc.T("Str_PoolDevice_FinishPos"), rbLeft, rbRight);
 
             // 反应时检测（RT）开关：关闭后所有出发反应时相关处理跳过
-            var rtRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            rtRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ReactionTime"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbRtOn = new RadioButton { Content = Loc.T("Str_Radio_On"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch", Margin = new Thickness(0, 0, 12, 0) };
+            var rbRtOn = new RadioButton { Content = Loc.T("Str_Radio_On"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch" };
             var rbRtOff = new RadioButton { Content = Loc.T("Str_Radio_Off"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch" };
-            rtRow.Children.Add(rbRtOn);
-            rtRow.Children.Add(rbRtOff);
-            sp.Children.Add(rtRow);
+            addPdRow(Loc.T("Str_PoolDevice_ReactionTime"), rbRtOn, rbRtOff);
 
             // 2026-06-06 盲表代替触板 (PC 端自动用盲表中位数补当前段缺失的触板成绩)
-            var blindRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            blindRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_BlindReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbBlindOn = new RadioButton { Content = Loc.T("Str_Radio_BlindOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace", Margin = new Thickness(0, 0, 12, 0) };
+            var rbBlindOn = new RadioButton { Content = Loc.T("Str_Radio_BlindOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace" };
             var rbBlindOff = new RadioButton { Content = Loc.T("Str_Radio_BlindOff"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace" };
-            blindRow.Children.Add(rbBlindOn);
-            blindRow.Children.Add(rbBlindOff);
-            sp.Children.Add(blindRow);
+            addPdRow(Loc.T("Str_PoolDevice_BlindReplace"), rbBlindOn, rbBlindOff);
 
             // 2026-06-14 手动 TP 代替真 TP: 开=手动 TP 即使该段已有真触板也覆盖; 关=仅无 TP 时应急, 已有真 TP 只记备份
-            var manualTpRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            manualTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ManualTpReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbManualTpOn = new RadioButton { Content = Loc.T("Str_Radio_ManualTpOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace", Margin = new Thickness(0, 0, 12, 0) };
+            var rbManualTpOn = new RadioButton { Content = Loc.T("Str_Radio_ManualTpOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace" };
             var rbManualTpOff = new RadioButton { Content = Loc.T("Str_Radio_ManualTpOff"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace" };
-            manualTpRow.Children.Add(rbManualTpOn);
-            manualTpRow.Children.Add(rbManualTpOff);
-            sp.Children.Add(manualTpRow);
+            addPdRow(Loc.T("Str_PoolDevice_ManualTpReplace"), rbManualTpOn, rbManualTpOff);
 
             // 2026-06-02 硬件设备状态: 一直打开 / 按比赛流程
             //   "一直打开" = 硬件 TP/SB/MB 按键路径忽略 *_Open_Close_State 关闭状态, 只跳过 ==3 坏 / ==4 未装. 让 PC 端拿到所有按键事件
             //   "按流程"   = 原行为 (硬件按比赛流程时序自动开/关设备)
-            var hwOpenRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            hwOpenRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_HwDevice"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbHwAlwaysOpen = new RadioButton { Content = Loc.T("Str_Radio_HwAlwaysOpen"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode", Margin = new Thickness(0, 0, 12, 0) };
+            var rbHwAlwaysOpen = new RadioButton { Content = Loc.T("Str_Radio_HwAlwaysOpen"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode" };
             var rbHwFlow = new RadioButton { Content = Loc.T("Str_Radio_HwFlow"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode" };
-            hwOpenRow.Children.Add(rbHwAlwaysOpen);
-            hwOpenRow.Children.Add(rbHwFlow);
-            sp.Children.Add(hwOpenRow);
+            addPdRow(Loc.T("Str_PoolDevice_HwDevice"), rbHwAlwaysOpen, rbHwFlow);
 
             // 2026-06-03 出发信号边沿 — 硬件 SB 按键有效边沿 (下降沿 / 上升沿), 0x41 帧 d7 下发硬件
-            var edgeRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            edgeRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_StartEdge"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbEdgeFall = new RadioButton { Content = Loc.T("Str_Radio_EdgeFall"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge", Margin = new Thickness(0, 0, 12, 0) };
+            var rbEdgeFall = new RadioButton { Content = Loc.T("Str_Radio_EdgeFall"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge" };
             var rbEdgeRise = new RadioButton { Content = Loc.T("Str_Radio_EdgeRise"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge" };
-            edgeRow.Children.Add(rbEdgeFall);
-            edgeRow.Children.Add(rbEdgeRise);
-            sp.Children.Add(edgeRow);
+            addPdRow(Loc.T("Str_PoolDevice_StartEdge"), rbEdgeFall, rbEdgeRise);
 
             // 道次显示顺序：正序=顶到底为 0→9；逆序=顶到底为 9→0（同步给硬件计时器及所有 UI）
-            var orderRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            orderRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_LaneOrder"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbOrderFwd = new RadioButton { Content = Loc.T("Str_Radio_OrderFwd"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder != "reverse", GroupName = "LaneOrder", Margin = new Thickness(0, 0, 12, 0) };
+            var rbOrderFwd = new RadioButton { Content = Loc.T("Str_Radio_OrderFwd"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder != "reverse", GroupName = "LaneOrder" };
             var rbOrderRev = new RadioButton { Content = Loc.T("Str_Radio_OrderRev"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder == "reverse", GroupName = "LaneOrder" };
-            orderRow.Children.Add(rbOrderFwd);
-            orderRow.Children.Add(rbOrderRev);
-            sp.Children.Add(orderRow);
+            addPdRow(Loc.T("Str_PoolDevice_LaneOrder"), rbOrderFwd, rbOrderRev);
 
             //2026-05-12 新增：泳池触板安装方式（单边/两端）
             //  HasRightStartBlock=true  -> 两端都有触板
             //  HasRightStartBlock=false -> 只有一端有触板（单边）
-            var poolTpRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            poolTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_PoolTp"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = pdLabelW });
-            var rbTpBoth = new RadioButton { Content = Loc.T("Str_Radio_TpBoth"), Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && _poolConfig.HasRightStartBlock, GroupName = "PoolTP", Margin = new Thickness(0, 0, 12, 0) };
+            var rbTpBoth = new RadioButton { Content = Loc.T("Str_Radio_TpBoth"), Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && _poolConfig.HasRightStartBlock, GroupName = "PoolTP" };
             var rbTpSingle = new RadioButton { Content = Loc.T("Str_Radio_TpSingle"), Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && !_poolConfig.HasRightStartBlock, GroupName = "PoolTP" };
-            poolTpRow.Children.Add(rbTpBoth);
-            poolTpRow.Children.Add(rbTpSingle);
-            sp.Children.Add(poolTpRow);
+            addPdRow(Loc.T("Str_PoolDevice_PoolTp"), rbTpBoth, rbTpSingle);
 
             // 设备状态管理按钮
             var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
