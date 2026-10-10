@@ -73,6 +73,11 @@ foreach ($sub in @("SwimmingScoreboard","RemoteTimingControl","RemoteDisplayCont
     if (Test-Path $p) { Remove-Item -Recurse -Force $p }
     New-Item -ItemType Directory -Path $p | Out-Null
 }
+# 2026-10-10 早期版本误把 CompetitionParamsTemplates 拷到 InstallerBuild 根目录(Setup.exe
+#   根本不认这个根目录散放的东西, 见下面"[4/5]"那段说明)——老包留下的这个残留目录清一下,
+#   免得每次打包清单都带着一份"装不到客户机"的死文件误导人。
+$staleRootTpl = Join-Path $installerBuild "CompetitionParamsTemplates"
+if (Test-Path $staleRootTpl) { Remove-Item -Recurse -Force $staleRootTpl; Write-Host "  ✂  删除根目录下的 CompetitionParamsTemplates 残留(应在各 exe 子目录内, 见下文)" }
 # 2026-10-09 -Lite 模式下面的步骤会跳过 prereq\运行库/Edge/四份手册/速查卡的拷贝——
 #   但如果 InstallerBuild\ 之前跑过一次【非 Lite】的完整打包, 这些文件/目录早就躺在
 #   根目录下了, "跳过拷贝"不等于"没有", 不先删掉的话 -Lite 包体积根本不会变小。
