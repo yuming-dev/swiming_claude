@@ -368,7 +368,7 @@ namespace SwimmingScoreboard
             { "Str_EM_Tab_Params",     new[] { "比赛参数设置管理", "Competition Settings" } },
             { "Str_EM_CompRule",       new[] { "比赛规则", "Competition Rules" } },
             { "Str_EM_RuleIntl",       new[] { "国际比赛 (FINA)", "International (FINA)" } },
-            { "Str_EM_RuleDomestic",   new[] { "国内大赛 (中国游协)", "Domestic (CSA)" } },
+            { "Str_EM_RuleDomestic",   new[] { "国内大赛 (中国泳协)", "Domestic (CSA)" } },
             { "Str_EM_RuleU",          new[] { "U系列青少年游泳比赛", "U-Series Youth Meet" } },
             { "Str_EM_RuleUDesc",      new[] { "U系列: 允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆", "U-Series: allows mixed-sex events / cross-age events / TRI entries / multi-heat finals / single in-heat ranking / overall ranking split by sex × age group." } },
             { "Str_EM_EventGroupConfig",new[] { "比赛项目 / 组别配置（数据库持久化，支持手动编辑、导入、导出）", "Events / Age Groups (stored in the database; edit, import or export)" } },

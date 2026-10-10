@@ -94,7 +94,7 @@ namespace SwimmingScoreboard
         // 2026-09-17 奖状打印到决赛第几名, 通过"证书参数设置"窗口维护, 默认前 3 名。
         private int _awardCertRankLimit = 3;
         private string _competitionMode = "domestic";
-        // 2026-06-05 比赛规则: '国际比赛'(FINA) / '国内大赛'(中国游协) / 'U系列青少年游泳比赛'.
+        // 2026-06-05 比赛规则: '国际比赛'(FINA) / '国内大赛'(中国泳协) / 'U系列青少年游泳比赛'.
         //   U 系列允许 男女并项, 跨年龄组并项, TRI 参赛, 多组直接决赛, 组内按时间排单一名次, 项目后按 性别×组别 拆总排名
         private string _competitionRule = "U系列青少年游泳比赛";
         // 2026-10-10 加载已存赛事包时会程序化设置 CompRuleCombo.SelectedIndex 来还原
@@ -21875,7 +21875,7 @@ namespace SwimmingScoreboard
             string[] rules = { "国际比赛", "国内大赛", "U系列青少年游泳比赛" };
             string[] descs = {
                 "国际比赛 (FINA): 男/女 分项, 同年龄组同组, 单组排名按时间, 总排名按 性别×组别",
-                "国内大赛 (中国游协): 同 FINA, 国内执行差异由本地规程补充",
+                "国内大赛 (中国泳协): 同 FINA, 国内执行差异由本地规程补充",
                 "U系列: 允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆"
             };
             int i = CompRuleCombo.SelectedIndex;
@@ -21904,8 +21904,8 @@ namespace SwimmingScoreboard
         //   (表头跳过/去重/CsvEscape 兼容), 只是文件来源从"用户选的路径"换成
         //   "装机自带模板的固定路径"。
         private void AutoLoadCompetitionParamsForRule(int ruleIndex) {
-            string[] folders = { "国际比赛(FINA)", "国内大赛(中国游协)", "U系列青少年游泳比赛" };
-            string[] suffixZh = { "国际比赛(FINA)_中文", "国内大赛(中国游协)_中文", "U系列青少年游泳比赛_中文" };
+            string[] folders = { "国际比赛(FINA)", "国内大赛(中国泳协)", "U系列青少年游泳比赛" };
+            string[] suffixZh = { "国际比赛(FINA)_中文", "国内大赛(中国泳协)_中文", "U系列青少年游泳比赛_中文" };
             string[] suffixEn = { "International (FINA)_English", "Domestic (CSA)_English", "U-Series Youth Meet_English" };
             if (ruleIndex < 0 || ruleIndex >= folders.Length) return;
             string folder = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "CompetitionParamsTemplates", folders[ruleIndex]);
