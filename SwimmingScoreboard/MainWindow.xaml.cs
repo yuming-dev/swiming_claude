@@ -19584,7 +19584,10 @@ namespace SwimmingScoreboard
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")) });
 
             var maleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            maleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_MaleLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            // 2026-10-10 原来固定 Width=90 是按中文"运动员男子："(6字)量的, 英文 "Female Athletes:"/
+            //   "Combined Range:" 比中文长得多, 固定宽度框不出来的部分会直接盖到右边输入框上——
+            //   改 MinWidth 让它按内容自然撑开, 不够宽才扩, 不会裁切/重叠。
+            maleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_MaleLabel"), MinWidth = 90, VerticalAlignment = VerticalAlignment.Center });
             _baMaleStart = new TextBox { Width = 60, Padding = new Thickness(4) };
             maleRow.Children.Add(_baMaleStart);
             maleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_To"), VerticalAlignment = VerticalAlignment.Center });
@@ -19593,7 +19596,7 @@ namespace SwimmingScoreboard
             editPanel.Children.Add(maleRow);
 
             var femaleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            femaleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_FemaleLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            femaleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_FemaleLabel"), MinWidth = 90, VerticalAlignment = VerticalAlignment.Center });
             _baFemaleStart = new TextBox { Width = 60, Padding = new Thickness(4) };
             femaleRow.Children.Add(_baFemaleStart);
             femaleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_To"), VerticalAlignment = VerticalAlignment.Center });
@@ -19605,7 +19608,7 @@ namespace SwimmingScoreboard
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Margin = new Thickness(0, 0, 0, 6) });
 
             var combinedRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            combinedRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_CombinedLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            combinedRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_CombinedLabel"), MinWidth = 90, VerticalAlignment = VerticalAlignment.Center });
             _baStart = new TextBox { Width = 60, Padding = new Thickness(4) };
             combinedRow.Children.Add(_baStart);
             combinedRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_To"), VerticalAlignment = VerticalAlignment.Center });
@@ -25223,6 +25226,11 @@ namespace SwimmingScoreboard
             // 重建一次让它的按钮/标签/DataGrid列头跟着换语言(会连带重置 _bibAllocWorking = 当前 _bibRanges,
             // 丢弃未保存的编辑——跟本方法里其它几个 RebuildXxx() 一个道理, 属于"切语言=重建视图"的既有代价)。
             try { BuildUnitBibAllocTab(); } catch { }
+            // 2026-10-10 现场反馈: "纪录管理" tab 的性别筛选下拉("全部"那一项)和下方"共N条/总N条"
+            //   计数文字切语言不跟着变——这两处都是"数据变化时才刷"的程序化赋值(RefillGenderCombos/
+            //   ApplyRecordFilter), 不在原有的语言切换级联里, 得跟 BuildUnitBibAllocTab 一样补进来。
+            try { RefillGenderCombos(); } catch { }
+            try { RefreshRecordFilterCombos(); ApplyRecordFilter(); } catch { }
             // 2026-09-28【跨客户端语言同步】实机联调时发现: ScheduleEditor.exe/RemoteTimingControl.exe
             // 顶部状态栏"主服务器: [IP] [连接/断开]"那个连接按钮是 EditorSyncToggle_Click/
             // OnEditorSyncConnected/OnEditorSyncDisconnected 直接赋值 .Content, 不在原有刷新级联里,
@@ -29265,7 +29273,7 @@ namespace SwimmingScoreboard
                 filtered.Add(r);
             }
             RecordGrid.ItemsSource = filtered;
-            RecordFilterCount.Text = string.Format("共 {0} 条（总 {1} 条）", filtered.Count, _records.Count);
+            RecordFilterCount.Text = Loc.F("Str_RecordMgmt_CountFilteredFmt", filtered.Count, _records.Count);
         }
 
         private void RecordFilter_Changed(object sender, SelectionChangedEventArgs e) {
@@ -29285,7 +29293,7 @@ namespace SwimmingScoreboard
             RecordFilterKeyword.Text = "";
             _recordFilterUpdating = false;
             RecordGrid.ItemsSource = _records;
-            RecordFilterCount.Text = string.Format("共 {0} 条", _records.Count);
+            RecordFilterCount.Text = Loc.F("Str_RecordMgmt_CountAllFmt", _records.Count);
         }
 
         private void ClearAllRecords_Click(object sender, RoutedEventArgs e) {

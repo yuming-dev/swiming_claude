@@ -169,6 +169,8 @@ namespace SwimmingScoreboard
             // 复用词（组别/性别/男女混合/姓名等在这页里反复出现几十次）统一走 Str_Common_*，
             // 避免每个子页各建一份、翻译口径还可能不一致；DataGrid 表头同理走 Str_Col_*。
             { "Str_Common_All",     new[] { "全部", "All" } },
+            { "Str_RecordMgmt_CountFilteredFmt", new[] { "共 {0} 条（总 {1} 条）", "{0} shown (of {1} total)" } },
+            { "Str_RecordMgmt_CountAllFmt",       new[] { "共 {0} 条", "{0} record(s)" } },
             { "Str_Common_AgeGroup",new[] { "组别:", "Group:" } },
             { "Str_Common_Gender",  new[] { "性别:", "Sex:" } },
             { "Str_Common_Male",    new[] { "男", "M" } },

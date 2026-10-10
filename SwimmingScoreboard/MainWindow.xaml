@@ -713,8 +713,15 @@
                                     <Border Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
                                         <StackPanel>
                                             <TextBlock Text="{DynamicResource Str_EM_CompRule}" FontSize="14" FontWeight="Bold" Foreground="#92400E" Margin="0,0,0,6"/>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <ComboBox x:Name="CompRuleCombo" Width="240" SelectedIndex="2" VerticalAlignment="Center" SelectionChanged="CompRuleCombo_Changed">
+                                            <!-- 2026-10-10 原来是横向 StackPanel, 说明文字不换行一路往右延伸——中文短还看
+                                                 不出来, 英文版说明文字长得多, 窗口放不下就被裁掉一截(看不全)。改成 Grid
+                                                 两列(下拉 Auto + 说明 *), 说明文字加 TextWrapping="Wrap" 跟着容器宽度换行。 -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox x:Name="CompRuleCombo" Grid.Column="0" Width="240" SelectedIndex="2" VerticalAlignment="Center" SelectionChanged="CompRuleCombo_Changed">
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_RuleIntl}"/>
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_RuleDomestic}"/>
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_RuleU}"/>
@@ -722,9 +729,10 @@
                                                          选中后不弹自动导入模板的确认框, 下方五张表沿用现有内容自行增删 -->
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_RuleRegional}"/>
                                                 </ComboBox>
-                                                <TextBlock x:Name="CompRuleDescText" Margin="14,0,0,0" VerticalAlignment="Center" Foreground="#475569" FontSize="12"
+                                                <TextBlock x:Name="CompRuleDescText" Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Foreground="#475569" FontSize="12"
+                                                           TextWrapping="Wrap"
                                                            Text="{DynamicResource Str_EM_RuleUDesc}"/>
-                                            </StackPanel>
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                     <TextBlock Text="{DynamicResource Str_EM_EventGroupConfig}"
