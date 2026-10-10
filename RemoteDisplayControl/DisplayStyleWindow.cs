@@ -26,16 +26,19 @@ namespace RemoteDisplayControl
         // 2026-09-28 跟 SwimmingScoreboard/DisplayStyleWindow.cs 共用同一批 Loc key。
         //   懒加载(不能在静态字段初始化器里调 Loc.T——那时 Application.Current 可能还没就绪),
         //   每次开窗都按当前语言重建一次, 够用(这窗口不常开, 不需要活绑定)。
+        // 2026-10-10 现场反馈(跟 SwimmingScoreboard/DisplayStyleWindow.cs 同一个毛病): "滚动
+        //   时间"/"成绩"两行默认字体写成带引号的 "'Consolas', monospace", 跟下面 FONT_OPTIONS
+        //   里不带引号的 "Consolas, monospace" 字符串对不上, 选不中, 下拉显示空白。去掉多余引号。
         private static TextKeyDef[] BuildTextKeys() {
             return new TextKeyDef[] {
                 new TextKeyDef("title",  SwimmingScoreboard.Loc.T("Str_DisplayStyle_Key_Title"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("event",  SwimmingScoreboard.Loc.T("Str_EM_Events"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
-                new TextKeyDef("time",   SwimmingScoreboard.Loc.T("Str_DisplayStyle_Key_RollingTime"), "#f59e0b", "'Consolas', monospace"),
+                new TextKeyDef("time",   SwimmingScoreboard.Loc.T("Str_DisplayStyle_Key_RollingTime"), "#f59e0b", "Consolas, monospace"),
                 new TextKeyDef("lane",   SwimmingScoreboard.Loc.T("Str_Col_LaneNo"), "#94a3b8", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("rank",   SwimmingScoreboard.Loc.T("Str_Results_ColRank"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("name",   SwimmingScoreboard.Loc.T("Str_Col_Name"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("team",   SwimmingScoreboard.Loc.T("Str_Col_Team"), "#94a3b8", "'Microsoft YaHei', sans-serif"),
-                new TextKeyDef("result", SwimmingScoreboard.Loc.T("Str_Col_RecordTime"), "#f8fafc", "'Consolas', monospace"),
+                new TextKeyDef("result", SwimmingScoreboard.Loc.T("Str_Col_RecordTime"), "#f8fafc", "Consolas, monospace"),
                 new TextKeyDef("remark", SwimmingScoreboard.Loc.T("Str_Col_Notes"), "#ef4444", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("record", SwimmingScoreboard.Loc.T("Str_DisplayStyle_Key_Record"), "#FBBF24", "'Microsoft YaHei', sans-serif")
             };
@@ -103,8 +106,10 @@ namespace RemoteDisplayControl
             // Preset buttons
             var presetGrid = new UniformGrid { Columns = 8, Rows = 1, Margin = new Thickness(0,0,0,0) };
             string[,] presets = new string[,] {
-                {"深邃蓝","#0f172a"}, {"泳池青","#0c4a6e"}, {"深海蓝","#082f49"}, {"森林绿","#14532d"},
-                {"紫罗兰","#312e81"}, {"炭墨黑","#0a0a0a"}, {"暗紫红","#581c87"}, {"青灰","#1e293b"}
+                {SwimmingScoreboard.Loc.T("Str_BgPreset_DeepBlue"),"#0f172a"}, {SwimmingScoreboard.Loc.T("Str_BgPreset_PoolTeal"),"#0c4a6e"},
+                {SwimmingScoreboard.Loc.T("Str_BgPreset_DeepSeaBlue"),"#082f49"}, {SwimmingScoreboard.Loc.T("Str_BgPreset_ForestGreen"),"#14532d"},
+                {SwimmingScoreboard.Loc.T("Str_BgPreset_Violet"),"#312e81"}, {SwimmingScoreboard.Loc.T("Str_BgPreset_CharcoalBlack"),"#0a0a0a"},
+                {SwimmingScoreboard.Loc.T("Str_BgPreset_DarkMagenta"),"#581c87"}, {SwimmingScoreboard.Loc.T("Str_BgPreset_SlateGray"),"#1e293b"}
             };
             for (int i = 0; i < presets.GetLength(0); i++) {
                 string name = presets[i,0];
@@ -186,8 +191,13 @@ namespace RemoteDisplayControl
                     Foreground = Brushes.White,
                     FontSize = 12
                 };
+                // 2026-10-10 同 SwimmingScoreboard/DisplayStyleWindow.cs 的说明: 原来只给下拉项
+                //   设 Foreground=Black, 收起状态的框复用这个渲染, 跟 Combo 自己的深色底叠起来
+                //   变成黑字配黑底看不清。改成 Background/Foreground 都显式用跟 Combo 一样的深色底
+                //   + 白字。
+                var itemBg = new SolidColorBrush(Color.FromRgb(0x33,0x41,0x55));
                 foreach (var f in FONT_OPTIONS) {
-                    var item = new ComboBoxItem { Content = f.Label, Tag = f.Value, Foreground = Brushes.Black };
+                    var item = new ComboBoxItem { Content = f.Label, Tag = f.Value, Foreground = Brushes.White, Background = itemBg };
                     combo.Items.Add(item);
                     if (f.Value == def.DefaultFont) combo.SelectedItem = item;
                 }

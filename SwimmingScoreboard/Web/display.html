@@ -693,13 +693,13 @@ function TEXT_KEYS_DEF() { return [
     {k:'title',  label:WebLoc.t('Str_Display_TsKeyTitle'),   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
     {k:'event',  label:WebLoc.t('Str_Display_TsKeyEvent'),   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
     {k:'stage',  label:WebLoc.t('Str_Display_TsKeyStage'), dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'time',   label:WebLoc.t('Str_Display_TsKeyTime'),   dC:'#f59e0b', dF:"'Consolas', monospace"},
+    {k:'time',   label:WebLoc.t('Str_Display_TsKeyTime'),   dC:'#f59e0b', dF:"Consolas, monospace"},
     {k:'header', label:WebLoc.t('Str_Display_TsKeyHeader'),       dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
     {k:'lane',   label:WebLoc.t('Str_Display_TsKeyLane'),       dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
     {k:'rank',   label:WebLoc.t('Str_Display_TsKeyRank'),       dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
     {k:'name',   label:WebLoc.t('Str_Display_TsKeyName'),       dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
     {k:'team',   label:WebLoc.t('Str_Display_TsKeyTeam'),     dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'result', label:WebLoc.t('Str_Display_TsKeyResult'),       dC:'#f8fafc', dF:"'Consolas', monospace"},
+    {k:'result', label:WebLoc.t('Str_Display_TsKeyResult'),       dC:'#f8fafc', dF:"Consolas, monospace"},
     {k:'remark', label:WebLoc.t('Str_Display_TsKeyRemark'),       dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"},
     {k:'record', label:WebLoc.t('Str_Display_TsKeyRecord'), dC:'#FBBF24', dF:"'Microsoft YaHei', sans-serif"}
 ]; }
@@ -995,7 +995,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261010-3';
+var PAGE_VER = '20261010-4';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}

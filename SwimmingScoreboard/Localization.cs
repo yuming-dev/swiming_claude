@@ -3673,8 +3673,10 @@ namespace SwimmingScoreboard
             //   主服务器(SwimmingScoreboard/DisplayStyleWindow.cs)和RemoteDisplayControl.exe
             //   (RemoteDisplayControl/DisplayStyleWindow.cs)各有一份几乎一样的拷贝, 两边共用
             //   这批key。之前几轮翻译都没覆盖到这两个纯代码窗口(不在MainWindow.xaml.cs里,
-            //   这次完整性核查时发现的真缺口)。8个底色预设名字("深邃蓝"/"泳池青"等)是装饰性
-            //   取名, 参照第十二阶段display.html预设颜色名同款判断——保持中文原样, 不翻译。
+            //   这次完整性核查时发现的真缺口)。
+            // 2026-10-10 上面那条"8个底色预设名字保持中文原样不翻译"的判断已经过时——当时参照的
+            //   display.html 预设颜色名这一轮也翻完了(nameEn, 见 display.html BG_PRESETS_SOLID),
+            //   现场反馈这颗窗口的底色预设还是中文, 这里补齐, 跟 display.html 用一样的英文名。
             { "Str_DisplayStyle_Title", new[] { "🎨 大屏样式远程控制", "🎨 Big Screen Style Remote Control" } },
             { "Str_DisplayStyle_Header", new[] { "改动立即推送到所有大屏 display.html / 控制端 (服务器持久化保存)", "Changes push immediately to all display.html screens / control clients (saved on the server)" } },
             { "Str_DisplayStyle_SectionBg", new[] { "底色 (Background)", "Background Color" } },
@@ -3692,6 +3694,14 @@ namespace SwimmingScoreboard
             { "Str_Font_LiSu", new[] { "隶书", "LiSu" } },
             { "Str_Font_YouYuan", new[] { "幼圆", "YouYuan" } },
             { "Str_Font_ConsolasMono", new[] { "Consolas (等宽)", "Consolas (Monospace)" } },
+            { "Str_BgPreset_DeepBlue",     new[] { "深邃蓝", "Deep Blue" } },
+            { "Str_BgPreset_PoolTeal",     new[] { "泳池青", "Pool Teal" } },
+            { "Str_BgPreset_DeepSeaBlue",  new[] { "深海蓝", "Deep Sea Blue" } },
+            { "Str_BgPreset_ForestGreen",  new[] { "森林绿", "Forest Green" } },
+            { "Str_BgPreset_Violet",       new[] { "紫罗兰", "Violet" } },
+            { "Str_BgPreset_CharcoalBlack",new[] { "炭墨黑", "Charcoal Black" } },
+            { "Str_BgPreset_DarkMagenta",  new[] { "暗紫红", "Dark Magenta" } },
+            { "Str_BgPreset_SlateGray",    new[] { "青灰", "Slate Gray" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

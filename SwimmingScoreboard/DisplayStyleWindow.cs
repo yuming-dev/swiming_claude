@@ -24,16 +24,22 @@ namespace SwimmingScoreboard
 
         // 2026-09-28 懒加载(不能在静态字段初始化器里调 Loc.T——那时 Application.Current
         //   可能还没就绪), 每次开窗都按当前语言重建一次, 够用(这窗口不常开, 不需要活绑定)。
+        // 2026-10-10 现场反馈: "滚动时间"/"成绩"两行的字体下拉打开就是空白——根因是这两行
+        //   默认字体写成 "'Consolas', monospace"(带引号), 但下面 FONT_OPTIONS 里 Consolas
+        //   那一项 Value 是 "Consolas, monospace"(不带引号, 跟 Arial/Impact 等其它单词字体名
+        //   同一个写法, 只有带空格的"Microsoft YaHei"才需要引号)——两边字符串对不上,
+        //   下面"if (f.Value == def.DefaultFont) 选中它"这行永远选不中, ComboBox 没有
+        //   SelectedItem, 自然什么都不显示。统一去掉 Consolas 两处的多余引号。
         private static TextKeyDef[] BuildTextKeys() {
             return new TextKeyDef[] {
                 new TextKeyDef("title",  Loc.T("Str_DisplayStyle_Key_Title"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("event",  Loc.T("Str_EM_Events"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
-                new TextKeyDef("time",   Loc.T("Str_DisplayStyle_Key_RollingTime"), "#f59e0b", "'Consolas', monospace"),
+                new TextKeyDef("time",   Loc.T("Str_DisplayStyle_Key_RollingTime"), "#f59e0b", "Consolas, monospace"),
                 new TextKeyDef("lane",   Loc.T("Str_Col_LaneNo"), "#94a3b8", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("rank",   Loc.T("Str_Results_ColRank"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("name",   Loc.T("Str_Col_Name"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("team",   Loc.T("Str_Col_Team"), "#94a3b8", "'Microsoft YaHei', sans-serif"),
-                new TextKeyDef("result", Loc.T("Str_Col_RecordTime"), "#f8fafc", "'Consolas', monospace"),
+                new TextKeyDef("result", Loc.T("Str_Col_RecordTime"), "#f8fafc", "Consolas, monospace"),
                 new TextKeyDef("remark", Loc.T("Str_Col_Notes"), "#ef4444", "'Microsoft YaHei', sans-serif"),
                 new TextKeyDef("record", Loc.T("Str_DisplayStyle_Key_Record"), "#FBBF24", "'Microsoft YaHei', sans-serif")
             };
@@ -94,8 +100,10 @@ namespace SwimmingScoreboard
             bgRow.Children.Add(_bgHex);
             var presetGrid = new UniformGrid { Columns = 8, Rows = 1 };
             string[,] presets = new string[,] {
-                {"深邃蓝","#0f172a"}, {"泳池青","#0c4a6e"}, {"深海蓝","#082f49"}, {"森林绿","#14532d"},
-                {"紫罗兰","#312e81"}, {"炭墨黑","#0a0a0a"}, {"暗紫红","#581c87"}, {"青灰","#1e293b"}
+                {Loc.T("Str_BgPreset_DeepBlue"),"#0f172a"}, {Loc.T("Str_BgPreset_PoolTeal"),"#0c4a6e"},
+                {Loc.T("Str_BgPreset_DeepSeaBlue"),"#082f49"}, {Loc.T("Str_BgPreset_ForestGreen"),"#14532d"},
+                {Loc.T("Str_BgPreset_Violet"),"#312e81"}, {Loc.T("Str_BgPreset_CharcoalBlack"),"#0a0a0a"},
+                {Loc.T("Str_BgPreset_DarkMagenta"),"#581c87"}, {Loc.T("Str_BgPreset_SlateGray"),"#1e293b"}
             };
             for (int i = 0; i < presets.GetLength(0); i++) {
                 string name = presets[i,0];
@@ -169,8 +177,15 @@ namespace SwimmingScoreboard
                     Background = new SolidColorBrush(Color.FromRgb(0x0f,0x17,0x2a)),
                     Foreground = Brushes.White, FontSize = 12
                 };
+                // 2026-10-10 现场反馈"中间部分文字看不清楚"——这里原来给每个下拉项只写了
+                //   Foreground=Black, 没设 Background, 下拉展开时项目用系统默认浅色背景,
+                //   黑字还看得清; 但收起状态的框直接复用这个 ComboBoxItem 渲染, 跟 Combo
+                //   自己的深色 Background(#0f172a, 跟整窗底色同色系)叠在一起就成了"深色底配
+                //   黑字", 不可读。改成 Background/Foreground 都显式跟 Combo 自己一样深色底+
+                //   白字, 下拉展开和收起状态都保持同一套可读配色, 不再依赖系统默认背景。
+                var itemBg = new SolidColorBrush(Color.FromRgb(0x33,0x41,0x55));
                 foreach (var f in FONT_OPTIONS) {
-                    var item = new ComboBoxItem { Content = f.Label, Tag = f.Value, Foreground = Brushes.Black };
+                    var item = new ComboBoxItem { Content = f.Label, Tag = f.Value, Foreground = Brushes.White, Background = itemBg };
                     combo.Items.Add(item);
                     if (f.Value == def.DefaultFont) combo.SelectedItem = item;
                 }
