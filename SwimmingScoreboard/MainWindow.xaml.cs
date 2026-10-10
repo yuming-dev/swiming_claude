@@ -14374,7 +14374,7 @@ namespace SwimmingScoreboard
             // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
             string[] leftLabelDefs = enLbl
-                ? new[] { "[T]:80", "MB\n3:22", "MB\n2:22", "MB\n1:22", "St:26", "T\nP:11", "Lap:44" }
+                ? new[] { "[T]:80", "MB\n3:22", "MB\n2:22", "MB\n1:22", "SB:26", "T\nP:11", "Lap:44" }
                 : new[] { "[T]:80", "盲\n3:22", "盲\n2:22", "盲\n1:22", "出\n发:26", "触\n板:11", "圈:44" };
             int leftBwc = _laneCloseSettings.LeftBlindWatchCount;
             for (int li = 0; li < leftLabelDefs.Length; li++) {
@@ -14400,7 +14400,7 @@ namespace SwimmingScoreboard
             // 2026-06-16 圈 50→44 = rightSpinner(18)+rightRemainText(26), 跟下方 rightDev 对齐
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             string[] rightLabelDefs = enLbl
-                ? new[] { "Lap:44", "T\nP:11", "St:26", "MB\n1:22", "MB\n2:22", "MB\n3:22", "[T]:80" }
+                ? new[] { "Lap:44", "T\nP:11", "SB:26", "MB\n1:22", "MB\n2:22", "MB\n3:22", "[T]:80" }
                 : new[] { "圈:44", "触\n板:11", "出\n发:26", "盲\n1:22", "盲\n2:22", "盲\n3:22", "[T]:80" };
             int rightBwc = _laneCloseSettings.RightBlindWatchCount;
             for (int ri = 0; ri < rightLabelDefs.Length; ri++) {
