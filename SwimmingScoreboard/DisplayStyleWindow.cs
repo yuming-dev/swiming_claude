@@ -5,6 +5,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
 using System.Windows.Media;
 using Newtonsoft.Json.Linq;
 
@@ -12,6 +13,62 @@ namespace SwimmingScoreboard
 {
     public class DisplayStyleWindow : Window
     {
+        // 2026-10-10 现场反馈两轮都没根治"字体下拉文字看不清"——根因其实是没retemplate的
+        //   ComboBox 在 Windows 默认主题下, 收起状态那个"选择框"的底色是主题自己画的系统控件
+        //   灰色调(不受 ComboBox.Background / ComboBoxItem.Background 影响, 这是 WPF 一个常见
+        //   坑), 之前两次改 Foreground/Background 都只影响得到下拉展开后的列表项, 收起状态
+        //   那个灰底子怎么调都调不掉, 文字颜色换来换去都是"灰底配浅色字"低对比度。彻底解决
+        //   只能整个重写 ControlTemplate, 不依赖系统默认的 ToggleButton chrome——用 XAML 字符串
+        //   通过 XamlReader.Parse 定义一个纯色深底模板(深色底框 + 白字选中框 + 深底弹出列表),
+        //   跟窗口里其它控件(CSS 输入框等)已经验证可读的深底白字配色保持一致。
+        private static ControlTemplate _darkComboTemplate;
+        private static ControlTemplate DarkComboTemplate {
+            get {
+                if (_darkComboTemplate == null) {
+                    const string xaml = @"
+<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+                  xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
+                  TargetType='ComboBox'>
+  <Grid>
+    <ToggleButton Name='ToggleBtn' Focusable='False' ClickMode='Press'
+                  IsChecked='{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}'>
+      <ToggleButton.Template>
+        <ControlTemplate TargetType='ToggleButton'>
+          <Border Background='#0F172A' BorderBrush='#475569' BorderThickness='1' CornerRadius='3'>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width='*'/>
+                <ColumnDefinition Width='18'/>
+              </Grid.ColumnDefinitions>
+              <Path Grid.Column='1' Data='M0,0 L4,4 L8,0 Z' Fill='#CBD5E1' HorizontalAlignment='Center' VerticalAlignment='Center'/>
+            </Grid>
+          </Border>
+        </ControlTemplate>
+      </ToggleButton.Template>
+    </ToggleButton>
+    <ContentPresenter Name='ContentSite' IsHitTestVisible='False'
+                       Content='{TemplateBinding SelectionBoxItem}'
+                       ContentTemplate='{TemplateBinding SelectionBoxItemTemplate}'
+                       ContentTemplateSelector='{TemplateBinding ItemTemplateSelector}'
+                       Margin='6,0,20,0' VerticalAlignment='Center' HorizontalAlignment='Left'
+                       TextElement.Foreground='#F8FAFC'/>
+    <Popup Name='Popup' Placement='Bottom' IsOpen='{TemplateBinding IsDropDownOpen}'
+           AllowsTransparency='True' Focusable='False' PopupAnimation='Slide'>
+      <Border Background='#1E293B' BorderBrush='#475569' BorderThickness='1' CornerRadius='3' MaxHeight='320'
+              MinWidth='{Binding ActualWidth,RelativeSource={RelativeSource TemplatedParent}}'>
+        <ScrollViewer SnapsToDevicePixels='True'>
+          <ItemsPresenter KeyboardNavigation.DirectionalNavigation='Contained'/>
+        </ScrollViewer>
+      </Border>
+    </Popup>
+  </Grid>
+</ControlTemplate>";
+                    _darkComboTemplate = (ControlTemplate)XamlReader.Parse(xaml);
+                }
+                return _darkComboTemplate;
+            }
+        }
+
         private readonly Action<JObject> _applyStyle;        // 把局部更新 (bg/fs/textStyle JObject) 写入服务器并广播
         private readonly Func<JObject>   _getCurrentStyle;   // 读当前 {bg, fs, textStyle}
         private bool _suppress;
@@ -175,14 +232,9 @@ namespace SwimmingScoreboard
                 var combo = new ComboBox {
                     Margin = new Thickness(0,0,4,0),
                     Background = new SolidColorBrush(Color.FromRgb(0x0f,0x17,0x2a)),
-                    Foreground = Brushes.White, FontSize = 12
+                    Foreground = Brushes.White, FontSize = 12,
+                    Template = DarkComboTemplate   // 见类顶部 DarkComboTemplate 的说明
                 };
-                // 2026-10-10 现场反馈"中间部分文字看不清楚"——这里原来给每个下拉项只写了
-                //   Foreground=Black, 没设 Background, 下拉展开时项目用系统默认浅色背景,
-                //   黑字还看得清; 但收起状态的框直接复用这个 ComboBoxItem 渲染, 跟 Combo
-                //   自己的深色 Background(#0f172a, 跟整窗底色同色系)叠在一起就成了"深色底配
-                //   黑字", 不可读。改成 Background/Foreground 都显式跟 Combo 自己一样深色底+
-                //   白字, 下拉展开和收起状态都保持同一套可读配色, 不再依赖系统默认背景。
                 var itemBg = new SolidColorBrush(Color.FromRgb(0x33,0x41,0x55));
                 foreach (var f in FONT_OPTIONS) {
                     var item = new ComboBoxItem { Content = f.Label, Tag = f.Value, Foreground = Brushes.White, Background = itemBg };

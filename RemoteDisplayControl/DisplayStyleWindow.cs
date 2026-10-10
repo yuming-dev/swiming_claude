@@ -5,6 +5,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
 using System.Windows.Media;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -13,6 +14,58 @@ namespace RemoteDisplayControl
 {
     internal class DisplayStyleWindow : Window
     {
+        // 2026-10-10 同 SwimmingScoreboard/DisplayStyleWindow.cs 的说明: 没 retemplate 的
+        //   ComboBox 在 Windows 默认主题下, 收起状态的选择框底色是系统主题自己画的, 不受
+        //   Background 属性影响——这是改两轮 Foreground/Background 都治不好"灰底文字看不清"
+        //   的根因。整个重写 ControlTemplate, 不依赖系统默认 chrome。
+        private static ControlTemplate _darkComboTemplate;
+        private static ControlTemplate DarkComboTemplate {
+            get {
+                if (_darkComboTemplate == null) {
+                    const string xaml = @"
+<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+                  xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
+                  TargetType='ComboBox'>
+  <Grid>
+    <ToggleButton Name='ToggleBtn' Focusable='False' ClickMode='Press'
+                  IsChecked='{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}'>
+      <ToggleButton.Template>
+        <ControlTemplate TargetType='ToggleButton'>
+          <Border Background='#0F172A' BorderBrush='#475569' BorderThickness='1' CornerRadius='3'>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width='*'/>
+                <ColumnDefinition Width='18'/>
+              </Grid.ColumnDefinitions>
+              <Path Grid.Column='1' Data='M0,0 L4,4 L8,0 Z' Fill='#CBD5E1' HorizontalAlignment='Center' VerticalAlignment='Center'/>
+            </Grid>
+          </Border>
+        </ControlTemplate>
+      </ToggleButton.Template>
+    </ToggleButton>
+    <ContentPresenter Name='ContentSite' IsHitTestVisible='False'
+                       Content='{TemplateBinding SelectionBoxItem}'
+                       ContentTemplate='{TemplateBinding SelectionBoxItemTemplate}'
+                       ContentTemplateSelector='{TemplateBinding ItemTemplateSelector}'
+                       Margin='6,0,20,0' VerticalAlignment='Center' HorizontalAlignment='Left'
+                       TextElement.Foreground='#F8FAFC'/>
+    <Popup Name='Popup' Placement='Bottom' IsOpen='{TemplateBinding IsDropDownOpen}'
+           AllowsTransparency='True' Focusable='False' PopupAnimation='Slide'>
+      <Border Background='#1E293B' BorderBrush='#475569' BorderThickness='1' CornerRadius='3' MaxHeight='320'
+              MinWidth='{Binding ActualWidth,RelativeSource={RelativeSource TemplatedParent}}'>
+        <ScrollViewer SnapsToDevicePixels='True'>
+          <ItemsPresenter KeyboardNavigation.DirectionalNavigation='Contained'/>
+        </ScrollViewer>
+      </Border>
+    </Popup>
+  </Grid>
+</ControlTemplate>";
+                    _darkComboTemplate = (ControlTemplate)XamlReader.Parse(xaml);
+                }
+                return _darkComboTemplate;
+            }
+        }
+
         private readonly SimpleWebSocketClient _ws;
         private bool _suppress;
 
@@ -189,12 +242,9 @@ namespace RemoteDisplayControl
                     Margin = new Thickness(0,0,4,0),
                     Background = new SolidColorBrush(Color.FromRgb(0x0f,0x17,0x2a)),
                     Foreground = Brushes.White,
-                    FontSize = 12
+                    FontSize = 12,
+                    Template = DarkComboTemplate   // 见类顶部 DarkComboTemplate 的说明
                 };
-                // 2026-10-10 同 SwimmingScoreboard/DisplayStyleWindow.cs 的说明: 原来只给下拉项
-                //   设 Foreground=Black, 收起状态的框复用这个渲染, 跟 Combo 自己的深色底叠起来
-                //   变成黑字配黑底看不清。改成 Background/Foreground 都显式用跟 Combo 一样的深色底
-                //   + 白字。
                 var itemBg = new SolidColorBrush(Color.FromRgb(0x33,0x41,0x55));
                 foreach (var f in FONT_OPTIONS) {
                     var item = new ComboBoxItem { Content = f.Label, Tag = f.Value, Foreground = Brushes.White, Background = itemBg };
