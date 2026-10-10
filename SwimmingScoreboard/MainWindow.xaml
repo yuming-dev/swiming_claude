@@ -718,6 +718,9 @@
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_RuleIntl}"/>
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_RuleDomestic}"/>
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_RuleU}"/>
+                                                    <!-- 2026-10-10 第4项: 地区级比赛(省/市/区/校运动会等)——没有固定权威模板,
+                                                         选中后不弹自动导入模板的确认框, 下方五张表沿用现有内容自行增删 -->
+                                                    <ComboBoxItem Content="{DynamicResource Str_EM_RuleRegional}"/>
                                                 </ComboBox>
                                                 <TextBlock x:Name="CompRuleDescText" Margin="14,0,0,0" VerticalAlignment="Center" Foreground="#475569" FontSize="12"
                                                            Text="{DynamicResource Str_EM_RuleUDesc}"/>

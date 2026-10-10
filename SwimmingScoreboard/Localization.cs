@@ -384,7 +384,21 @@ namespace SwimmingScoreboard
             { "Str_EM_RuleIntl",       new[] { "国际比赛 (FINA)", "International (FINA)" } },
             { "Str_EM_RuleDomestic",   new[] { "国内大赛 (中国泳协)", "Domestic (CSA)" } },
             { "Str_EM_RuleU",          new[] { "U系列青少年游泳比赛", "U-Series Youth Meet" } },
+            // 2026-10-10 补上一直没用上的 Intl/Domestic 说明文案 Loc key——原来 CompRuleCombo_Changed
+            //   里这三条说明是硬编码中文数组, 英文模式下切规则时说明文字纹丝不动, 只有 U系列这条
+            //   当年建过 Loc key 却从没接上用过。这次顺手把四条(含新的"地区级比赛")都走 Loc。
+            { "Str_EM_RuleIntlDesc",   new[] { "国际比赛 (FINA): 男/女 分项, 同年龄组同组, 单组排名按时间, 总排名按 性别×组别", "International (FINA): events split by sex, grouped by age group, single-heat ranking by time, overall ranking split by sex × age group." } },
+            { "Str_EM_RuleDomesticDesc", new[] { "国内大赛 (中国泳协): 同 FINA, 国内执行差异由本地规程补充", "Domestic (CSA): same as FINA; local implementation differences are covered by the local meet regulations." } },
             { "Str_EM_RuleUDesc",      new[] { "U系列: 允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆", "U-Series: allows mixed-sex events / cross-age events / TRI entries / multi-heat finals / single in-heat ranking / overall ranking split by sex × age group." } },
+            // 2026-10-10 新增第4个"比赛规则"选项: 地区级比赛(省/市/区/校运动会等)。没有统一官方
+            //   规则文件, 但预置一套取自真实赛事数据(tools\fenzu_parsed.json, 甘肃某地区运动会
+            //   游泳比赛实际项目设置)的模板起点: 项目/组别/性别/赛次均来自真实比赛, 含"男女"
+            //   同组同赛(用户明确要的"男女一起比赛")和全程直接决赛(无预赛/半决赛)。
+            //   不满足的话主办方在下方五张表里自行增删, 改完随这份赛事存档一起保存——
+            //   下次新建赛事再选这条规则时, 还是加载这份出厂预置(跟另外三条规则现有行为
+            //   一致, 不会记住上次改过的内容)。
+            { "Str_EM_RuleRegional",   new[] { "地区级比赛", "Regional / Local Meet" } },
+            { "Str_EM_RuleRegionalDesc", new[] { "地区级比赛 (省/市/区/校运动会等): 预置项目/组别/性别/赛次模板(取自真实地区赛事数据), 允许男女同组比赛、全程直接决赛; 不满足可在下方五张表自行增删", "Regional / Local Meet (provincial, district, school games, etc.): preset Events/Age Groups/Genders/Stages template (drawn from a real regional meet), with men and women racing in the same heat and all events run as direct finals. Use the five tables below to add, edit, or remove entries if it doesn't fit your meet." } },
             { "Str_EM_EventGroupConfig",new[] { "比赛项目 / 组别配置（数据库持久化，支持手动编辑、导入、导出）", "Events / Age Groups (stored in the database; edit, import or export)" } },
             { "Str_EM_Events",         new[] { "比赛项目", "Events" } },
             { "Str_EM_EditEvents",     new[] { "比赛项目编辑", "Edit Events" } },

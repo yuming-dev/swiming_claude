@@ -21891,16 +21891,21 @@ namespace SwimmingScoreboard
         // 2026-06-05 比赛规则 选择: 写入 _competitionRule + 描述提示
         private void CompRuleCombo_Changed(object sender, SelectionChangedEventArgs e) {
             if (CompRuleCombo == null || CompRuleCombo.SelectedIndex < 0) return;
-            string[] rules = { "国际比赛", "国内大赛", "U系列青少年游泳比赛" };
-            string[] descs = {
-                "国际比赛 (FINA): 男/女 分项, 同年龄组同组, 单组排名按时间, 总排名按 性别×组别",
-                "国内大赛 (中国泳协): 同 FINA, 国内执行差异由本地规程补充",
-                "U系列: 允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆"
-            };
+            // 2026-10-10 加第4项"地区级比赛"(省/市/区/校运动会等)——没有统一官方规则文件,
+            //   但跟前三项一样预置一套模板(内容来自真实赛事数据 tools\fenzu_parsed.json,
+            //   甘肃某地区运动会游泳比赛的实际项目/组别/性别/赛次设置, 含"男女"同组同赛
+            //   和纯决赛制), 行为跟其它三项完全一样: 切换时问是否自动导入, 不满足用户
+            //   自己在下方五张表改, 改完照常存进这份赛事存档, 不是改模板本身——下次新建
+            //   赛事再选这条规则, 还是加载这份出厂预置, 不会记住上次的修改(跟另外三条
+            //   规则的既有行为一致)。
+            string[] rules = { "国际比赛", "国内大赛", "U系列青少年游泳比赛", "地区级比赛" };
+            // 2026-10-10 四条说明文案原来是硬编码中文数组, 英文模式下切规则时说明文字纹丝不动
+            //   (只有 Str_EM_RuleUDesc 建过 key 却没接上用)——改成全部走 Loc, 顺手补齐。
+            string[] descKeys = { "Str_EM_RuleIntlDesc", "Str_EM_RuleDomesticDesc", "Str_EM_RuleUDesc", "Str_EM_RuleRegionalDesc" };
             int i = CompRuleCombo.SelectedIndex;
             if (i >= 0 && i < rules.Length) {
                 _competitionRule = rules[i];
-                if (CompRuleDescText != null) CompRuleDescText.Text = descs[i];
+                if (CompRuleDescText != null) CompRuleDescText.Text = Loc.T(descKeys[i]);
                 if (_initialized) AddLog(Loc.F("Str_Log_CompetitionRuleSwitchedFmt", _competitionRule));
                 // 2026-10-10 用户手动切规则(不是加载存档时程序化设置)才问要不要自动导入
                 //   对应的五张表——这是替换性操作, 跟五个"导入XX表"按钮一样先问一句。
@@ -21916,16 +21921,16 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 2026-10-10 "比赛规则"下拉切换后, 把对应规则(国际FINA/国内CSA/U系列)在当前
+        // 2026-10-10 "比赛规则"下拉切换后, 把对应规则(国际FINA/国内CSA/U系列/地区级)在当前
         //   界面语言下的"比赛项目/组别/性别/赛次/组数"五张表从安装包自带的
         //   CompetitionParamsTemplates\ 读进来, 省得用户自己点五次"导入XX表"再挑文件。
         //   五张表各自的解析逻辑照搬对应 Import*CSV_Click 里已经在用的那一套
         //   (表头跳过/去重/CsvEscape 兼容), 只是文件来源从"用户选的路径"换成
         //   "装机自带模板的固定路径"。
         private void AutoLoadCompetitionParamsForRule(int ruleIndex) {
-            string[] folders = { "国际比赛(FINA)", "国内大赛(中国泳协)", "U系列青少年游泳比赛" };
-            string[] suffixZh = { "国际比赛(FINA)_中文", "国内大赛(中国泳协)_中文", "U系列青少年游泳比赛_中文" };
-            string[] suffixEn = { "International (FINA)_English", "Domestic (CSA)_English", "U-Series Youth Meet_English" };
+            string[] folders = { "国际比赛(FINA)", "国内大赛(中国泳协)", "U系列青少年游泳比赛", "地区级比赛" };
+            string[] suffixZh = { "国际比赛(FINA)_中文", "国内大赛(中国泳协)_中文", "U系列青少年游泳比赛_中文", "地区级比赛_中文" };
+            string[] suffixEn = { "International (FINA)_English", "Domestic (CSA)_English", "U-Series Youth Meet_English", "Regional Meet_English" };
             if (ruleIndex < 0 || ruleIndex >= folders.Length) return;
             string folder = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "CompetitionParamsTemplates", folders[ruleIndex]);
             if (!Directory.Exists(folder)) {
@@ -28452,7 +28457,8 @@ namespace SwimmingScoreboard
                     try {
                         if (_competitionRule == "国际比赛") CompRuleCombo.SelectedIndex = 0;
                         else if (_competitionRule == "国内大赛") CompRuleCombo.SelectedIndex = 1;
-                        else CompRuleCombo.SelectedIndex = 2;
+                        else if (_competitionRule == "地区级比赛") CompRuleCombo.SelectedIndex = 3;
+                        else CompRuleCombo.SelectedIndex = 2;   // U系列青少年游泳比赛 / 旧存档默认值
                     } finally { _suppressCompRuleAutoLoad = false; }
                 }
                 SetDatePicker(StartDatePicker, package.StartDate);
