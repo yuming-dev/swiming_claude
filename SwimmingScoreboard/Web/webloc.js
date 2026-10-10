@@ -458,6 +458,11 @@ var WebLoc = (function () {
         "Str_Display_BgCustom": ["自定义", "Custom"],
         "Str_Display_BgColorLabel": ["颜色:", "Color:"],
         "Str_Display_BgImageLabel": ["图片:", "Image:"],
+        // 2026-10-10 原生 <input type=file> 的"选择文件"/"未选择文件"是浏览器按【浏览器自己的
+        // 语言设置】画的, 不受这个页面的语言切换控制(跟网页 CSS/JS 都管不到操作系统原生控件
+        // 文字是同一类限制)。改用自定义按钮+文件名文本覆盖原生控件后, 这两个词条才用得上。
+        "Str_Display_ChooseFile": ["选择文件", "Choose File"],
+        "Str_Display_NoFileChosen": ["未选择文件", "No file chosen"],
         "Str_Display_ResetBgDefault": ["恢复默认 (深邃蓝)", "Reset to Default (Deep Blue)"],
         "Str_Display_ConnectTitle": ["连接主服务器", "Connect to Server"],
         "Str_Display_ServerIpLabel": ["服务器 IP 地址", "Server IP Address"],

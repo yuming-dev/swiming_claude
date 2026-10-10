@@ -272,9 +272,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">⚙</button>
 
 <!-- 2026-05-31 大屏字号缩放: 字号按钮在齿轮按钮上方 (相同样式风格). LED 屏极宽极扁导致 vh 算出来字小, 这里允许 0.8x~3.0x 调节. 数据保存在 localStorage('swimDisplayFs'). -->
+<!-- 2026-10-10 现场反馈: 这颗按钮上的"字"是纯中文字面量, 英文模式下没变过。改用跟
+     fsSettingsPanel 自己标题同一个 🔤 emoji(该面板标题本来就是"🔤 大屏字号"/"🔤 Font Size")——
+     图标天然跟语言无关, 不用另外决定英文该显示什么缩写。 -->
 <button id="fsSettingsBtn" onclick="toggleFsSettings()" title="大屏字号 (Ctrl + / Ctrl -)" data-i18n-title="Str_Display_FsSettingsTip"
         style="position:fixed;right:1.2vw;bottom:7.6vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
-        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">字</button>
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">🔤</button>
 <!-- 2026-06-02 字号面板拆成 1 全局 + 4 分类 (比赛名称/比赛项目/比赛时间/运动员信息); 全局 Ctrl +/-/0 仍生效, 4 分类乘在全局上 -->
 <div id="fsSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:14.4vh;width:44vh;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;max-height:88vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
@@ -297,9 +300,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </div>
 
 <!-- 2026-06-01 文字样式: 9 处单独调颜色 + 字体. 数据保存在 localStorage('swimDisplayTextStyle'). -->
+<!-- 2026-10-10 同上: "文"改用 textStylePanel 自己标题同一个 📝 emoji("📝 文字样式"/"📝 Text Style") -->
 <button id="textStyleBtn" onclick="toggleTextStyle()" title="文字样式 (颜色/字体)" data-i18n-title="Str_Display_TextStyleTip"
         style="position:fixed;right:1.2vw;bottom:14vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
-        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">文</button>
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">📝</button>
 <div id="textStylePanel" class="hidden" style="position:fixed;right:1.2vw;bottom:20.4vh;width:62vh;max-height:78vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.6vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
         <div style="font-size:2vh;font-weight:bold;color:#3b82f6;" data-i18n="Str_Display_TextStyleTitle">📝 文字样式 (颜色 / 字体)</div>
@@ -331,10 +335,20 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <input id="bgCustomHex" type="text" maxlength="7" placeholder="#0f172a" onchange="applyDisplayBg(this.value, true)"
                style="flex:1;padding:0.5vh 0.8vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.5vh;"/>
     </div>
+    <!-- 2026-10-10 原生 <input type=file> 的按钮文字("选择文件"/Choose File)和状态文字
+         ("未选择文件"/No file chosen)是浏览器自己按【浏览器/系统语言】画的, 这个页面的
+         语言切换管不到——跟原生 <select>/日期选择器同一类限制。改成隐藏原生控件(但保留
+         可点击响应, 用 opacity:0 叠在自定义按钮上方, 不用 display:none 以免部分浏览器
+         的"点击穿透"实现不一致), 自定义按钮文字 + 文件名文本都走 WebLoc, 彻底不受浏览器
+         语言影响。 -->
     <div style="display:flex;align-items:center;gap:0.8vh;margin-bottom:1vh;">
         <span style="color:#94a3b8;font-size:1.5vh;" data-i18n="Str_Display_BgImageLabel">图片:</span>
-        <input id="bgImageFile" type="file" accept="image/*" onchange="loadCustomBgImage(this.files[0])"
-               style="flex:1;font-size:1.4vh;color:#cbd5e1;"/>
+        <span style="position:relative;display:inline-block;">
+            <button type="button" tabindex="-1" style="padding:0.5vh 1.2vh;background:#334155;color:#f8fafc;border:1px solid #475569;border-radius:4px;font-size:1.4vh;cursor:pointer;white-space:nowrap;font-family:'Microsoft YaHei',sans-serif;" data-i18n="Str_Display_ChooseFile">选择文件</button>
+            <input id="bgImageFile" type="file" accept="image/*" onchange="loadCustomBgImage(this.files[0])"
+                   style="position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;"/>
+        </span>
+        <span id="bgImageFileName" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1.3vh;color:#94a3b8;" data-i18n="Str_Display_NoFileChosen">未选择文件</span>
     </div>
     <button onclick="applyDisplayBg('#0f172a', true)"
             style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;" data-i18n="Str_Display_ResetBgDefault">恢复默认 (深邃蓝)</button>
@@ -583,6 +597,10 @@ function applyDisplayBg(value, persist) {
 
 function loadCustomBgImage(file) {
     if (!file) return;
+    // 2026-10-10 自定义文件按钮覆盖原生 <input type=file> 后, "未选择文件"那行文字原来
+    //   靠浏览器自己画, 现在要手动同步成选中的文件名。
+    var fnEl = document.getElementById('bgImageFileName');
+    if (fnEl) fnEl.textContent = file.name || WebLoc.t('Str_Display_NoFileChosen');
     if (!/^image\//.test(file.type)) { alert(WebLoc.t('Str_Display_SelectImageFile')); return; }
     if (file.size > 2 * 1024 * 1024) {
         if (!confirm(WebLoc.f('Str_Display_LargeImageConfirmFmt', Math.round(file.size/1024)))) return;
@@ -977,7 +995,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261010-2';
+var PAGE_VER = '20261010-3';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
