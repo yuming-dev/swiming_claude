@@ -3,9 +3,26 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Data;
 
 namespace SwimmingScoreboard
 {
+    // 2026-10-10 安装/未安装/好/坏 这 4 个哨兵值是协议/数据层真值(ComboBox.SelectedItem 直接
+    //   双向绑定到它们), 不能改——只转换 ComboBoxItem 自己的显示文字, 不实现 ConvertBack。
+    public class DeviceStatusDisplayConverter : IValueConverter {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) {
+            string s = value as string;
+            if (s == "安装") return Loc.T("Str_DeviceStatus_Installed");
+            if (s == "未安装") return Loc.T("Str_DeviceStatus_NotInstalled");
+            if (s == "好") return Loc.T("Str_DeviceStatus_Good");
+            if (s == "坏") return Loc.T("Str_DeviceStatus_Bad");
+            return s;
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) {
+            throw new NotImplementedException();
+        }
+    }
+
     public partial class DeviceStatusWindow : Window
     {
         private List<LaneDeviceState> _states;

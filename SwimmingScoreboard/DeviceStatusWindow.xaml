@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        xmlns:local="clr-namespace:SwimmingScoreboard"
         Title="{DynamicResource Str_Win_DeviceStatus_Title}" Width="1100" Height="600"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize">
     <Window.Resources>
@@ -11,6 +12,16 @@
             <sys:String>好</sys:String>
             <sys:String>坏</sys:String>
         </x:Array>
+        <!-- 2026-10-10 StatusOptions/SelectedItem 仍是安装/未安装/好/坏这 4 个中文哨兵值(协议/数据层不变),
+             只用 ItemTemplate 转换 ComboBox 下拉项和收起后显示的文字——隐式 Style(不加 x:Key)
+             自动套到本窗口全部 10 个状态 ComboBox 上, 不用逐个改。 -->
+        <local:DeviceStatusDisplayConverter x:Key="DevStatusConv"/>
+        <DataTemplate x:Key="DevStatusItemTemplate">
+            <TextBlock Text="{Binding Converter={StaticResource DevStatusConv}}"/>
+        </DataTemplate>
+        <Style TargetType="ComboBox">
+            <Setter Property="ItemTemplate" Value="{StaticResource DevStatusItemTemplate}"/>
+        </Style>
     </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>

@@ -17782,7 +17782,9 @@ namespace SwimmingScoreboard
         // 2026-06-05 成绩存盘路径 配置 (确认本组成绩 后 自动写 成绩 txt 到此目录)
         private string GetAutoSaveTxtDir() {
             if (!string.IsNullOrWhiteSpace(_autoSaveTxtPath)) return _autoSaveTxtPath;
-            return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", "成绩txt");
+            // 2026-10-10 这只是未配置时给用户看的建议默认目录(还没点保存), 不是已生效的路径——
+            //   英文模式下文件夹名跟着语言走, 不会出现中文"成绩txt"夹在英文路径里。
+            return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", Loc.CurrentLanguage == Loc.En ? "Results" : "成绩txt");
         }
 
         /// <summary>
@@ -18202,8 +18204,11 @@ namespace SwimmingScoreboard
         //   场景: ScheduleEditor/RTC 模式下"设置" tab 被隐藏, 通过"参数设置 → 硬件计时器连接"访问.
         //   功能: 串口/TCP/UDP 三种连接方式 + 状态显示 + 断开按钮. 不复用 xaml ComPortCombo, 独立控件.
         private void ShowHardwareConnectionDialog() {
+            // 2026-10-10 英文标签("UDP Recv Port:"等)比中文("UDP收端口:")长不少, 原固定 70px
+            //   标签列塞不下导致被截断("UDP Recv Po"), 英文模式下把标签列和整窗都加宽。
+            bool enHw = Loc.CurrentLanguage == Loc.En;
             var dlg = new Window {
-                Title = Loc.T("Str_Win_ParamsHub_HwConnBtn"), Width = 520, SizeToContent = SizeToContent.Height,
+                Title = Loc.T("Str_Win_ParamsHub_HwConnBtn"), Width = enHw ? 580 : 520, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
@@ -18223,7 +18228,7 @@ namespace SwimmingScoreboard
             sp.Children.Add(statusRow);
             // 通用 Grid
             var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(enHw ? 112 : 70) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             for (int i = 0; i < 4; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
@@ -18620,7 +18625,7 @@ namespace SwimmingScoreboard
         private void OpenBlindWatchCountDialog() {
             var dlg = new Window {
                 Title = Loc.T("Str_Win_BlindWatchCount_Title"),
-                Width = 400, Height = 280,
+                Width = 460, Height = 280,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
@@ -18639,7 +18644,7 @@ namespace SwimmingScoreboard
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
                 row.Children.Add(new TextBlock {
                     Text = label, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
-                    FontSize = 15, VerticalAlignment = VerticalAlignment.Center
+                    FontSize = 15, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap
                 });
                 var cb = new ComboBox {
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
@@ -18652,8 +18657,8 @@ namespace SwimmingScoreboard
                 sp.Children.Add(row);
                 return cb;
             };
-            var cbLeft = mkRow("左边 盲表数量", _laneCloseSettings.LeftBlindWatchCount);
-            var cbRight = mkRow("右边 盲表数量", _laneCloseSettings.RightBlindWatchCount);
+            var cbLeft = mkRow(Loc.T("Str_Win_BlindWatchCount_LeftLabel"), _laneCloseSettings.LeftBlindWatchCount);
+            var cbRight = mkRow(Loc.T("Str_Win_BlindWatchCount_RightLabel"), _laneCloseSettings.RightBlindWatchCount);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnCancel = new Button {
@@ -31692,8 +31697,8 @@ namespace SwimmingScoreboard
                     evtMap.TryGetValue((picked.Gender ?? "") + "|" + (picked.EventName ?? ""), out eventNo);
                 string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo, picked.Heat);
 
-                // 默认目录: AppDomain/Documents/成绩txt; 让用户改路径
-                string defaultDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", "成绩txt");
+                // 默认目录: AppDomain/Documents/成绩txt(英文模式: Results); 让用户改路径
+                string defaultDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", Loc.CurrentLanguage == Loc.En ? "Results" : "成绩txt");
                 if (!Directory.Exists(defaultDir)) Directory.CreateDirectory(defaultDir);
                 var sfd = new Microsoft.Win32.SaveFileDialog {
                     Title = Loc.T("Str_Win_SaveResultTxt_Title"), Filter = Loc.T("Str_Filter_TxtAll"),
