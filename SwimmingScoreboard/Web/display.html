@@ -495,62 +495,66 @@ function overlayConnect() {
 // ═══════ 大屏底色设置 (2026-05-27) ═══════
 // 4 类预设 + 自定义颜色 + 自定义图片. 选好后保存到 localStorage('swimDisplayBg') 自动恢复.
 // applyDisplayBg 接受任意 CSS background 值: hex / rgb / linear-gradient / radial-gradient / url(...) / repeating-linear-gradient.
+// 2026-10-10 现场反馈: 背景设置面板里每块色板的名字("深邃蓝"等)原来是纯中文字面量——
+//   既当 title 提示又当色板上显示的文字, 英文模式下这 44 块一个都没翻。加 nameEn, 下面
+//   _fillBgGrid() 按 WebLoc.currentLang() 选 name/nameEn, 不新建 44 个 webloc.js 词条
+//   (这批名字只在这一处用, 跟色值摆在一起比摊进词条表更好维护)。
 var BG_PRESETS_SOLID = [
-    { name: '深邃蓝', value: '#0f172a' },
-    { name: '泳池青', value: '#0c4a6e' },
-    { name: '深海蓝', value: '#082f49' },
-    { name: '森林绿', value: '#14532d' },
-    { name: '紫罗兰', value: '#312e81' },
-    { name: '暗紫红', value: '#581c87' },
-    { name: '炭墨黑', value: '#0a0a0a' },
-    { name: '青灰', value: '#1e293b' }
+    { name: '深邃蓝', nameEn: 'Deep Blue', value: '#0f172a' },
+    { name: '泳池青', nameEn: 'Pool Teal', value: '#0c4a6e' },
+    { name: '深海蓝', nameEn: 'Deep Sea Blue', value: '#082f49' },
+    { name: '森林绿', nameEn: 'Forest Green', value: '#14532d' },
+    { name: '紫罗兰', nameEn: 'Violet', value: '#312e81' },
+    { name: '暗紫红', nameEn: 'Dark Magenta', value: '#581c87' },
+    { name: '炭墨黑', nameEn: 'Charcoal Black', value: '#0a0a0a' },
+    { name: '青灰', nameEn: 'Slate Gray', value: '#1e293b' }
 ];
 var BG_PRESETS_GRADIENT = [
-    { name: '深海到天空', value: 'linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)' },
-    { name: '朝霞', value: 'linear-gradient(135deg, #1e1b4b 0%, #be185d 55%, #f97316 100%)' },
-    { name: '极光绿', value: 'linear-gradient(180deg, #022c22 0%, #047857 60%, #5eead4 100%)' },
-    { name: '紫水晶', value: 'linear-gradient(135deg, #2e1065 0%, #7c3aed 55%, #c084fc 100%)' },
-    { name: '落日余晖', value: 'linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)' },
-    { name: '海底聚光', value: 'radial-gradient(circle at 50% 35%, #0ea5e9 0%, #0c4a6e 45%, #0a1929 100%)' },
-    { name: '暗夜紫', value: 'linear-gradient(180deg, #000000 0%, #1e1b4b 60%, #4338ca 100%)' },
-    { name: '翡翠', value: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #10b981 100%)' }
+    { name: '深海到天空', nameEn: 'Deep Sea to Sky', value: 'linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)' },
+    { name: '朝霞', nameEn: 'Sunrise Glow', value: 'linear-gradient(135deg, #1e1b4b 0%, #be185d 55%, #f97316 100%)' },
+    { name: '极光绿', nameEn: 'Aurora Green', value: 'linear-gradient(180deg, #022c22 0%, #047857 60%, #5eead4 100%)' },
+    { name: '紫水晶', nameEn: 'Amethyst', value: 'linear-gradient(135deg, #2e1065 0%, #7c3aed 55%, #c084fc 100%)' },
+    { name: '落日余晖', nameEn: 'Sunset Glow', value: 'linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)' },
+    { name: '海底聚光', nameEn: 'Underwater Spotlight', value: 'radial-gradient(circle at 50% 35%, #0ea5e9 0%, #0c4a6e 45%, #0a1929 100%)' },
+    { name: '暗夜紫', nameEn: 'Midnight Violet', value: 'linear-gradient(180deg, #000000 0%, #1e1b4b 60%, #4338ca 100%)' },
+    { name: '翡翠', nameEn: 'Emerald', value: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #10b981 100%)' }
 ];
 // 高级混合: mesh-style 多层 radial-gradient 叠加 + conic-gradient, 模拟"网格渐变"那种深度感.
 // 每个色板是 2~4 个有色光晕落在透明背景上 + 一个底色 → 多层混合产生立体光感.
 var BG_PRESETS_MESH = [
-    { name: '极光', value: 'radial-gradient(at 10% 20%, #4338ca 0%, transparent 50%), radial-gradient(at 90% 10%, #ec4899 0%, transparent 45%), radial-gradient(at 50% 100%, #06b6d4 0%, transparent 55%), #0f172a' },
-    { name: '日落海湾', value: 'radial-gradient(at 20% 25%, #f59e0b 0%, transparent 50%), radial-gradient(at 80% 35%, #ec4899 0%, transparent 50%), radial-gradient(at 50% 95%, #1e3a8a 0%, transparent 60%), #0c4a6e' },
-    { name: '星云紫', value: 'radial-gradient(at 30% 20%, #7c3aed 0%, transparent 55%), radial-gradient(at 70% 65%, #2563eb 0%, transparent 50%), radial-gradient(at 40% 90%, #db2777 0%, transparent 50%), #1e1b4b' },
-    { name: '翠湖晨光', value: 'radial-gradient(at 10% 30%, #14b8a6 0%, transparent 55%), radial-gradient(at 80% 15%, #fbbf24 0%, transparent 40%), radial-gradient(at 60% 85%, #06b6d4 0%, transparent 55%), #064e3b' },
-    { name: '玫瑰金', value: 'radial-gradient(at 25% 50%, #f43f5e 0%, transparent 50%), radial-gradient(at 80% 30%, #fbbf24 0%, transparent 40%), radial-gradient(at 50% 90%, #831843 0%, transparent 60%), #4c0519' },
-    { name: '北极光', value: 'radial-gradient(at 30% 5%, #06b6d4 0%, transparent 50%), radial-gradient(at 80% 45%, #22d3ee 0%, transparent 45%), radial-gradient(at 20% 85%, #4338ca 0%, transparent 55%), #082f49' },
-    { name: '火山岩', value: 'radial-gradient(at 50% 0%, #b91c1c 0%, transparent 45%), radial-gradient(at 20% 55%, #f59e0b 0%, transparent 38%), radial-gradient(at 80% 85%, #7c2d12 0%, transparent 55%), #0a0a0a' },
-    { name: '薄雾蓝紫', value: 'radial-gradient(at 25% 25%, #a78bfa 0%, transparent 55%), radial-gradient(at 75% 60%, #60a5fa 0%, transparent 55%), radial-gradient(at 50% 95%, #5b21b6 0%, transparent 55%), #1e1b4b' },
-    { name: '霓虹夜', value: 'radial-gradient(at 15% 20%, #f0abfc 0%, transparent 40%), radial-gradient(at 85% 30%, #38bdf8 0%, transparent 45%), radial-gradient(at 50% 90%, #a855f7 0%, transparent 50%), #0a0a0a' },
-    { name: '海岛日落', value: 'radial-gradient(at 30% 10%, #fb923c 0%, transparent 45%), radial-gradient(at 70% 30%, #f472b6 0%, transparent 50%), radial-gradient(at 50% 90%, #0c4a6e 0%, transparent 60%), #082f49' },
-    { name: '色环转盘', value: 'conic-gradient(from 45deg at 50% 50%, #0c4a6e, #7c3aed, #ec4899, #f59e0b, #14b8a6, #0c4a6e)' },
-    { name: '光圈聚焦', value: 'radial-gradient(circle at 50% 50%, #3b82f6 0%, #1e40af 25%, #0c4a6e 55%, #0a1929 100%)' }
+    { name: '极光', nameEn: 'Aurora', value: 'radial-gradient(at 10% 20%, #4338ca 0%, transparent 50%), radial-gradient(at 90% 10%, #ec4899 0%, transparent 45%), radial-gradient(at 50% 100%, #06b6d4 0%, transparent 55%), #0f172a' },
+    { name: '日落海湾', nameEn: 'Sunset Bay', value: 'radial-gradient(at 20% 25%, #f59e0b 0%, transparent 50%), radial-gradient(at 80% 35%, #ec4899 0%, transparent 50%), radial-gradient(at 50% 95%, #1e3a8a 0%, transparent 60%), #0c4a6e' },
+    { name: '星云紫', nameEn: 'Nebula Purple', value: 'radial-gradient(at 30% 20%, #7c3aed 0%, transparent 55%), radial-gradient(at 70% 65%, #2563eb 0%, transparent 50%), radial-gradient(at 40% 90%, #db2777 0%, transparent 50%), #1e1b4b' },
+    { name: '翠湖晨光', nameEn: 'Emerald Lake Dawn', value: 'radial-gradient(at 10% 30%, #14b8a6 0%, transparent 55%), radial-gradient(at 80% 15%, #fbbf24 0%, transparent 40%), radial-gradient(at 60% 85%, #06b6d4 0%, transparent 55%), #064e3b' },
+    { name: '玫瑰金', nameEn: 'Rose Gold', value: 'radial-gradient(at 25% 50%, #f43f5e 0%, transparent 50%), radial-gradient(at 80% 30%, #fbbf24 0%, transparent 40%), radial-gradient(at 50% 90%, #831843 0%, transparent 60%), #4c0519' },
+    { name: '北极光', nameEn: 'Northern Lights', value: 'radial-gradient(at 30% 5%, #06b6d4 0%, transparent 50%), radial-gradient(at 80% 45%, #22d3ee 0%, transparent 45%), radial-gradient(at 20% 85%, #4338ca 0%, transparent 55%), #082f49' },
+    { name: '火山岩', nameEn: 'Volcanic Rock', value: 'radial-gradient(at 50% 0%, #b91c1c 0%, transparent 45%), radial-gradient(at 20% 55%, #f59e0b 0%, transparent 38%), radial-gradient(at 80% 85%, #7c2d12 0%, transparent 55%), #0a0a0a' },
+    { name: '薄雾蓝紫', nameEn: 'Misty Blue-Violet', value: 'radial-gradient(at 25% 25%, #a78bfa 0%, transparent 55%), radial-gradient(at 75% 60%, #60a5fa 0%, transparent 55%), radial-gradient(at 50% 95%, #5b21b6 0%, transparent 55%), #1e1b4b' },
+    { name: '霓虹夜', nameEn: 'Neon Night', value: 'radial-gradient(at 15% 20%, #f0abfc 0%, transparent 40%), radial-gradient(at 85% 30%, #38bdf8 0%, transparent 45%), radial-gradient(at 50% 90%, #a855f7 0%, transparent 50%), #0a0a0a' },
+    { name: '海岛日落', nameEn: 'Island Sunset', value: 'radial-gradient(at 30% 10%, #fb923c 0%, transparent 45%), radial-gradient(at 70% 30%, #f472b6 0%, transparent 50%), radial-gradient(at 50% 90%, #0c4a6e 0%, transparent 60%), #082f49' },
+    { name: '色环转盘', nameEn: 'Color Wheel', value: 'conic-gradient(from 45deg at 50% 50%, #0c4a6e, #7c3aed, #ec4899, #f59e0b, #14b8a6, #0c4a6e)' },
+    { name: '光圈聚焦', nameEn: 'Spotlight Focus', value: 'radial-gradient(circle at 50% 50%, #3b82f6 0%, #1e40af 25%, #0c4a6e 55%, #0a1929 100%)' }
 ];
 var BG_PRESETS_GRAY = [
-    { name: '纯黑', value: '#000000' },
-    { name: '深灰', value: '#1a1a1a' },
-    { name: '石板灰', value: '#3f3f46' },
-    { name: '中性灰', value: '#525252' },
-    { name: '灰阶渐变', value: 'linear-gradient(180deg, #000000 0%, #404040 100%)' },
-    { name: '雾灰', value: 'radial-gradient(circle at 50% 30%, #525252 0%, #1a1a1a 70%)' },
-    { name: '炭墨亮顶', value: 'linear-gradient(180deg, #404040 0%, #0a0a0a 100%)' },
-    { name: '银暗光', value: 'linear-gradient(135deg, #1f2937 0%, #4b5563 100%)' }
+    { name: '纯黑', nameEn: 'Pure Black', value: '#000000' },
+    { name: '深灰', nameEn: 'Dark Gray', value: '#1a1a1a' },
+    { name: '石板灰', nameEn: 'Slate Gray', value: '#3f3f46' },
+    { name: '中性灰', nameEn: 'Neutral Gray', value: '#525252' },
+    { name: '灰阶渐变', nameEn: 'Grayscale Gradient', value: 'linear-gradient(180deg, #000000 0%, #404040 100%)' },
+    { name: '雾灰', nameEn: 'Misty Gray', value: 'radial-gradient(circle at 50% 30%, #525252 0%, #1a1a1a 70%)' },
+    { name: '炭墨亮顶', nameEn: 'Charcoal Top-Light', value: 'linear-gradient(180deg, #404040 0%, #0a0a0a 100%)' },
+    { name: '银暗光', nameEn: 'Silver Dim Light', value: 'linear-gradient(135deg, #1f2937 0%, #4b5563 100%)' }
 ];
 // 图案: 用 CSS 自身的 repeating-linear-gradient / linear-gradient 多层叠加, 不依赖外部图片, 体积为 0.
 var BG_PRESETS_PATTERN = [
-    { name: '斜条纹', value: 'repeating-linear-gradient(45deg, #0f172a 0, #0f172a 14px, #1e293b 14px, #1e293b 28px)' },
-    { name: '网点', value: 'radial-gradient(rgba(148,163,184,0.14) 1.5px, transparent 2px) 0 0 / 24px 24px, #0f172a' },
-    { name: '网格', value: 'linear-gradient(rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, #0f172a' },
-    { name: '细横纹', value: 'repeating-linear-gradient(0deg, #0f172a 0, #0f172a 3px, #1e293b 3px, #1e293b 4px)' },
-    { name: '气泡', value: 'radial-gradient(circle at 20% 30%, rgba(56,189,248,0.18) 0, transparent 12vh), radial-gradient(circle at 75% 75%, rgba(34,197,94,0.14) 0, transparent 14vh), #0c4a6e' },
-    { name: '波纹', value: 'repeating-radial-gradient(circle at 50% 50%, #0c4a6e 0, #0c4a6e 12px, #082f49 12px, #082f49 24px)' },
-    { name: '泳道线', value: 'repeating-linear-gradient(180deg, #0c4a6e 0, #0c4a6e 50px, #1e3a5f 50px, #1e3a5f 52px)' },
-    { name: '光晕中心', value: 'radial-gradient(ellipse at 50% 40%, #1e40af 0, #0c4a6e 35%, #0a1929 100%)' }
+    { name: '斜条纹', nameEn: 'Diagonal Stripes', value: 'repeating-linear-gradient(45deg, #0f172a 0, #0f172a 14px, #1e293b 14px, #1e293b 28px)' },
+    { name: '网点', nameEn: 'Dot Grid', value: 'radial-gradient(rgba(148,163,184,0.14) 1.5px, transparent 2px) 0 0 / 24px 24px, #0f172a' },
+    { name: '网格', nameEn: 'Grid Lines', value: 'linear-gradient(rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, #0f172a' },
+    { name: '细横纹', nameEn: 'Fine Horizontal Lines', value: 'repeating-linear-gradient(0deg, #0f172a 0, #0f172a 3px, #1e293b 3px, #1e293b 4px)' },
+    { name: '气泡', nameEn: 'Bubbles', value: 'radial-gradient(circle at 20% 30%, rgba(56,189,248,0.18) 0, transparent 12vh), radial-gradient(circle at 75% 75%, rgba(34,197,94,0.14) 0, transparent 14vh), #0c4a6e' },
+    { name: '波纹', nameEn: 'Ripples', value: 'repeating-radial-gradient(circle at 50% 50%, #0c4a6e 0, #0c4a6e 12px, #082f49 12px, #082f49 24px)' },
+    { name: '泳道线', nameEn: 'Lane Lines', value: 'repeating-linear-gradient(180deg, #0c4a6e 0, #0c4a6e 50px, #1e3a5f 50px, #1e3a5f 52px)' },
+    { name: '光晕中心', nameEn: 'Center Glow', value: 'radial-gradient(ellipse at 50% 40%, #1e40af 0, #0c4a6e 35%, #0a1929 100%)' }
 ];
 
 function applyDisplayBg(value, persist) {
@@ -614,12 +618,13 @@ function _fillBgGrid(gridId, presets) {
     grid.innerHTML = '';
     for (var i = 0; i < presets.length; i++) {
         var p = presets[i];
+        var pname = (WebLoc.currentLang() === 'en' && p.nameEn) ? p.nameEn : p.name;
         var sw = document.createElement('div');
         sw.className = 'bg-swatch';
         sw.setAttribute('data-value', p.value);
-        sw.title = p.name;
+        sw.title = pname;
         sw.style.background = p.value;
-        sw.textContent = p.name;
+        sw.textContent = pname;
         (function(v){ sw.onclick = function(){ applyDisplayBg(v, true); }; })(p.value);
         grid.appendChild(sw);
     }
@@ -972,7 +977,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261010-1';
+var PAGE_VER = '20261010-2';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -2707,6 +2712,13 @@ window.onWebLocApplied = function () {
     if (tsHost) { tsHost.dataset.built = ''; if (!document.getElementById('textStylePanel').classList.contains('hidden')) _buildTextStylePanelRows(); }
     var fsHost = document.getElementById('fsPartsRows');
     if (fsHost) { fsHost.dataset.built = ''; if (!document.getElementById('fsSettingsPanel').classList.contains('hidden')) _buildFsPartsRows(); }
+    // 2026-10-10 背景面板的 44 块色板名字(nameEn)同一个道理: _fillBgGrid 本身没有 built 缓存,
+    //   下次打开自然是新语言, 但如果切语言那一刻面板正开着, 要主动重画一次才不会停在旧语言。
+    var bgPanel = document.getElementById('bgSettingsPanel');
+    if (bgPanel && !bgPanel.classList.contains('hidden')) {
+        _initBgSwatches();
+        try { _refreshBgSwatchSelection(localStorage.getItem('swimDisplayBg') || '#0f172a'); } catch (e) {}
+    }
     var hint = document.getElementById('fsShortcutHint');
     if (hint) hint.innerHTML = WebLoc.f('Str_Display_FsShortcutHintFmt',
         '<b style="color:#cbd5e1;">Ctrl +</b>', '<b style="color:#cbd5e1;">Ctrl −</b>', '<b style="color:#cbd5e1;">Ctrl 0</b>');
