@@ -156,6 +156,7 @@
                                     <RowDefinition Height="32"/>
                                     <RowDefinition Height="32"/>
                                     <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#3B82F6" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{DynamicResource Str_Status_ConnDisplay}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
@@ -173,26 +174,31 @@
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#059669" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Grid.Row="3" Grid.Column="1" Text="{DynamicResource Str_Status_ConnRegister}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="RegisterConnText" Grid.Row="3" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <!-- 2026-10-10 检录台(checkin.html) 单独一行计数——2026-09-14 那批补的时候漏了它,
+                                     跟信息查询一样早有身份标记(CHECKIN_IDENTITY)，面板上一直看不出检录台连没连 -->
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#0EA5E9" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{DynamicResource Str_Status_ConnCheckin}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CheckinConnText" Grid.Row="4" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <!-- 2026-09-14 信息查询终端(query.html) 单独一行计数, 原来混在"编排端"里数不出来 -->
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#0D9488" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{DynamicResource Str_Status_ConnQuery}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="QueryConnText" Grid.Row="4" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#0D9488" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{DynamicResource Str_Status_ConnQuery}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="QueryConnText" Grid.Row="5" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <!-- 2026-09-15 编排端(ScheduleEditor.exe, "编排记录及成绩处理")单独一行计数,
                                      原来跟"信息查询"一样混在"编排端"连接里数不出来 -->
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#7C3AED" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{DynamicResource Str_Status_ConnScheduleEditor}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="ScheduleEditorConnText" Grid.Row="5" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="&#xE916;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#D97706" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingExe}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TimingExeConnText" Grid.Row="6" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="7" Grid.Column="0" Text="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingWeb}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TimingWebConnText" Grid.Row="7" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="8" Grid.Column="0" Text="&#xE964;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#DC2626" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="8" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingHw}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#7C3AED" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{DynamicResource Str_Status_ConnScheduleEditor}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="ScheduleEditorConnText" Grid.Row="6" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="&#xE916;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#D97706" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingExe}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TimingExeConnText" Grid.Row="7" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="8" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingWeb}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TimingWebConnText" Grid.Row="8" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="9" Grid.Column="0" Text="&#xE964;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#DC2626" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="9" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingHw}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <!-- 2026-09-14 字号比其它计数小一档(13): 这一格现在显示"本机/远程 (机器名)",
                                      比单个数字长不少, 字号跟着降一点免得跟左边标签挤在一起 -->
-                                <TextBlock x:Name="TimingHwConnText" Grid.Row="8" Grid.Column="2" Text="{DynamicResource Str_HwConn_NotConnected}" FontSize="13" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                <TextBlock x:Name="TimingHwConnText" Grid.Row="9" Grid.Column="2" Text="{DynamicResource Str_HwConn_NotConnected}" FontSize="13" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                             </Grid>
                         </StackPanel>
                     </Border>

@@ -3362,6 +3362,10 @@ namespace SwimmingScoreboard
             { "Str_Status_ConnDisplayControl", new[] { "显示控制", "Display Control" } },
             { "Str_Status_ConnLeaderboard", new[] { "排名屏", "Leaderboard" } },
             { "Str_Status_ConnRegister", new[] { "注册终端", "Registration Terminal" } },
+            // 2026-10-10 检录台(checkin.html)一直有连接身份标识(CHECKIN_IDENTITY)和日志,
+            //   唯独没进"连接状态"面板计数——跟 注册终端/信息查询 同一批 2026-09-14 加的
+            //   计数行当时漏了它。
+            { "Str_Status_ConnCheckin", new[] { "检录", "Check-in" } },
             { "Str_Status_ConnQuery", new[] { "信息查询", "Query Terminal" } },
             { "Str_Status_ConnScheduleEditor", new[] { "编排及成绩处理", "Schedule & Results Editor" } },
             { "Str_Status_ConnTimingExe", new[] { "计时EXE", "Timing EXE" } },

@@ -273,6 +273,10 @@ namespace SwimmingScoreboard
         //   混在 _editorSockets 里"连接状态"面板数不出它来。这里单独另计一份数, 只为显示;
         //   该收整包/补丁照旧走 _editorSockets 那条路径不变。
         private List<IWebSocketConnection> _querySockets = new List<IWebSocketConnection>();
+        // 2026-10-10 检录台(checkin.html) —— 跟 query.html 一样早就有身份标记(CHECKIN_IDENTITY)
+        //   和连接日志, 但当年(2026-09-14)那批"连接状态"单独计数只补了 注册终端/信息查询,
+        //   漏了它, 面板上一直看不出检录台连没连。
+        private List<IWebSocketConnection> _checkinSockets = new List<IWebSocketConnection>();
         // 2026-09-14 显示控制端(control.html / RemoteDisplayControl.exe) —— 跟"大屏显示"
         //   (display.html, 真正在放内容的那块屏)是两码事: 这俩是操作员手里"遥控"大屏的
         //   终端。原来它俩连上来一句身份都不报, 直接发 REMOTE_CONTROL 命令, 主服务器
@@ -1746,6 +1750,7 @@ namespace SwimmingScoreboard
                         _timingWebSockets.Remove(socket);
                         _editorSockets.Remove(socket);
                         _querySockets.Remove(socket);
+                        _checkinSockets.Remove(socket);
                         _displayControlSockets.Remove(socket);
                         _scheduleEditorSockets.Remove(socket);
                         _registrationToolSockets.Remove(socket);
@@ -1965,7 +1970,9 @@ namespace SwimmingScoreboard
                         try { EnqueueToSocket(socket, BuildDisplayStyleJson()); } catch { }
                         break;
                     case "CHECKIN_IDENTITY":
+                        if (!_checkinSockets.Contains(socket)) _checkinSockets.Add(socket);
                         AddLog(Loc.T("Str_Log_CheckinConnected"));
+                        UpdateConnectionStatus();
                         break;
                     case "EDITOR_IDENTITY":
                         if (!_editorSockets.Contains(socket)) _editorSockets.Add(socket);
@@ -3950,6 +3957,8 @@ namespace SwimmingScoreboard
             LeaderboardConnText.Foreground = new SolidColorBrush(_leaderboardSockets.Count > 0 ? Colors.Green : Colors.Red);
             RegisterConnText.Text = _registerSockets.Count.ToString();
             RegisterConnText.Foreground = new SolidColorBrush(_registerSockets.Count > 0 ? Colors.Green : Colors.Red);
+            CheckinConnText.Text = _checkinSockets.Count.ToString();
+            CheckinConnText.Foreground = new SolidColorBrush(_checkinSockets.Count > 0 ? Colors.Green : Colors.Red);
             QueryConnText.Text = _querySockets.Count.ToString();
             QueryConnText.Foreground = new SolidColorBrush(_querySockets.Count > 0 ? Colors.Green : Colors.Red);
             DisplayControlConnText.Text = _displayControlSockets.Count.ToString();
