@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20261010-5";
+        public const string WEB_ASSET_VERSION = "20261011-1";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -25312,7 +25312,9 @@ namespace SwimmingScoreboard
         /// 大屏不该有自己的语言主张, 必须跟主服务器当前语言一致。常规状态广播里也带了 lang
         /// 字段(GetStatusData/DisplayCommon), 但那条路只在"下一次有数据变化"时才会把新语言
         /// 带过去; 这里额外立刻推一次, 不用等——否则切语言按钮点下去, 大屏要等到下次比赛/
-        /// 状态变化才会跟着变, 现场体验是"按了跟没按一样"。</summary>
+        /// 状态变化才会跟着变, 现场体验是"按了跟没按一样"。
+        /// 2026-10-11 _leaderboardSockets(leaderboard.html, 排名屏) 跟大屏同理加进来——用户
+        /// 明确要求排名屏界面上不放"中/英"切换键, 完全跟主服务器当前语言走。</summary>
         private void BroadcastLanguageSync() {
             try {
                 string json = BuildLanguageSyncJson();
@@ -25321,6 +25323,7 @@ namespace SwimmingScoreboard
                     .Concat(_registrationToolSockets)
                     .Concat(_rdcSockets)
                     .Concat(_displaySockets)
+                    .Concat(_leaderboardSockets)
                     .Distinct().ToList();
                 foreach (var s in targets) EnqueueToSocket(s, json);
             } catch { }

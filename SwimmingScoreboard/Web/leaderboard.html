@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>排名显示</title>
+<title data-i18n="Str_Leaderboard_Title">排名显示</title>
 <style>
 :root {
     --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8; --accent: #3b82f6; --gold: #f59e0b;
@@ -19,7 +19,7 @@
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; height: 100vh; overflow: hidden; }
-.header { height: 10vh; display: flex; align-items: center; justify-content: center; border-bottom: 3px solid var(--accent); }
+.header { height: 10vh; position: relative; display: flex; align-items: center; justify-content: center; border-bottom: 3px solid var(--accent); }
 .header h1 { font-size: calc(3vh * var(--fs)); color: var(--c-title); font-family: var(--ff-title); }
 .content { height: 90vh; padding: 2vh 3vw; overflow-y: auto; }
 .section-title { font-size: calc(2.5vh * var(--fs)); font-weight: bold; margin: 2vh 0 1vh; color: var(--c-section); font-family: var(--ff-section); }
@@ -56,15 +56,15 @@ td.lb-remark { color: var(--c-remark); font-family: var(--ff-remark); font-weigh
 </style>
 </head>
 <body>
-<div class="header" style="display:flex;justify-content:space-between;align-items:center;">
+<div class="header">
     <h1 id="title" style="margin:0;">排名显示</h1>
-    <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:4px 12px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
+    <button class="fullscreen-btn" data-i18n="Str_Common_Fullscreen" onclick="goFullScreen()" style="position:absolute;right:1.5vw;top:50%;transform:translateY(-50%);padding:4px 12px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
 </div>
 <div class="content">
     <div class="tabs">
-        <div class="tab active" onclick="showTab('ranking')">项目排名</div>
-        <div class="tab" onclick="showTab('team')">团体积分</div>
-        <div class="tab" onclick="showTab('records')">纪录榜</div>
+        <div class="tab active" data-i18n="Str_Leaderboard_TabRanking" onclick="showTab('ranking')">项目排名</div>
+        <div class="tab" data-i18n="Str_Leaderboard_TabTeam" onclick="showTab('team')">团体积分</div>
+        <div class="tab" data-i18n="Str_Leaderboard_TabRecords" onclick="showTab('records')">纪录榜</div>
     </div>
     <div id="rankingView"></div>
     <div id="teamView" style="display:none"></div>
@@ -72,48 +72,48 @@ td.lb-remark { color: var(--c-remark); font-family: var(--ff-remark); font-weigh
 </div>
 
 <!-- 2026-05-27 排名屏底色设置: 右下角齿轮按钮 → 弹出选色面板. 数据保存在 localStorage('swimLeaderboardBg'), 与大屏 display.html 独立. -->
-<button id="bgSettingsBtn" onclick="toggleBgSettings()" title="排名屏底色设置"
+<button id="bgSettingsBtn" onclick="toggleBgSettings()" data-i18n-title="Str_Leaderboard_BgSettingsTip" title="排名屏底色设置"
         style="position:fixed;right:1.2vw;bottom:1.2vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">⚙</button>
 <div id="bgSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:8vh;width:46vh;max-height:82vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
-        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🎨 排名屏底色</div>
+        <div id="bgTitle" data-i18n="Str_Leaderboard_BgTitle" style="font-size:2vh;font-weight:bold;color:#3b82f6;">🎨 排名屏底色</div>
         <button onclick="toggleBgSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
     </div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin-bottom:0.5vh;font-weight:bold;letter-spacing:1px;">纯色</div>
+    <div data-i18n="Str_Display_BgSolid" style="font-size:1.5vh;color:#94a3b8;margin-bottom:0.5vh;font-weight:bold;letter-spacing:1px;">纯色</div>
     <div id="bgGridSolid" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">渐变 (层次感)</div>
+    <div data-i18n="Str_Display_BgGradient" style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">渐变 (层次感)</div>
     <div id="bgGridGradient" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">高级混合 (深度感)</div>
+    <div data-i18n="Str_Display_BgMesh" style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">高级混合 (深度感)</div>
     <div id="bgGridMesh" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">灰度</div>
+    <div data-i18n="Str_Display_BgGray" style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">灰度</div>
     <div id="bgGridGray" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">图案</div>
+    <div data-i18n="Str_Display_BgPattern" style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">图案</div>
     <div id="bgGridPattern" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">自定义</div>
+    <div data-i18n="Str_Display_BgCustom" style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">自定义</div>
     <div style="display:flex;align-items:center;gap:0.8vh;margin-bottom:0.8vh;">
-        <span style="color:#94a3b8;font-size:1.5vh;">颜色:</span>
+        <span data-i18n="Str_Display_BgColorLabel" style="color:#94a3b8;font-size:1.5vh;">颜色:</span>
         <input id="bgCustomPicker" type="color" value="#0f172a" onchange="applyDisplayBg(this.value, true)"
                style="width:4.5vh;height:3.2vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>
         <input id="bgCustomHex" type="text" maxlength="7" placeholder="#0f172a" onchange="applyDisplayBg(this.value, true)"
                style="flex:1;padding:0.5vh 0.8vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.5vh;"/>
     </div>
     <div style="display:flex;align-items:center;gap:0.8vh;margin-bottom:1vh;">
-        <span style="color:#94a3b8;font-size:1.5vh;">图片:</span>
+        <span data-i18n="Str_Display_BgImageLabel" style="color:#94a3b8;font-size:1.5vh;">图片:</span>
         <input id="bgImageFile" type="file" accept="image/*" onchange="loadCustomBgImage(this.files[0])"
                style="flex:1;font-size:1.4vh;color:#cbd5e1;"/>
     </div>
-    <button onclick="applyDisplayBg('#0f172a', true)"
+    <button data-i18n="Str_Display_ResetBgDefault" onclick="applyDisplayBg('#0f172a', true)"
             style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;">恢复默认 (深邃蓝)</button>
 </div>
 
 <!-- 2026-06-01 字号缩放: 0.8x ~ 3.0x. 数据保存在 localStorage('swimLeaderboardFs'). -->
-<button id="fsSettingsBtn" onclick="toggleFsSettings()" title="字号 (Ctrl + / Ctrl -)"
+<button id="fsSettingsBtn" onclick="toggleFsSettings()" data-i18n-title="Str_Leaderboard_FsSettingsTip" title="字号 (Ctrl + / Ctrl -)"
         style="position:fixed;right:1.2vw;bottom:7.6vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">字</button>
 <div id="fsSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:14.4vh;width:36vh;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
-        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🔤 字号</div>
+        <div data-i18n="Str_Leaderboard_FsSettingsTitle" style="font-size:2vh;font-weight:bold;color:#3b82f6;">🔤 字号</div>
         <button onclick="toggleFsSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
     </div>
     <div style="display:flex;align-items:center;gap:1.2vh;margin-bottom:1.4vh;">
@@ -121,46 +121,54 @@ td.lb-remark { color: var(--c-remark); font-family: var(--ff-remark); font-weigh
         <div id="fsScaleLabel" style="flex:1;text-align:center;font-size:3vh;font-weight:bold;color:#f59e0b;font-family:Consolas,monospace;">1.0x</div>
         <button onclick="bumpFontScale(0.1)" style="flex:0 0 5.5vh;height:5.5vh;background:#475569;color:#f8fafc;border:none;border-radius:6px;font-size:2.8vh;font-weight:bold;cursor:pointer;">+</button>
     </div>
-    <button onclick="setFontScale(1.0)" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;margin-bottom:0.6vh;">恢复 1.0x</button>
-    <div style="font-size:1.4vh;color:#94a3b8;text-align:center;line-height:1.5;">快捷键: <b style="color:#cbd5e1;">Ctrl +</b> / <b style="color:#cbd5e1;">Ctrl −</b> / <b style="color:#cbd5e1;">Ctrl 0</b><br>范围 0.8x ~ 3.0x</div>
+    <button data-i18n="Str_Leaderboard_ResetFs" onclick="setFontScale(1.0)" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;margin-bottom:0.6vh;">恢复 1.0x</button>
+    <div id="fsShortcutHint" style="font-size:1.4vh;color:#94a3b8;text-align:center;line-height:1.5;">快捷键: <b style="color:#cbd5e1;">Ctrl +</b> / <b style="color:#cbd5e1;">Ctrl −</b> / <b style="color:#cbd5e1;">Ctrl 0</b><br>范围 0.8x ~ 3.0x</div>
 </div>
 
 <!-- 2026-06-01 文字样式: 5 处单独调颜色 + 字体. 数据保存在 localStorage('swimLeaderboardTextStyle'). -->
-<button id="textStyleBtn" onclick="toggleTextStyle()" title="文字样式 (颜色/字体)"
+<button id="textStyleBtn" onclick="toggleTextStyle()" data-i18n-title="Str_Leaderboard_TextStyleTip" title="文字样式 (颜色/字体)"
         style="position:fixed;right:1.2vw;bottom:14vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">文</button>
 <div id="textStylePanel" class="hidden" style="position:fixed;right:1.2vw;bottom:20.4vh;width:62vh;max-height:70vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.6vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
-        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">📝 文字样式 (颜色 / 字体)</div>
+        <div data-i18n="Str_Leaderboard_TextStyleTitle" style="font-size:2vh;font-weight:bold;color:#3b82f6;">📝 文字样式 (颜色 / 字体)</div>
         <button onclick="toggleTextStyle()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
     </div>
     <div id="textStyleRows"></div>
-    <button onclick="resetAllTextStyle()" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:1vh;">全部恢复默认</button>
+    <button data-i18n="Str_Display_ResetAllDefault" onclick="resetAllTextStyle()" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:1vh;">全部恢复默认</button>
 </div>
 
 <!-- 连接服务器遮罩：启动即显示，连接成功才消隐 -->
 <div id="connectOverlay" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:#0f172aF2;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;font-family:'Microsoft YaHei',sans-serif;">
     <div style="background:#1e293b;border-radius:12px;padding:5vh 6vw;min-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);">
-        <div style="font-size:3vh;font-weight:bold;text-align:center;margin-bottom:2vh;">连接主服务器</div>
-        <div style="font-size:1.8vh;color:#94a3b8;margin-bottom:0.6vh;">服务器 IP 地址</div>
-        <input id="connHostInput" type="text" placeholder="如 192.168.1.100" autocomplete="off"
+        <div data-i18n="Str_Display_ConnectTitle" style="font-size:3vh;font-weight:bold;text-align:center;margin-bottom:2vh;">连接主服务器</div>
+        <div data-i18n="Str_Display_ServerIpLabel" style="font-size:1.8vh;color:#94a3b8;margin-bottom:0.6vh;">服务器 IP 地址</div>
+        <input id="connHostInput" type="text" placeholder="如 192.168.1.100" autocomplete="off" data-i18n-attr="placeholder" data-i18n="Str_Common_ServerIpPlaceholder"
                style="width:100%;padding:1.2vh 1vw;border:1px solid #334155;border-radius:6px;background:#0f172a;color:#f8fafc;font-size:2.2vh;outline:none;"/>
         <div style="display:flex;gap:1vw;margin-top:2.5vh;">
-            <button id="connBtn" onclick="overlayConnect()"
+            <button id="connBtn" data-i18n="Str_Common_Connect" onclick="overlayConnect()"
                     style="flex:1;padding:1.4vh 2vw;background:#22c55e;color:white;border:none;border-radius:6px;font-size:2vh;font-weight:bold;cursor:pointer;">连接</button>
         </div>
-        <div id="connStatus" style="margin-top:2vh;text-align:center;font-size:1.8vh;color:#f59e0b;min-height:2.5vh;">请输入主服务器IP并点击连接</div>
+        <div id="connStatus" style="margin-top:2vh;text-align:center;font-size:1.8vh;color:#f59e0b;min-height:2.5vh;" data-i18n="Str_Display_ConnectPrompt">请输入主服务器IP并点击连接</div>
     </div>
 </div>
 
+<script src="webloc.js"></script>
 <script>
 // 2026-06-01 性别显示规范: 男→"男子", 女→"女子", 混合→"混合" (不加子)
-function fmtGender(g) { g = g || ''; if (g === '男' || g === '女') return g + '子'; return g; }
+// 2026-10-11 英文模式走 WebLoc.genderDisplay() -> Men/Women/Mixed, 跟 display.html/race_control.html
+//   同一个 fmtGender() 约定对齐。排名屏没有自己的语言选择, 这里只是复用同一个展示规则。
+function fmtGender(g) {
+    g = g || '';
+    if (WebLoc.currentLang() === 'en') return WebLoc.genderDisplay(g);
+    if (g === '男' || g === '女') return g + '子';
+    return g;
+}
 
 var ws, data = {};
 var _pendingData = null;
 var _renderScheduled = false;
-window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭排名屏？'; };
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return WebLoc.t('Str_Leaderboard_BeforeUnload'); };
 
 function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
 document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
@@ -180,7 +188,7 @@ function showConnectOverlay(statusText, statusColor) {
     if (ov) ov.style.display = 'flex';
     var st = document.getElementById('connStatus');
     if (st) {
-        st.textContent = statusText || '请输入主服务器IP并点击连接';
+        st.textContent = statusText || WebLoc.t('Str_Display_ConnectPrompt');
         st.style.color = statusColor || '#f59e0b';
     }
 }
@@ -191,70 +199,73 @@ function hideConnectOverlay() {
 function overlayConnect() {
     var inp = document.getElementById('connHostInput');
     var ip = inp ? inp.value.trim() : '';
-    if (!ip) { showConnectOverlay('请输入服务器IP', '#ef4444'); return; }
+    if (!ip) { showConnectOverlay(WebLoc.t('Str_Display_EnterIpFirst'), '#ef4444'); return; }
     localStorage.setItem('swimServerHost', ip);
     _connFailCount = 0;
     if (ws) try { ws.close(); } catch(e) {}
-    showConnectOverlay('连接中… ' + ip + ':3002', '#f59e0b');
+    showConnectOverlay(WebLoc.f('Str_Display_ConnectingFmt', ip), '#f59e0b');
     connect();
 }
 
 // ═══════ 排名屏底色设置 (2026-05-27) ═══════
 // 与 display.html 同套预设/逻辑, 用独立 localStorage key 'swimLeaderboardBg' 避免冲突.
+// 2026-10-11 nameEn 跟 display.html 的 44 块色板一一对应(同一套名字), 不新建 webloc.js 词条
+//   (这批名字只在这一处用, 跟色值摆在一起比摊进词条表更好维护)。_fillBgGrid 按
+//   WebLoc.currentLang() 选 name/nameEn。
 var BG_PRESETS_SOLID = [
-    { name: '深邃蓝', value: '#0f172a' },
-    { name: '泳池青', value: '#0c4a6e' },
-    { name: '深海蓝', value: '#082f49' },
-    { name: '森林绿', value: '#14532d' },
-    { name: '紫罗兰', value: '#312e81' },
-    { name: '暗紫红', value: '#581c87' },
-    { name: '炭墨黑', value: '#0a0a0a' },
-    { name: '青灰', value: '#1e293b' }
+    { name: '深邃蓝', nameEn: 'Deep Blue', value: '#0f172a' },
+    { name: '泳池青', nameEn: 'Pool Teal', value: '#0c4a6e' },
+    { name: '深海蓝', nameEn: 'Deep Sea Blue', value: '#082f49' },
+    { name: '森林绿', nameEn: 'Forest Green', value: '#14532d' },
+    { name: '紫罗兰', nameEn: 'Violet', value: '#312e81' },
+    { name: '暗紫红', nameEn: 'Dark Magenta', value: '#581c87' },
+    { name: '炭墨黑', nameEn: 'Charcoal Black', value: '#0a0a0a' },
+    { name: '青灰', nameEn: 'Slate Gray', value: '#1e293b' }
 ];
 var BG_PRESETS_GRADIENT = [
-    { name: '深海到天空', value: 'linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)' },
-    { name: '朝霞', value: 'linear-gradient(135deg, #1e1b4b 0%, #be185d 55%, #f97316 100%)' },
-    { name: '极光绿', value: 'linear-gradient(180deg, #022c22 0%, #047857 60%, #5eead4 100%)' },
-    { name: '紫水晶', value: 'linear-gradient(135deg, #2e1065 0%, #7c3aed 55%, #c084fc 100%)' },
-    { name: '落日余晖', value: 'linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)' },
-    { name: '海底聚光', value: 'radial-gradient(circle at 50% 35%, #0ea5e9 0%, #0c4a6e 45%, #0a1929 100%)' },
-    { name: '暗夜紫', value: 'linear-gradient(180deg, #000000 0%, #1e1b4b 60%, #4338ca 100%)' },
-    { name: '翡翠', value: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #10b981 100%)' }
+    { name: '深海到天空', nameEn: 'Deep Sea to Sky', value: 'linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)' },
+    { name: '朝霞', nameEn: 'Sunrise Glow', value: 'linear-gradient(135deg, #1e1b4b 0%, #be185d 55%, #f97316 100%)' },
+    { name: '极光绿', nameEn: 'Aurora Green', value: 'linear-gradient(180deg, #022c22 0%, #047857 60%, #5eead4 100%)' },
+    { name: '紫水晶', nameEn: 'Amethyst', value: 'linear-gradient(135deg, #2e1065 0%, #7c3aed 55%, #c084fc 100%)' },
+    { name: '落日余晖', nameEn: 'Sunset Glow', value: 'linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)' },
+    { name: '海底聚光', nameEn: 'Underwater Spotlight', value: 'radial-gradient(circle at 50% 35%, #0ea5e9 0%, #0c4a6e 45%, #0a1929 100%)' },
+    { name: '暗夜紫', nameEn: 'Midnight Violet', value: 'linear-gradient(180deg, #000000 0%, #1e1b4b 60%, #4338ca 100%)' },
+    { name: '翡翠', nameEn: 'Emerald', value: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #10b981 100%)' }
 ];
 // 高级混合: mesh-style 多层 radial-gradient 叠加 + conic-gradient, 模拟"网格渐变"那种深度感.
 var BG_PRESETS_MESH = [
-    { name: '极光', value: 'radial-gradient(at 10% 20%, #4338ca 0%, transparent 50%), radial-gradient(at 90% 10%, #ec4899 0%, transparent 45%), radial-gradient(at 50% 100%, #06b6d4 0%, transparent 55%), #0f172a' },
-    { name: '日落海湾', value: 'radial-gradient(at 20% 25%, #f59e0b 0%, transparent 50%), radial-gradient(at 80% 35%, #ec4899 0%, transparent 50%), radial-gradient(at 50% 95%, #1e3a8a 0%, transparent 60%), #0c4a6e' },
-    { name: '星云紫', value: 'radial-gradient(at 30% 20%, #7c3aed 0%, transparent 55%), radial-gradient(at 70% 65%, #2563eb 0%, transparent 50%), radial-gradient(at 40% 90%, #db2777 0%, transparent 50%), #1e1b4b' },
-    { name: '翠湖晨光', value: 'radial-gradient(at 10% 30%, #14b8a6 0%, transparent 55%), radial-gradient(at 80% 15%, #fbbf24 0%, transparent 40%), radial-gradient(at 60% 85%, #06b6d4 0%, transparent 55%), #064e3b' },
-    { name: '玫瑰金', value: 'radial-gradient(at 25% 50%, #f43f5e 0%, transparent 50%), radial-gradient(at 80% 30%, #fbbf24 0%, transparent 40%), radial-gradient(at 50% 90%, #831843 0%, transparent 60%), #4c0519' },
-    { name: '北极光', value: 'radial-gradient(at 30% 5%, #06b6d4 0%, transparent 50%), radial-gradient(at 80% 45%, #22d3ee 0%, transparent 45%), radial-gradient(at 20% 85%, #4338ca 0%, transparent 55%), #082f49' },
-    { name: '火山岩', value: 'radial-gradient(at 50% 0%, #b91c1c 0%, transparent 45%), radial-gradient(at 20% 55%, #f59e0b 0%, transparent 38%), radial-gradient(at 80% 85%, #7c2d12 0%, transparent 55%), #0a0a0a' },
-    { name: '薄雾蓝紫', value: 'radial-gradient(at 25% 25%, #a78bfa 0%, transparent 55%), radial-gradient(at 75% 60%, #60a5fa 0%, transparent 55%), radial-gradient(at 50% 95%, #5b21b6 0%, transparent 55%), #1e1b4b' },
-    { name: '霓虹夜', value: 'radial-gradient(at 15% 20%, #f0abfc 0%, transparent 40%), radial-gradient(at 85% 30%, #38bdf8 0%, transparent 45%), radial-gradient(at 50% 90%, #a855f7 0%, transparent 50%), #0a0a0a' },
-    { name: '海岛日落', value: 'radial-gradient(at 30% 10%, #fb923c 0%, transparent 45%), radial-gradient(at 70% 30%, #f472b6 0%, transparent 50%), radial-gradient(at 50% 90%, #0c4a6e 0%, transparent 60%), #082f49' },
-    { name: '色环转盘', value: 'conic-gradient(from 45deg at 50% 50%, #0c4a6e, #7c3aed, #ec4899, #f59e0b, #14b8a6, #0c4a6e)' },
-    { name: '光圈聚焦', value: 'radial-gradient(circle at 50% 50%, #3b82f6 0%, #1e40af 25%, #0c4a6e 55%, #0a1929 100%)' }
+    { name: '极光', nameEn: 'Aurora', value: 'radial-gradient(at 10% 20%, #4338ca 0%, transparent 50%), radial-gradient(at 90% 10%, #ec4899 0%, transparent 45%), radial-gradient(at 50% 100%, #06b6d4 0%, transparent 55%), #0f172a' },
+    { name: '日落海湾', nameEn: 'Sunset Bay', value: 'radial-gradient(at 20% 25%, #f59e0b 0%, transparent 50%), radial-gradient(at 80% 35%, #ec4899 0%, transparent 50%), radial-gradient(at 50% 95%, #1e3a8a 0%, transparent 60%), #0c4a6e' },
+    { name: '星云紫', nameEn: 'Nebula Purple', value: 'radial-gradient(at 30% 20%, #7c3aed 0%, transparent 55%), radial-gradient(at 70% 65%, #2563eb 0%, transparent 50%), radial-gradient(at 40% 90%, #db2777 0%, transparent 50%), #1e1b4b' },
+    { name: '翠湖晨光', nameEn: 'Emerald Lake Dawn', value: 'radial-gradient(at 10% 30%, #14b8a6 0%, transparent 55%), radial-gradient(at 80% 15%, #fbbf24 0%, transparent 40%), radial-gradient(at 60% 85%, #06b6d4 0%, transparent 55%), #064e3b' },
+    { name: '玫瑰金', nameEn: 'Rose Gold', value: 'radial-gradient(at 25% 50%, #f43f5e 0%, transparent 50%), radial-gradient(at 80% 30%, #fbbf24 0%, transparent 40%), radial-gradient(at 50% 90%, #831843 0%, transparent 60%), #4c0519' },
+    { name: '北极光', nameEn: 'Northern Lights', value: 'radial-gradient(at 30% 5%, #06b6d4 0%, transparent 50%), radial-gradient(at 80% 45%, #22d3ee 0%, transparent 45%), radial-gradient(at 20% 85%, #4338ca 0%, transparent 55%), #082f49' },
+    { name: '火山岩', nameEn: 'Volcanic Rock', value: 'radial-gradient(at 50% 0%, #b91c1c 0%, transparent 45%), radial-gradient(at 20% 55%, #f59e0b 0%, transparent 38%), radial-gradient(at 80% 85%, #7c2d12 0%, transparent 55%), #0a0a0a' },
+    { name: '薄雾蓝紫', nameEn: 'Misty Blue-Violet', value: 'radial-gradient(at 25% 25%, #a78bfa 0%, transparent 55%), radial-gradient(at 75% 60%, #60a5fa 0%, transparent 55%), radial-gradient(at 50% 95%, #5b21b6 0%, transparent 55%), #1e1b4b' },
+    { name: '霓虹夜', nameEn: 'Neon Night', value: 'radial-gradient(at 15% 20%, #f0abfc 0%, transparent 40%), radial-gradient(at 85% 30%, #38bdf8 0%, transparent 45%), radial-gradient(at 50% 90%, #a855f7 0%, transparent 50%), #0a0a0a' },
+    { name: '海岛日落', nameEn: 'Island Sunset', value: 'radial-gradient(at 30% 10%, #fb923c 0%, transparent 45%), radial-gradient(at 70% 30%, #f472b6 0%, transparent 50%), radial-gradient(at 50% 90%, #0c4a6e 0%, transparent 60%), #082f49' },
+    { name: '色环转盘', nameEn: 'Color Wheel', value: 'conic-gradient(from 45deg at 50% 50%, #0c4a6e, #7c3aed, #ec4899, #f59e0b, #14b8a6, #0c4a6e)' },
+    { name: '光圈聚焦', nameEn: 'Spotlight Focus', value: 'radial-gradient(circle at 50% 50%, #3b82f6 0%, #1e40af 25%, #0c4a6e 55%, #0a1929 100%)' }
 ];
 var BG_PRESETS_GRAY = [
-    { name: '纯黑', value: '#000000' },
-    { name: '深灰', value: '#1a1a1a' },
-    { name: '石板灰', value: '#3f3f46' },
-    { name: '中性灰', value: '#525252' },
-    { name: '灰阶渐变', value: 'linear-gradient(180deg, #000000 0%, #404040 100%)' },
-    { name: '雾灰', value: 'radial-gradient(circle at 50% 30%, #525252 0%, #1a1a1a 70%)' },
-    { name: '炭墨亮顶', value: 'linear-gradient(180deg, #404040 0%, #0a0a0a 100%)' },
-    { name: '银暗光', value: 'linear-gradient(135deg, #1f2937 0%, #4b5563 100%)' }
+    { name: '纯黑', nameEn: 'Pure Black', value: '#000000' },
+    { name: '深灰', nameEn: 'Dark Gray', value: '#1a1a1a' },
+    { name: '石板灰', nameEn: 'Slate Gray', value: '#3f3f46' },
+    { name: '中性灰', nameEn: 'Neutral Gray', value: '#525252' },
+    { name: '灰阶渐变', nameEn: 'Grayscale Gradient', value: 'linear-gradient(180deg, #000000 0%, #404040 100%)' },
+    { name: '雾灰', nameEn: 'Misty Gray', value: 'radial-gradient(circle at 50% 30%, #525252 0%, #1a1a1a 70%)' },
+    { name: '炭墨亮顶', nameEn: 'Charcoal Top-Light', value: 'linear-gradient(180deg, #404040 0%, #0a0a0a 100%)' },
+    { name: '银暗光', nameEn: 'Silver Dim Light', value: 'linear-gradient(135deg, #1f2937 0%, #4b5563 100%)' }
 ];
 var BG_PRESETS_PATTERN = [
-    { name: '斜条纹', value: 'repeating-linear-gradient(45deg, #0f172a 0, #0f172a 14px, #1e293b 14px, #1e293b 28px)' },
-    { name: '网点', value: 'radial-gradient(rgba(148,163,184,0.14) 1.5px, transparent 2px) 0 0 / 24px 24px, #0f172a' },
-    { name: '网格', value: 'linear-gradient(rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, #0f172a' },
-    { name: '细横纹', value: 'repeating-linear-gradient(0deg, #0f172a 0, #0f172a 3px, #1e293b 3px, #1e293b 4px)' },
-    { name: '气泡', value: 'radial-gradient(circle at 20% 30%, rgba(56,189,248,0.18) 0, transparent 12vh), radial-gradient(circle at 75% 75%, rgba(34,197,94,0.14) 0, transparent 14vh), #0c4a6e' },
-    { name: '波纹', value: 'repeating-radial-gradient(circle at 50% 50%, #0c4a6e 0, #0c4a6e 12px, #082f49 12px, #082f49 24px)' },
-    { name: '泳道线', value: 'repeating-linear-gradient(180deg, #0c4a6e 0, #0c4a6e 50px, #1e3a5f 50px, #1e3a5f 52px)' },
-    { name: '光晕中心', value: 'radial-gradient(ellipse at 50% 40%, #1e40af 0, #0c4a6e 35%, #0a1929 100%)' }
+    { name: '斜条纹', nameEn: 'Diagonal Stripes', value: 'repeating-linear-gradient(45deg, #0f172a 0, #0f172a 14px, #1e293b 14px, #1e293b 28px)' },
+    { name: '网点', nameEn: 'Dot Grid', value: 'radial-gradient(rgba(148,163,184,0.14) 1.5px, transparent 2px) 0 0 / 24px 24px, #0f172a' },
+    { name: '网格', nameEn: 'Grid Lines', value: 'linear-gradient(rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, #0f172a' },
+    { name: '细横纹', nameEn: 'Fine Horizontal Lines', value: 'repeating-linear-gradient(0deg, #0f172a 0, #0f172a 3px, #1e293b 3px, #1e293b 4px)' },
+    { name: '气泡', nameEn: 'Bubbles', value: 'radial-gradient(circle at 20% 30%, rgba(56,189,248,0.18) 0, transparent 12vh), radial-gradient(circle at 75% 75%, rgba(34,197,94,0.14) 0, transparent 14vh), #0c4a6e' },
+    { name: '波纹', nameEn: 'Ripples', value: 'repeating-radial-gradient(circle at 50% 50%, #0c4a6e 0, #0c4a6e 12px, #082f49 12px, #082f49 24px)' },
+    { name: '泳道线', nameEn: 'Lane Lines', value: 'repeating-linear-gradient(180deg, #0c4a6e 0, #0c4a6e 50px, #1e3a5f 50px, #1e3a5f 52px)' },
+    { name: '光晕中心', nameEn: 'Center Glow', value: 'radial-gradient(ellipse at 50% 40%, #1e40af 0, #0c4a6e 35%, #0a1929 100%)' }
 ];
 
 function applyDisplayBg(value, persist) {
@@ -265,7 +276,7 @@ function applyDisplayBg(value, persist) {
     document.documentElement.style.setProperty('--bg', v);
     if (persist) {
         try { localStorage.setItem('swimLeaderboardBg', v); }
-        catch(e) { alert('保存失败: 图片/数据太大无法存入 localStorage. 请用更小的图片.'); }
+        catch(e) { alert(WebLoc.t('Str_Display_SaveFailedImageFmt')); }
     }
     var isHex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v);
     var picker = document.getElementById('bgCustomPicker');
@@ -279,9 +290,9 @@ function applyDisplayBg(value, persist) {
 
 function loadCustomBgImage(file) {
     if (!file) return;
-    if (!/^image\//.test(file.type)) { alert('请选择图片文件'); return; }
+    if (!/^image\//.test(file.type)) { alert(WebLoc.t('Str_Display_SelectImageFile')); return; }
     if (file.size > 2 * 1024 * 1024) {
-        if (!confirm('图片较大 (' + Math.round(file.size/1024) + 'KB), 可能因 localStorage 限制(~5MB)存不下. 继续?')) return;
+        if (!confirm(WebLoc.f('Str_Display_LargeImageConfirmFmt', Math.round(file.size/1024)))) return;
     }
     var reader = new FileReader();
     reader.onload = function(e) {
@@ -289,7 +300,7 @@ function loadCustomBgImage(file) {
         var bgValue = "url('" + dataUri + "') center center / cover no-repeat fixed, #0f172a";
         applyDisplayBg(bgValue, true);
     };
-    reader.onerror = function() { alert('读取图片失败'); };
+    reader.onerror = function() { alert(WebLoc.t('Str_Display_ReadImageFailed')); };
     reader.readAsDataURL(file);
 }
 
@@ -313,12 +324,13 @@ function _fillBgGrid(gridId, presets) {
     grid.innerHTML = '';
     for (var i = 0; i < presets.length; i++) {
         var p = presets[i];
+        var pname = (WebLoc.currentLang() === 'en' && p.nameEn) ? p.nameEn : p.name;
         var sw = document.createElement('div');
         sw.className = 'bg-swatch';
         sw.setAttribute('data-value', p.value);
-        sw.title = p.name;
+        sw.title = pname;
         sw.style.background = p.value;
-        sw.textContent = p.name;
+        sw.textContent = pname;
         (function(v){ sw.onclick = function(){ applyDisplayBg(v, true); }; })(p.value);
         grid.appendChild(sw);
     }
@@ -401,25 +413,29 @@ document.addEventListener('keydown', function(e) {
 
 // ═══════ 2026-06-01 5 处文字 (颜色 + 字体) 独立配置 ═══════
 // localStorage('swimLeaderboardTextStyle') = {key:{c:'#..',f:'..'}}
-var TEXT_KEYS = [
-    {k:'title',   label:'比赛名称', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'section', label:'项目标题', dC:'#3b82f6', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'th',      label:'表头',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'td',      label:'表内容',   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'remark',  label:'备注',     dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"}
-];
-var FONT_OPTIONS = [
-    {label:'微软雅黑', value:"'Microsoft YaHei', sans-serif"},
-    {label:'黑体',     value:"SimHei, sans-serif"},
-    {label:'宋体',     value:"SimSun, serif"},
-    {label:'楷体',     value:"KaiTi, serif"},
-    {label:'仿宋',     value:"FangSong, serif"},
-    {label:'隶书',     value:"LiSu, serif"},
-    {label:'幼圆',     value:"YouYuan, sans-serif"},
+// 2026-10-11 label 用函数而不是字面量: 语言切换后重建面板时要能拿到当前语言的文本
+// (见 window.onWebLocApplied), 跟 display.html 的 TEXT_KEYS_DEF/FONT_OPTIONS_DEF 同一个套路。
+function TEXT_KEYS_DEF() { return [
+    {k:'title',   label:WebLoc.t('Str_Display_FsKeyTitle'),      dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'section', label:WebLoc.t('Str_Leaderboard_TsKeySection'), dC:'#3b82f6', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'th',      label:WebLoc.t('Str_Leaderboard_TsKeyHeader'),  dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'td',      label:WebLoc.t('Str_Leaderboard_TsKeyContent'), dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'remark',  label:WebLoc.t('Str_Display_ColRemark'),        dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"}
+]; }
+var TEXT_KEYS = TEXT_KEYS_DEF();
+function FONT_OPTIONS_DEF() { return [
+    {label:WebLoc.t('Str_Display_FontYaHei'),    value:"'Microsoft YaHei', sans-serif"},
+    {label:WebLoc.t('Str_Display_FontHei'),      value:"SimHei, sans-serif"},
+    {label:WebLoc.t('Str_Display_FontSong'),     value:"SimSun, serif"},
+    {label:WebLoc.t('Str_Display_FontKai'),      value:"KaiTi, serif"},
+    {label:WebLoc.t('Str_Display_FontFangSong'), value:"FangSong, serif"},
+    {label:WebLoc.t('Str_Display_FontLiShu'),    value:"LiSu, serif"},
+    {label:WebLoc.t('Str_Display_FontYouYuan'),  value:"YouYuan, sans-serif"},
     {label:'Arial',    value:"Arial, sans-serif"},
-    {label:'Consolas (等宽)', value:"Consolas, monospace"},
+    {label:WebLoc.t('Str_Display_FontConsolas'), value:"Consolas, monospace"},
     {label:'Impact',   value:"Impact, sans-serif"}
-];
+]; }
+var FONT_OPTIONS = FONT_OPTIONS_DEF();
 function _getTextStyleState() {
     try { return JSON.parse(localStorage.getItem('swimLeaderboardTextStyle') || '{}') || {}; }
     catch(e) { return {}; }
@@ -463,7 +479,7 @@ function resetTextStyle(key) {
     setTextFont(key, def.dF, true);
 }
 function resetAllTextStyle() {
-    if (!confirm('确定恢复全部 5 处文字 (颜色+字体) 为默认?')) return;
+    if (!confirm(WebLoc.t('Str_Leaderboard_ConfirmResetTextStyle'))) return;
     for (var i = 0; i < TEXT_KEYS.length; i++) resetTextStyle(TEXT_KEYS[i].k);
 }
 function _buildTextStylePanelRows() {
@@ -484,14 +500,14 @@ function _buildTextStylePanelRows() {
             if (sel) matchedFont = true;
             fontOpts += '<option value="' + fo.value.replace(/"/g,'&quot;') + '"' + sel + '>' + fo.label + '</option>';
         }
-        if (!matchedFont) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>自定义</option>' + fontOpts;
+        if (!matchedFont) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>' + WebLoc.t('Str_Display_CustomFont') + '</option>' + fontOpts;
         html +=
             '<div style="display:flex;align-items:center;gap:0.7vh;margin-bottom:0.7vh;padding:0.6vh 0.4vh;border-bottom:1px solid #334155;">' +
                 '<span style="flex:0 0 8vh;color:#cbd5e1;font-size:1.6vh;">' + def.label + '</span>' +
                 '<input id="tsColor-' + def.k + '" type="color" value="' + (/^#[0-9a-fA-F]{6}$/.test(c)?c:'#f8fafc') + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 4vh;height:3vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>' +
                 '<input id="tsHex-' + def.k + '" type="text" maxlength="7" value="' + c + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 8vh;padding:0.3vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.4vh;text-align:center;"/>' +
                 '<select id="tsFont-' + def.k + '" onchange="setTextFont(\'' + def.k + '\', this.value, true)" style="flex:1;min-width:0;padding:0.4vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-size:1.5vh;cursor:pointer;">' + fontOpts + '</select>' +
-                '<button onclick="resetTextStyle(\'' + def.k + '\')" title="恢复默认" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;">↺</button>' +
+                '<button onclick="resetTextStyle(\'' + def.k + '\')" title="' + WebLoc.t('Str_Display_ResetToDefaultTip') + '" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;">↺</button>' +
             '</div>';
     }
     host.innerHTML = html;
@@ -525,12 +541,12 @@ function getServerHost(forceAsk) {
     var saved = localStorage.getItem('swimServerHost');
     if (!forceAsk && saved) return saved;
     var def = saved || '192.168.1.100';
-    var ip = prompt('请输入服务器IP地址:', def);
+    var ip = prompt(WebLoc.t('Str_Register_EnterServerIpPrompt'), def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
 }
 function changeServerHost() {
-    showConnectOverlay('请重新输入服务器IP并点击连接', '#f59e0b');
+    showConnectOverlay(WebLoc.t('Str_Display_ReenterIpPrompt'), '#f59e0b');
     _connFailCount = 0;
     var inp = document.getElementById('connHostInput');
     if (!inp || !document.getElementById('connectOverlay')) {
@@ -543,7 +559,7 @@ function changeServerHost() {
 function connect() {
     var host = getServerHost();
     try { ws = new WebSocket('ws://' + host + ':3002'); }
-    catch (ex) { showConnectOverlay('连接失败：' + ex.message, '#ef4444'); return; }
+    catch (ex) { showConnectOverlay(WebLoc.t('Str_Query_ConnFailedShort') + '：' + ex.message, '#ef4444'); return; }
     ws.onopen = function() {
         _connFailCount = 0;
         ws.send(JSON.stringify({type: 'LEADERBOARD_IDENTITY'}));
@@ -560,6 +576,18 @@ function connect() {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        // 2026-10-11 排名屏是纯展示给观众看的屏幕, 跟大屏(display.html)同一个道理——不给它
+        //   自己的语言选择, 完全跟主服务器当前语言走。两条路都会带语言过来: 常规状态广播里的
+        //   data.lang(见 GetStatusData, 下一次有数据变化才会带新值过去), 以及语言按钮一按
+        //   立刻单独推的 LANGUAGE_SYNC(这条消息的 lang 在顶层不在 data 里, 且 type 不是
+        //   SHOW_LIVE_RACE(_LITE), 必须放在下面的类型过滤之前处理, 否则会被直接 return 掉)。
+        //   两种消息形状都认, 不管哪条先到都立刻跟上。
+        var _pushedLang = (msg.data && msg.data.lang) || msg.lang;
+        if (_pushedLang && _pushedLang !== WebLoc.currentLang()) {
+            WebLoc.setLang(_pushedLang);
+            WebLoc.apply();
+            try { render(); } catch (eRenderLang) {}
+        }
         // 2026-09-15 【广播分级】排名屏现在不再收周期性的 SHOW_LIVE_RACE_LITE 了(主服务器
         //   那边改成只发给比赛控制网页)——项目排名/团体分/纪录这些原来就只在"确认本组
         //   成绩"/"生成组排名"这类结构性变化时才会真的变, 靠 DATA_CHANGED 通知 + 主动要
@@ -595,16 +623,16 @@ function connect() {
     };
     ws.onclose = function() {
         _connFailCount++;
-        showConnectOverlay('未连接 / 连接断开（已尝试 ' + _connFailCount + ' 次），3 秒后自动重连…', '#ef4444');
+        showConnectOverlay(WebLoc.f('Str_Leaderboard_ConnStatusFmt', _connFailCount), '#ef4444');
         // 与旧版兼容：每 3 次失败后再用 confirm() 兜底询问一次
         if (_connFailCount >= 3) {
             _connFailCount = 0;
-            if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; }
+            if (confirm(WebLoc.t('Str_Register_ConnFailRetry'))) { changeServerHost(); return; }
         }
         setTimeout(connect, 3000);
     };
     ws.onerror = function() {
-        showConnectOverlay('连接错误，请检查服务器IP是否正确', '#ef4444');
+        showConnectOverlay(WebLoc.t('Str_Leaderboard_ConnErrorCheck'), '#ef4444');
     };
 }
 
@@ -617,14 +645,14 @@ function showTab(tab) {
 }
 
 function render() {
-    document.getElementById('title').textContent = data.competitionName || '排名显示';
+    document.getElementById('title').textContent = data.competitionName || WebLoc.t('Str_Leaderboard_Title');
 
     // 项目排名（接力：代表队在前，姓名在后）
     var lbRelay = (data.currentEvent||'').indexOf('接力') >= 0;
-    var h1 = lbRelay ? '代表队' : '姓名';
-    var h2 = lbRelay ? '姓名' : '代表队';
+    var h1 = lbRelay ? WebLoc.t('Str_Common_Country') : WebLoc.t('Str_Common_Name');
+    var h2 = lbRelay ? WebLoc.t('Str_Common_Name') : WebLoc.t('Str_Common_Country');
     var html = '<div class="section-title">' + ((data.currentAgeGroup||'')?(data.currentAgeGroup+' '):'') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + '</div>';
-    html += '<table><tr><th>名次</th><th>' + h1 + '</th><th>' + h2 + '</th><th>成绩</th><th>备注</th></tr>';
+    html += '<table><tr><th>' + WebLoc.t('Str_Display_ColRank') + '</th><th>' + h1 + '</th><th>' + h2 + '</th><th>' + WebLoc.t('Str_Display_ColResult') + '</th><th>' + WebLoc.t('Str_Display_ColRemark') + '</th></tr>';
     var er = data.eventRanking || [];
     for (var i = 0; i < er.length; i++) {
         var rc = er[i].rank >= 1 && er[i].rank <= 3 ? ' class="rank-' + er[i].rank + '"' : '';
@@ -638,8 +666,8 @@ function render() {
     document.getElementById('rankingView').innerHTML = html;
 
     // 团体
-    html = '<div class="section-title">团体积分排名</div>';
-    html += '<table><tr><th>名次</th><th>代表队</th><th>总分</th><th>金</th><th>银</th><th>铜</th></tr>';
+    html = '<div class="section-title">' + WebLoc.t('Str_Leaderboard_SectionTeam') + '</div>';
+    html += '<table><tr><th>' + WebLoc.t('Str_Display_ColRank') + '</th><th>' + WebLoc.t('Str_Display_ColTeam') + '</th><th>' + WebLoc.t('Str_Query_ColTotalPts') + '</th><th>' + WebLoc.t('Str_Query_ColGold') + '</th><th>' + WebLoc.t('Str_Query_ColSilver') + '</th><th>' + WebLoc.t('Str_Query_ColBronze') + '</th></tr>';
     var ts = data.teamScores || [];
     for (var i = 0; i < ts.length; i++) {
         html += '<tr><td>' + ts[i].rank + '</td><td>' + ts[i].teamName + '</td><td>' + ts[i].totalPoints + '</td><td>' + ts[i].gold + '</td><td>' + ts[i].silver + '</td><td>' + ts[i].bronze + '</td></tr>';
@@ -648,8 +676,8 @@ function render() {
     document.getElementById('teamView').innerHTML = html;
 
     // 纪录
-    html = '<div class="section-title">纪录榜</div>';
-    html += '<table><tr><th>项目</th><th>类型</th><th>保持者</th><th>成绩</th></tr>';
+    html = '<div class="section-title">' + WebLoc.t('Str_Leaderboard_TabRecords') + '</div>';
+    html += '<table><tr><th>' + WebLoc.t('Str_Common_Event') + '</th><th>' + WebLoc.t('Str_Query_ColType') + '</th><th>' + WebLoc.t('Str_Leaderboard_ColHolder') + '</th><th>' + WebLoc.t('Str_Display_ColResult') + '</th></tr>';
     var rs = data.records || [];
     for (var i = 0; i < rs.length; i++) {
         html += '<tr><td>' + rs[i].eventName + '</td><td>' + rs[i].recordType + '</td><td>' + rs[i].holderName + '</td><td>' + rs[i].time + '</td></tr>';
@@ -658,14 +686,34 @@ function render() {
     document.getElementById('recordsView').innerHTML = html;
 }
 
+// 2026-10-11 语言切换(WebLoc.apply())后要重建的东西——data-i18n 管不到的程序化内容:
+//   TEXT_KEYS/FONT_OPTIONS 里 label 是 WebLoc.t() 现查的, 要重新跑一遍函数才能拿到新语言;
+//   文字样式面板/底色面板如果当时正开着, 要主动重画一次才不会停在旧语言; 字号面板的
+//   快捷键提示含 <b> 标签, data-i18n 只会整段替换成纯文本, 得用 innerHTML 单独刷。
+window.onWebLocApplied = function () {
+    TEXT_KEYS = TEXT_KEYS_DEF();
+    FONT_OPTIONS = FONT_OPTIONS_DEF();
+    var tsHost = document.getElementById('textStyleRows');
+    if (tsHost) { tsHost.dataset.built = ''; if (!document.getElementById('textStylePanel').classList.contains('hidden')) _buildTextStylePanelRows(); }
+    var bgPanel = document.getElementById('bgSettingsPanel');
+    if (bgPanel && !bgPanel.classList.contains('hidden')) {
+        _initBgSwatches();
+        try { _refreshBgSwatchSelection(localStorage.getItem('swimLeaderboardBg') || '#0f172a'); } catch (e) {}
+    }
+    var hint = document.getElementById('fsShortcutHint');
+    if (hint) hint.innerHTML = WebLoc.f('Str_Leaderboard_FsShortcutHintFmt',
+        '<b style="color:#cbd5e1;">Ctrl +</b>', '<b style="color:#cbd5e1;">Ctrl −</b>', '<b style="color:#cbd5e1;">Ctrl 0</b>');
+};
+
 // 启动：先把已知/默认的服务器IP填入遮罩输入框，并立即触发一次连接尝试
 (function bootstrap() {
+    WebLoc.apply();
     var inp = document.getElementById('connHostInput');
     if (inp) {
         inp.value = getInitialHost();
         inp.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') overlayConnect(); });
     }
-    showConnectOverlay('连接中… ' + getInitialHost() + ':3002', '#f59e0b');
+    showConnectOverlay(WebLoc.f('Str_Display_ConnectingFmt', getInitialHost()), '#f59e0b');
     connect();
 })();
 </script>

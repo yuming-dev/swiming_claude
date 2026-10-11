@@ -507,6 +507,32 @@ var WebLoc = (function () {
         "Str_Display_FontConsolas": ["Consolas (等宽)", "Consolas (monospace)"],
         "Str_Display_RankNumFmt": ["第 {0} 名", "Rank {0}"],
 
+        // ── leaderboard.html (排名屏) ──────────────────────────
+        // 2026-10-11 排名屏是纯展示给观众看的屏幕, 跟大屏(display.html)同一个道理——不给它自己的
+        // 语言选择按钮, 完全跟主服务器当前语言走(见 MainWindow.xaml.cs BroadcastLanguageSync/
+        // GetStatusData 的 lang 字段, 以及这里 ws.onmessage 里同款的 setLang 同步逻辑)。
+        "Str_Leaderboard_Title": ["排名显示", "Leaderboard"],
+        "Str_Leaderboard_TabRanking": ["项目排名", "Event Rankings"],
+        "Str_Leaderboard_TabTeam": ["团体积分", "Team Points"],
+        "Str_Leaderboard_TabRecords": ["纪录榜", "Records"],
+        "Str_Leaderboard_ColHolder": ["保持者", "Holder"],
+        "Str_Leaderboard_SectionTeam": ["团体积分排名", "Team Points Ranking"],
+        "Str_Leaderboard_BgSettingsTip": ["排名屏底色设置", "Leaderboard Background"],
+        "Str_Leaderboard_BgTitle": ["🎨 排名屏底色", "🎨 Leaderboard Background"],
+        "Str_Leaderboard_FsSettingsTip": ["字号 (Ctrl + / Ctrl -)", "Font Size (Ctrl + / Ctrl -)"],
+        "Str_Leaderboard_FsSettingsTitle": ["🔤 字号", "🔤 Font Size"],
+        "Str_Leaderboard_TextStyleTip": ["文字样式 (颜色/字体)", "Text Style (color/font)"],
+        "Str_Leaderboard_TextStyleTitle": ["📝 文字样式 (颜色 / 字体)", "📝 Text Style (Color / Font)"],
+        "Str_Leaderboard_ResetFs": ["恢复 1.0x", "Reset to 1.0x"],
+        "Str_Leaderboard_FsShortcutHintFmt": ["快捷键: {0} / {1} / {2}<br>范围 0.8x ~ 3.0x", "Shortcuts: {0} / {1} / {2}<br>Range 0.8x ~ 3.0x"],
+        "Str_Leaderboard_TsKeySection": ["项目标题", "Section Title"],
+        "Str_Leaderboard_TsKeyHeader": ["表头", "Header"],
+        "Str_Leaderboard_TsKeyContent": ["表内容", "Content"],
+        "Str_Leaderboard_ConfirmResetTextStyle": ["确定恢复全部 5 处文字 (颜色+字体) 为默认?", "Reset all 5 text styles (color+font) to default?"],
+        "Str_Leaderboard_BeforeUnload": ["确定要关闭排名屏？", "Close the leaderboard?"],
+        "Str_Leaderboard_ConnStatusFmt": ["未连接 / 连接断开（已尝试 {0} 次），3 秒后自动重连…", "Not connected / disconnected (tried {0} times) — reconnecting in 3s…"],
+        "Str_Leaderboard_ConnErrorCheck": ["连接错误，请检查服务器IP是否正确", "Connection error — please check that the server IP is correct"],
+
         // ── control.html ──────────────────────────────────────
         "Str_Ctrl_PageTitle": ["显示控制", "Display Control"],
         "Str_Ctrl_PreviewSizeLabel": ["预览大小:", "Preview size:"],
