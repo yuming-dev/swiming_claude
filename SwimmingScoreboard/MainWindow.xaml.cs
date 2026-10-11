@@ -25266,6 +25266,11 @@ namespace SwimmingScoreboard
             //   ApplyRecordFilter), 不在原有的语言切换级联里, 得跟 BuildUnitBibAllocTab 一样补进来。
             try { RefillGenderCombos(); } catch { }
             try { RefreshRecordFilterCombos(); ApplyRecordFilter(); } catch { }
+            // 2026-10-11 现场反馈: "计时源对比"Tab 里"分段"下拉框("终点"/"第N圈..."这些选项)
+            //   只在组数变化时才重建(UpdateTimingSourceInfo 里按 _lastTsSplitCount 比对决定要不要
+            //   重建 Items), 切语言不在那个触发条件里——逼它按当前语言重建一次, 同 LaneInputBox_
+            //   TextChanged 里"强制刷新"的做法(失效缓存 + 调用同一个函数), 不用另起一套逻辑。
+            try { _lastTsSplitCount = -1; UpdateTimingSourceInfo(); } catch { }
             // 2026-09-28【跨客户端语言同步】实机联调时发现: ScheduleEditor.exe/RemoteTimingControl.exe
             // 顶部状态栏"主服务器: [IP] [连接/断开]"那个连接按钮是 EditorSyncToggle_Click/
             // OnEditorSyncConnected/OnEditorSyncDisconnected 直接赋值 .Content, 不在原有刷新级联里,
