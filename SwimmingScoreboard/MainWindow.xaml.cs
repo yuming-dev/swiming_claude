@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20261011-1";
+        public const string WEB_ASSET_VERSION = "20261011-2";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -1966,6 +1966,9 @@ namespace SwimmingScoreboard
                     case "TIMING_WEB_IDENTITY":
                         if (!_timingWebSockets.Contains(socket)) _timingWebSockets.Add(socket);
                         AddLog(Loc.T("Str_Log_TimingWebConnected"));
+                        // 2026-10-11 race_control.html 去掉了自己的语言按钮, 完全跟主服务器走——
+                        //   新连上(含断线重连)用主服务器当前语言校准一次, 不等下一次常规状态广播。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         UpdateScoringControlMode();
                         // 2026-09-18 race_control.html 的"记录显示/显反应时"按钮态跟
                         //   DisplayStyleWindow 同一个毛病: 只在"有人改动"那一刻广播,
@@ -3070,6 +3073,7 @@ namespace SwimmingScoreboard
                     case "READY": case "START_RACE": case "RESTART": case "TIMER_RESET":
                     case "CONFIRM_RESULT": case "MARK_DSQ": case "MARK_DNS": case "MARK_DNF":
                     case "MARK_TRI": case "CANCEL_NOTE": case "MANUAL_SPLIT": case "OVERRIDE_TIME":
+                    case "UNLOCK_HEAT_RESULT":
                         AddLog(Loc.F("Str_Log_RaceControlHeldByExeRejectCmdFmt", cmd));
                         try {
                             EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
@@ -3087,7 +3091,7 @@ namespace SwimmingScoreboard
                 switch (cmd) {
                     case "READY": case "START_RACE": case "RESTART": case "TIMER_RESET":
                     case "CONFIRM_RESULT": case "MARK_DSQ": case "MARK_DNS": case "MARK_DNF":
-                    case "MANUAL_SPLIT":
+                    case "MANUAL_SPLIT": case "UNLOCK_HEAT_RESULT":
                         AddLog(Loc.F("Str_Log_RoleServerRejectCmdFmt", cmd));
                         if (socket != null) {
                             try {
@@ -3131,6 +3135,23 @@ namespace SwimmingScoreboard
                     Restart_Click(null, null);
                     break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
+                // 2026-10-11 race_control.html "Unlock Heat Result" — 网页原来没有这个按钮(跟 PC/RTC
+                //   比不齐), 补上。本地按钮的两道确认(Yes/No + 组号重输+写原因)挪到网页 JS 里做,
+                //   这里只收 data.reason 做服务端二次校验 + 真正解锁(TryUnlockHeatResultRemote)。
+                case "UNLOCK_HEAT_RESULT":
+                    try {
+                        string unlockReason = data != null && data["reason"] != null ? data["reason"].ToString() : "";
+                        string unlockErr;
+                        bool unlockOk = TryUnlockHeatResultRemote(unlockReason, ClientLabel(), out unlockErr);
+                        if (socket != null) {
+                            try {
+                                EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                                    type = "UNLOCK_HEAT_RESULT_RESULT", ok = unlockOk, error = unlockOk ? "" : unlockErr
+                                }));
+                            } catch { }
+                        }
+                    } catch (Exception exUnlock) { AddLog(Loc.F("Str_Log_RemoteUnlockFailedFmt", exUnlock.Message)); }
+                    break;
                 // 2026-06-18 race_control.html "公布项目总排名 (存盘)" — 远程触发 PC 端 PublishEventRanking_Click
                 case "PUBLISH_EVENT_RANKING_STORE":
                     try { PublishEventRanking_Click(null, null); }
@@ -12464,6 +12485,27 @@ namespace SwimmingScoreboard
             }
 
             UnlockHeatResult(ag, gd, ev, st, heat, reason, Environment.MachineName, true);
+        }
+
+        /// <summary>UnlockHeatResult_Click 的远程版(race_control.html "Unlock Heat Result" 按钮) ——
+        /// 跟本地按钮用同一套守卫条件(有无当前组/是否在比/是否真锁着)+ 同样要求原因至少 2 个字,
+        /// 但不弹 WPF 对话框: "看清楚要解哪一组"(Yes/No)和"组号重输+写原因"这两道确认挪到网页
+        /// 自己的 JS 里做(confirmUnlockHeatResult()), 这里只负责服务端二次校验 + 真正解锁, 用
+        /// 校验失败的原因(Loc 文本)作为 out 参数回话给网页, 不假设调用方信任客户端没校验过。</summary>
+        private bool TryUnlockHeatResultRemote(string reason, string clientLabel, out string errMsg) {
+            errMsg = "";
+            string ag = _currentAgeGroup, gd = _currentGender, ev = _currentEvent, st = _currentStage;
+            int heat = _currentHeat;
+            if (string.IsNullOrEmpty(ev) || heat <= 0) { errMsg = Loc.T("Str_Msg_NoHeatLoaded"); return false; }
+            if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                errMsg = Loc.F("Str_Msg_CannotUnlockRacingFmt",
+                    _raceState == RaceState.Ready ? Loc.T("Str_Msg_Ready2") : Loc.T("Str_Msg_Racing"));
+                return false;
+            }
+            if (!IsHeatMarkedFinished(ag, gd, ev, st, heat)) { errMsg = Loc.F("Str_Msg_HeatNotLockedFmt", heat); return false; }
+            reason = (reason ?? "").Trim();
+            if (reason.Length < 2) { errMsg = Loc.T("Str_Win_UnlockConfirm_MsgReasonTooShort"); return false; }
+            return UnlockHeatResult(ag, gd, ev, st, heat, reason, clientLabel, true);
         }
 
         /// <summary>解锁的第二道确认窗: 手输组号 + 必填原因。两样都对才返回 true。</summary>
@@ -25324,6 +25366,7 @@ namespace SwimmingScoreboard
                     .Concat(_rdcSockets)
                     .Concat(_displaySockets)
                     .Concat(_leaderboardSockets)
+                    .Concat(_timingWebSockets)
                     .Distinct().ToList();
                 foreach (var s in targets) EnqueueToSocket(s, json);
             } catch { }

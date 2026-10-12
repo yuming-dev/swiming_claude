@@ -267,7 +267,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 区域1: 导航栏 -->
 <div class="nav-bar">
     <span class="current-info" id="currentInfo" data-i18n="Str_RC_NoCompetitionSelected">未选择比赛</span>
-    <button class="fullscreen-btn" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle" style="padding:4px 10px;background:#475569;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">English</button>
+    <!-- 2026-10-11 按用户要求去掉手动中/英切换按钮——跟主服务器语言走(见 ws.onmessage 里的 _pushedLang 同步逻辑) -->
     <!-- 2026-06-19 stateDot / stateLabel 移到 pool-topbar #runTime 右边 (与 PC 端 RaceStateBox 同位) -->
     <!-- 2026-06-19 顶端右侧完全仿 RTC 顶部状态栏顺序: 内存 → 电池电压 → 硬件计时器 → 控制模式 → 主服务器 -->
     <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
@@ -657,6 +657,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <!-- 赛程导航 -->
         <div class="sched-section">
             <div class="panel-header" data-i18n="Str_Common_ScheduleNav">赛程导航</div>
+            <div style="display:flex;justify-content:center;gap:8px;padding:6px 0;">
+                <button onclick="goPrevHeat()" data-i18n="Str_RC_PrevHeat" style="padding:5px 12px;background:#6366F1;color:white;border:none;border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer;">◀ 上一组</button>
+                <button onclick="goNextHeat()" data-i18n="Str_RC_NextHeat" style="padding:5px 12px;background:#6366F1;color:white;border:none;border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer;">下一组 ▶</button>
+            </div>
             <div class="tree-scroll" id="scheduleTree"></div>
         </div>
         <!-- 2026-05-27 计时源对比 + 比赛日志 Tab -->
@@ -725,6 +729,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button class="action-btn" style="background:#10B981;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span><span data-i18n="Str_RC_ManualStart">M.发令</span></button>
                     <button id="pauseClockBtn" class="action-btn" style="background:#6366F1;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText" data-i18n="Str_RC_PauseClock">停表</span></button>
                     <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span><span data-i18n="Str_RC_ConfirmHeatResult">确认本组成绩</span></button>
+                    <button class="action-btn" style="background:#B45309;" onclick="confirmUnlockHeatResult()" data-i18n-title="Str_RC_UnlockResultTip" title="把本组从「已完赛」解开, 好改成绩。要二次确认, 并记入审计日志。改完记得再点一次「确认本组成绩」"><span class="ico">&#xE785;</span><span data-i18n="Str_RC_UnlockResult">解锁本组成绩</span></button>
                     <button class="action-btn" style="background:#0EA5E9;" onclick="printCurrentHeatResult()"><span class="ico">&#xE749;</span><span data-i18n="Str_RC_PrintResult">打印成绩</span></button>
                     <button class="action-btn" style="background:#F97316;" onclick="publishEventRanking()"><span class="ico">&#xE9D9;</span><span data-i18n="Str_RC_PublishEventRanking">公布项目总排名 (存盘)</span></button>
                 </div>
@@ -858,7 +863,7 @@ window.onbeforeunload = function(e) {
         leftBlindWatchCount: leftBlindWatchCount,
         rightBlindWatchCount: rightBlindWatchCount
     });
-    e.preventDefault(); e.returnValue = ''; return '确定要关闭比赛控制台？';
+    e.preventDefault(); e.returnValue = ''; return WebLoc.t('Str_RC_BeforeUnloadConfirm');
 };
 
 function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
@@ -952,7 +957,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261011-1';
+var PAGE_VER = '20261011-2';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1000,6 +1005,20 @@ function checkPageVer(serverVer) {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        // 2026-10-11 比赛控制网页不设自己的语言按钮——完全跟主服务器当前语言走(跟 leaderboard.html/
+        //   display.html 同一个道理)。两条路都会带语言过来: 常规状态广播里的 data.lang, 以及语言
+        //   按钮一按立刻单独推的 LANGUAGE_SYNC(这条消息的 lang 在顶层不在 data 里, 且 type 不是
+        //   SHOW_LIVE_RACE(_LITE), 必须放在下面的类型过滤之前处理)。
+        var _pushedLang = (msg.data && msg.data.lang) || msg.lang;
+        if (_pushedLang && _pushedLang !== WebLoc.currentLang()) {
+            WebLoc.setLang(_pushedLang);
+            _lastTsSplitCount = -1;   // 强制重建"分段"下拉框, 否则语言切换时它还显示旧语言(跟 PC 端同款 bug)
+            _laneRowsBuiltKey = '';  // 强制重建泳道行(其 title 提示在 buildLaneRows 时一次性写死, 不跟 data-i18n 走)
+            WebLoc.apply();
+            try { render(); } catch (eRenderLang) {}   // render() 内部已含 updateTimingSourceInfo()/rcRefreshLaneEventLog()
+            try { renderDeviceStatusPanel(); } catch (eDevLang) {}
+            try { renderManualBtnPanel(); } catch (eMbLang) {}
+        }
         if (msg.data && msg.data.webAssetVersion) checkPageVer(msg.data.webAssetVersion);
         if (msg.data && msg.data.scoringControlMode) applyCtrlLock(msg.data.scoringControlMode);
         // 服务端硬拦的回执 —— 旧页面/缓存绕过前端置灰时, 这条保证操作员看得到原因
@@ -1010,6 +1029,13 @@ function checkPageVer(serverVer) {
             // 拒绝理由里点名 EXE 的, 顺手把本页锁上 —— 不等下一帧, 免得再按第二下
             if ((msg.reason || '').indexOf('EXE') >= 0) applyCtrlLock('remote_exe');
             alert(WebLoc.f('Str_RC_CmdNotExecutedFmt', (msg.reason || WebLoc.t('Str_RC_ServerRejectedDefault'))));
+            return;
+        }
+        // 2026-10-11 "Unlock Heat Result" 服务端校验/执行结果回执 —— TryUnlockHeatResultRemote()
+        //   的失败原因(msg.error)是 Loc.T/F 出来的中/英文本, 跟页面当前语言一致, 不用再翻一遍。
+        if (msg.type === 'UNLOCK_HEAT_RESULT_RESULT') {
+            if (msg.ok) { addLog(WebLoc.t('Str_RC_LogUnlockDoneShort')); }
+            else { alert(WebLoc.f('Str_RC_UnlockFailedFmt', msg.error || '')); addLog(WebLoc.f('Str_RC_UnlockFailedFmt', msg.error || '')); }
             return;
         }
         // 2026-06-03 大屏样式同步 (服务器持久化的 recordsHidden 等) - 用来更新本端按钮文字状态
@@ -1158,7 +1184,7 @@ function checkPageVer(serverVer) {
 var _ctrlLockedByExe = false;
 var CTRL_CMDS = ['READY','START_RACE','RESTART','TIMER_RESET','CONFIRM_RESULT',
                  'MARK_DSQ','MARK_DNS','MARK_DNF','MARK_TRI','CANCEL_NOTE',
-                 'MANUAL_SPLIT','OVERRIDE_TIME'];
+                 'MANUAL_SPLIT','OVERRIDE_TIME','UNLOCK_HEAT_RESULT'];
 function applyCtrlLock(mode) {
     var locked = (mode === 'remote_exe');
     if (locked === _ctrlLockedByExe) return;     // 状态没变就别反复动 DOM
@@ -1258,10 +1284,10 @@ function publishResult() {
     var dlg = document.createElement('div');
     dlg.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
     dlg.innerHTML = '<div style="background:#1E293B;border-radius:8px;padding:20px;min-width:320px;max-width:500px;">' +
-        '<h3 style="margin:0 0 12px;color:white;">选择发布成绩</h3>' + sel +
+        '<h3 style="margin:0 0 12px;color:white;">' + WebLoc.t('Str_RC_SelectPublishTitle') + '</h3>' + sel +
         '<div style="margin-top:14px;text-align:right;">' +
-        '<button onclick="this.parentNode.parentNode.parentNode.remove()" style="padding:6px 16px;margin-right:8px;background:#64748B;color:white;border:none;border-radius:4px;cursor:pointer;">取消</button>' +
-        '<button id="pubOkBtn" style="padding:6px 16px;background:#F59E0B;color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">发布</button>' +
+        '<button onclick="this.parentNode.parentNode.parentNode.remove()" style="padding:6px 16px;margin-right:8px;background:#64748B;color:white;border:none;border-radius:4px;cursor:pointer;">' + WebLoc.t('Str_Common_Cancel') + '</button>' +
+        '<button id="pubOkBtn" style="padding:6px 16px;background:#F59E0B;color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">' + WebLoc.t('Str_RC_PublishBtnShort') + '</button>' +
         '</div></div>';
     document.body.appendChild(dlg);
     document.getElementById('pubOkBtn').onclick = function() {
@@ -1304,7 +1330,7 @@ function _refreshPauseClockBtnText() {
     var txt = document.getElementById('pauseClockBtnText');
     if (!btn || !txt) return;
     var paused = !!(data && data.clockPaused);
-    txt.textContent = paused ? '继续走表' : '停表';
+    txt.textContent = paused ? WebLoc.t('Str_RC_ResumeClock') : WebLoc.t('Str_RC_PauseClock');
     btn.style.background = paused ? '#22C55E' : '#8B5CF6';
 }
 
@@ -1367,19 +1393,19 @@ function render() {
     // 设备测试按钮文字随服务器 testMode 变化（设置对话框 + 导航栏都更新）
     var dtSettings = document.getElementById('btnDeviceTest');
     if (dtSettings) {
-        dtSettings.textContent = data.testMode ? '退出测试' : '设备测试';
+        dtSettings.textContent = data.testMode ? WebLoc.t('Str_RC_DeviceTestExit') : WebLoc.t('Str_RC_DeviceTest');
         dtSettings.style.background = data.testMode ? '#EF4444' : '#0EA5E9';
     }
     var dtNav = document.getElementById('navDeviceTestBtn');
     if (dtNav) {
-        dtNav.textContent = data.testMode ? '退出测试' : '设备测试';
+        dtNav.textContent = data.testMode ? WebLoc.t('Str_RC_DeviceTestExit') : WebLoc.t('Str_RC_DeviceTest');
         dtNav.style.background = data.testMode ? '#EF4444' : '#0EA5E9';
     }
     // 连接串口按钮跟硬件连接状态走（已连接=红"断开"，未连接=绿"连接串口"）
     var connNav = document.getElementById('navQuickConnBtn');
     if (connNav) {
         var hwOn = !!data.timingHwConnected;
-        connNav.textContent = hwOn ? '断开串口' : '连接串口';
+        connNav.textContent = hwOn ? WebLoc.t('Str_Win_HwConn_DisconnectBtn') : WebLoc.t('Str_Win_HwConn_ConnectSerialBtn');
         connNav.style.background = hwOn ? '#EF4444' : '#22C55E';
     }
     // 2026-06-19 "设备全开"按钮已删除 (功能并入参数设置"硬件设备: 一直打开")
@@ -1410,10 +1436,10 @@ function render() {
     // 2026-06-19 controlMode 文本只显示模式值 (前缀"控制模式:"已在顶端 HTML 的 label 里)
     var cmEl = document.getElementById('controlMode');
     if (cmEl) {
-        var cmText = data.scoringControlMode === 'remote_exe' ? '远程 EXE 计时中' :
-                     data.scoringControlMode === 'remote_web' ? '远程 Web 计时中' :
-                     data.scoringControlMode === 'local' ? '主控本地' :
-                     data.scoringControlMode || '观察端';
+        var cmText = data.scoringControlMode === 'remote_exe' ? WebLoc.t('Str_ScoringMode_RemoteExe') :
+                     data.scoringControlMode === 'remote_web' ? WebLoc.t('Str_ScoringMode_RemoteWeb') :
+                     data.scoringControlMode === 'local' ? WebLoc.t('Str_ScoringMode_Local') :
+                     data.scoringControlMode || WebLoc.t('Str_ScoringMode_Observer');
         cmEl.textContent = cmText;
         cmEl.style.color = ro ? '#EF4444' : '#22C55E';
     }
@@ -1429,7 +1455,7 @@ function render() {
 
     // 当前比赛信息
     var curAg = data.currentAgeGroup || '';
-    var info = (curAg ? ('[' + curAg + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
+    var info = (curAg ? ('[' + curAg + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' ' + WebLoc.f('Str_Common_HeatOfFmt', (data.currentHeat||0), (data.totalHeats||0));
     document.getElementById('currentInfo').textContent = info;
 
     // 先同步参数（发令位置等），再渲染界面
@@ -1500,7 +1526,7 @@ function render() {
     // 同步设置弹窗内的硬件状态
     var dlgHwSt = document.getElementById('dlgHwStatus');
     if (dlgHwSt) {
-        dlgHwSt.textContent = data.timingHwConnected ? ('● ' + (data.timingHwStatus||'已连接')) : '● 未连接';
+        dlgHwSt.textContent = data.timingHwConnected ? ('● ' + (data.timingHwStatus||WebLoc.t('Str_Win_HwConn_Connected'))) : ('● ' + WebLoc.t('Str_Win_HwConn_NotConnected'));
         dlgHwSt.style.color = data.timingHwConnected ? '#22C55E' : '#94A3B8';
     }
 
@@ -1583,12 +1609,17 @@ function parseTimeToSeconds(str) {
 }
 
 // ═══════ 设备状态管理 ═══════
-var deviceNames = [
-    {key:'leftTouchpad', label:'左触板'}, {key:'leftStartBlock', label:'左出发台'},
-    {key:'leftBlindWatch1', label:'左盲表1'}, {key:'leftBlindWatch2', label:'左盲表2'}, {key:'leftBlindWatch3', label:'左盲表3'},
-    {key:'rightTouchpad', label:'右触板'}, {key:'rightStartBlock', label:'右出发台'},
-    {key:'rightBlindWatch1', label:'右盲表1'}, {key:'rightBlindWatch2', label:'右盲表2'}, {key:'rightBlindWatch3', label:'右盲表3'}
-];
+// 2026-10-11 label 改走函数(每次取用重新算), 不再是模块加载那一刻就冻死的静态字符串——
+//   否则语言切换后(见 ws.onmessage 里的 _pushedLang 同步) renderDeviceStatusPanel() 表头还是老语言。
+function getDeviceNames() {
+    return [
+        {key:'leftTouchpad', label:WebLoc.t('Str_RC_ColLeftTouchpad')}, {key:'leftStartBlock', label:WebLoc.t('Str_RC_ColLeftStartBlock')},
+        {key:'leftBlindWatch1', label:WebLoc.t('Str_RC_ColLeftBackup1')}, {key:'leftBlindWatch2', label:WebLoc.t('Str_RC_ColLeftBackup2')}, {key:'leftBlindWatch3', label:WebLoc.t('Str_RC_ColLeftBackup3')},
+        {key:'rightTouchpad', label:WebLoc.t('Str_RC_ColRightTouchpad')}, {key:'rightStartBlock', label:WebLoc.t('Str_RC_ColRightStartBlock')},
+        {key:'rightBlindWatch1', label:WebLoc.t('Str_RC_ColRightBackup1')}, {key:'rightBlindWatch2', label:WebLoc.t('Str_RC_ColRightBackup2')}, {key:'rightBlindWatch3', label:WebLoc.t('Str_RC_ColRightBackup3')}
+    ];
+}
+var deviceNames = getDeviceNames();
 
 function openDeviceManager() {
     renderDeviceStatusPanel();
@@ -1613,6 +1644,7 @@ function _devStatusCode(notInstalled, broken) {
 function _isDeviceLeft(key) { return key.indexOf('left') === 0; }
 
 function renderDeviceStatusPanel() {
+    deviceNames = getDeviceNames();   // 每次重渲染前刷新 label(跟着当前语言走)
     var panel = document.getElementById('deviceStatusPanel');
     var laneDevices = data.laneDevices || [];
     var pool = data.poolConfig || {};
@@ -1630,7 +1662,7 @@ function renderDeviceStatusPanel() {
     var endLocked = (laneDevices[0] && laneDevices[0].endLocked) || 'none';   // 'left' | 'right' | 'none'
 
     var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-    html += '<tr style="background:#1E293B;"><th style="padding:6px;border:1px solid #475569;color:#94A3B8;">道次</th>';
+    html += '<tr style="background:#1E293B;"><th style="padding:6px;border:1px solid #475569;color:#94A3B8;">' + WebLoc.t('Str_RC_LaneNum') + '</th>';
     for (var d = 0; d < deviceNames.length; d++) {
         html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;white-space:nowrap;">' + deviceNames[d].label + '</th>';
     }
@@ -1732,12 +1764,12 @@ function closeManualButtonManager() {
 function renderManualBtnPanel() {
     var panel = document.getElementById('manualBtnPanel');
     var swimmers = data.swimmers || [];
-    if (swimmers.length === 0) { panel.innerHTML = '<p style="color:#94A3B8;">暂无泳道数据</p>'; return; }
+    if (swimmers.length === 0) { panel.innerHTML = '<p style="color:#94A3B8;">' + WebLoc.t('Str_RC_NoLaneData') + '</p>'; return; }
 
     var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">';
-    html += '<tr style="background:#1E293B;"><th style="padding:6px;border:1px solid #475569;color:#94A3B8;">道次</th>';
-    html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;">左手动 用</th>';
-    html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;">右手动 用</th></tr>';
+    html += '<tr style="background:#1E293B;"><th style="padding:6px;border:1px solid #475569;color:#94A3B8;">' + WebLoc.t('Str_RC_LaneNum') + '</th>';
+    html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;">' + WebLoc.t('Str_RC_LeftManualUseCol') + '</th>';
+    html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;">' + WebLoc.t('Str_RC_RightManualUseCol') + '</th></tr>';
 
     for (var i = 0; i < swimmers.length; i++) {
         var sw = swimmers[i];
@@ -2091,6 +2123,39 @@ function confirmResult() {
     }
 }
 
+// 2026-10-11 "Unlock Heat Result" — PC/RTC 端原有按钮, 网页原来没有(漏翻译/漏功能)。
+//   两道确认跟桌面端 UnlockHeatResult_Click/AskUnlockConfirm 对齐: 第一道 Yes/No 看清楚解哪组,
+//   第二道写原因(至少2字)+ 手输组号核对(防手滑)。两道都过了才真的发 UNLOCK_HEAT_RESULT,
+//   服务端 TryUnlockHeatResultRemote() 还会再校验一遍(没网页端可信这回事), 失败原因回话展示。
+function confirmUnlockHeatResult() {
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Common_NotConnectedShort')); return; }
+    if (!data.currentEvent || !data.currentHeat) { alert(WebLoc.t('Str_Msg_NoHeatLoaded')); return; }
+    if (data.raceState === 'READY' || data.raceState === 'RACING') {
+        alert(WebLoc.f('Str_Msg_CannotUnlockRacingFmt', data.raceState === 'READY' ? WebLoc.t('Str_Msg_Ready2') : WebLoc.t('Str_Msg_Racing')));
+        return;
+    }
+    var ag = data.currentAgeGroup || '';
+    var head = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + WebLoc.stageDisplay(data.currentStage||'') + WebLoc.f('Str_Ctrl_HeatSuffixFmt', data.currentHeat||'');
+    if (!confirm(WebLoc.f('Str_Msg_UnlockStep1Fmt', head))) return;
+    var reason = null;
+    while (true) {
+        reason = prompt(WebLoc.t('Str_Win_UnlockConfirm_Body') + '\n\n' + WebLoc.t('Str_Win_MergeHeats_ReasonLabel'));
+        if (reason === null) { addLog(WebLoc.t('Str_RC_LogUnlockCancelledShort')); return; }
+        reason = reason.trim();
+        if (reason.length < 2) { alert(WebLoc.t('Str_Win_UnlockConfirm_MsgReasonTooShort')); continue; }
+        break;
+    }
+    var heatTyped = prompt(WebLoc.f('Str_Win_UnlockConfirm_HeatInputLabelFmt', data.currentHeat));
+    if (heatTyped === null) { addLog(WebLoc.t('Str_RC_LogUnlockCancelledShort')); return; }
+    if (parseInt(heatTyped, 10) !== data.currentHeat) {
+        alert(WebLoc.f('Str_Win_UnlockConfirm_MsgHeatMismatchFmt', data.currentHeat));
+        addLog(WebLoc.t('Str_RC_LogUnlockCancelledShort'));
+        return;
+    }
+    sendCmd('UNLOCK_HEAT_RESULT', { reason: reason });
+    addLog(WebLoc.t('Str_RC_LogUnlockRequested'));
+}
+
 // 2026-06-02 远程打印本组成绩: 必须先确认成绩才可用. 服务器端用 BuildHeatResultsHtml 生成 HTML
 //   推回 PRINT_HEAT_RESULT_HTML 消息, 这里 window.open 写入 HTML 用浏览器打印 / 另存 PDF.
 function printCurrentHeatResult() {
@@ -2231,7 +2296,7 @@ var treeCollapsed = {}; // session number -> collapsed state
 function renderScheduleTree() {
     var container = document.getElementById('scheduleTree');
     var schedule = data.schedule || [];
-    if (schedule.length === 0) { container.innerHTML = '<div style="padding:10px;color:var(--dim);font-size:11px;">暂无赛程</div>'; return; }
+    if (schedule.length === 0) { container.innerHTML = '<div style="padding:10px;color:var(--dim);font-size:11px;">' + WebLoc.t('Str_Common_NoSchedule') + '</div>'; return; }
 
     // 按场分组
     var sessions = {};
@@ -2245,7 +2310,7 @@ function renderScheduleTree() {
                 var _t = String(s.sessionName).replace(/^\s*第\d+(场|单元)\s*/, '');
                 if (_t.trim()) _sname = ' ' + _t;
             }
-            sessions[sn] = { name: '第' + sn + '场' + _sname, events: [] };
+            sessions[sn] = { name: WebLoc.f('Str_Common_SessionNumFmt', sn) + _sname, events: [] };
         }
         sessions[sn].events.push(s);
     }
@@ -2265,7 +2330,7 @@ function renderScheduleTree() {
         html += '<div class="tree-session">';
         html += '<div class="tree-session-header" onclick="toggleSession('+sn+')">';
         html += '<span class="arrow">' + (collapsed ? '▶' : '▼') + '</span> ' + sess.name;
-        if (sessionAllDone) html += ' <span style="color:#64748b;font-size:11px;">[已完赛]</span>';
+        if (sessionAllDone) html += ' <span style="color:#64748b;font-size:11px;">[' + WebLoc.t('Str_HeatStatus_Done') + ']</span>';
         html += '</div>';
         if (!collapsed) {
             for (var j = 0; j < sess.events.length; j++) {
@@ -2280,11 +2345,11 @@ function renderScheduleTree() {
                     var evKey = 'ev_' + sn + '_' + j;
                     var evCollapsed = treeCollapsed[evKey] !== false; // 默认收起
                     html += '<div class="tree-event" style="color:#aaa;cursor:pointer;" onclick="toggleSession(\'' + evKey + '\')">';
-                    html += '<span style="font-size:10px;margin-right:2px;">' + (evCollapsed ? '▶' : '▼') + '</span>' + evLabel + ' [已完赛]</div>';
+                    html += '<span style="font-size:10px;margin-right:2px;">' + (evCollapsed ? '▶' : '▼') + '</span>' + evLabel + ' [' + WebLoc.t('Str_HeatStatus_Done') + ']</div>';
                     if (!evCollapsed) {
                         var hc2 = ev.heatCount || 1;
                         for (var h2 = 1; h2 <= hc2; h2++) {
-                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">第' + h2 + '组 [已完赛]</div>';
+                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">' + WebLoc.f('Str_Common_HeatOfFmt', h2, hc2) + ' [' + WebLoc.t('Str_HeatStatus_Done') + ']</div>';
                         }
                     }
                 } else {
@@ -2300,11 +2365,11 @@ function renderScheduleTree() {
                         }
                         // 2026-09-21 用户要求: "已检录"标志要在整个系统的赛程导航都能看到——
                         // 跟主服务器/checkin.html 同一份数字状态表(schedule[].heatStatus, 服务器算好发过来)。
-                        var checkedIn = (ev.heatStatus && ev.heatStatus[h-1] === HEAT_STATUS.CHECKED_IN) ? ' <span style="color:#06b6d4;">[已检录]</span>' : '';
+                        var checkedIn = (ev.heatStatus && ev.heatStatus[h-1] === HEAT_STATUS.CHECKED_IN) ? ' <span style="color:#06b6d4;">[' + WebLoc.t('Str_HeatStatus_CheckedIn') + ']</span>' : '';
                         if (confirmed) {
-                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">第' + h + '组 [已完赛]' + checkedIn + '</div>';
+                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">' + WebLoc.f('Str_Common_HeatOfFmt', h, hc) + ' [' + WebLoc.t('Str_HeatStatus_Done') + ']' + checkedIn + '</div>';
                         } else {
-                            html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">第' + h + '组 (共' + hc + '组)' + checkedIn + '</div>';
+                            html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">' + WebLoc.f('Str_Common_HeatOfFmt', h, hc) + checkedIn + '</div>';
                         }
                     }
                 }
@@ -2354,6 +2419,14 @@ function blockIfRacing(action) {
     return false;
 }
 
+// 2026-10-11 "上一组/下一组" 按钮(原来只有 Ctrl+方向键, PC/RTC 端有可见按钮——按用户要求补上网页按钮)。
+function goPrevHeat() {
+    if (!blockIfRacing(WebLoc.t('Str_RC_ActionSwitchPrevHeat'))) sendCmd('PREV_HEAT');
+}
+function goNextHeat() {
+    if (!blockIfRacing(WebLoc.t('Str_RC_ActionSwitchNextHeat'))) sendCmd('NEXT_HEAT');
+}
+
 function selectHeat(key) {
     // 比赛进行中拦截
     if (blockIfRacing(WebLoc.t('Str_RC_ActionSwitchEvent'))) return;
@@ -2385,39 +2458,39 @@ function renderHeader() {
     // 左端与右端对称：从外到内为 盲3 / 盲2 / 盲1（最里侧的盲1始终最先显示）
     var leftBlindLabels = '';
     for (var i = 3; i >= 1; i--) {
-        leftBlindLabels += '<span class="device-label" style="' + (i > lbc ? 'visibility:hidden;' : '') + '">盲' + i + '</span>';
+        leftBlindLabels += '<span class="device-label" style="' + (i > lbc ? 'visibility:hidden;' : '') + '">' + WebLoc.f('Str_RC_BlindColFmt', i) + '</span>';
     }
     var rightBlindLabels = '';
     for (var i = 1; i <= 3; i++) {
-        rightBlindLabels += '<span class="device-label" style="' + (i > rbc ? 'visibility:hidden;' : '') + '">盲' + i + '</span>';
+        rightBlindLabels += '<span class="device-label" style="' + (i > rbc ? 'visibility:hidden;' : '') + '">' + WebLoc.f('Str_RC_BlindColFmt', i) + '</span>';
     }
     h.innerHTML =
-        '<div style="width:32px;text-align:center;flex-shrink:0;">道</div>' +
+        '<div style="width:32px;text-align:center;flex-shrink:0;">' + WebLoc.t('Str_RC_LaneColHeader') + '</div>' +
         '<div class="start-ind" style="width:8px;text-align:center;font-size:12px;' + leftColor + '">' + leftInd + '</div>' +
         '<div class="left-devices devices">' +
             '<span class="device-label-btn">[T]</span>' +
             leftBlindLabels +
-            '<span class="device-label">出发</span>' +
-            '<span class="device-label">触板</span>' +
-            '<span class="device-label" style="width:50px;">圈</span>' +
+            '<span class="device-label">' + WebLoc.t('Str_RC_StartColHeader') + '</span>' +
+            '<span class="device-label">' + WebLoc.t('Str_RC_TpColHeader') + '</span>' +
+            '<span class="device-label" style="width:50px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
         '</div>' +
         '<div class="lane-mid" style="padding:0 6px;">' +
-            '<div class="swimmer-info" style="font-size:12px;">姓名/代表队</div>' +
-            '<div class="lane-track" style="font-size:12px;height:auto;background:none;text-align:center;">方向/进度</div>' +
+            '<div class="swimmer-info" style="font-size:12px;">' + WebLoc.t('Str_RC_NameTeamColHeader') + '</div>' +
+            '<div class="lane-track" style="font-size:12px;height:auto;background:none;text-align:center;">' + WebLoc.t('Str_RC_DirProgColHeader') + '</div>' +
         '</div>' +
         '<div class="right-devices devices">' +
-            '<span class="device-label" style="width:50px;">圈</span>' +
-            '<span class="device-label">触板</span>' +
-            '<span class="device-label">出发</span>' +
+            '<span class="device-label" style="width:50px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
+            '<span class="device-label">' + WebLoc.t('Str_RC_TpColHeader') + '</span>' +
+            '<span class="device-label">' + WebLoc.t('Str_RC_StartColHeader') + '</span>' +
             rightBlindLabels +
             '<span class="device-label-btn">[T]</span>' +
         '</div>' +
         '<div class="start-ind" style="width:8px;text-align:center;font-size:12px;' + rightColor + '">' + rightInd + '</div>' +
         '<div class="info-area" style="font-family:inherit;">' +
-            '<div class="reaction" style="font-size:12px;">反应</div>' +
-            '<div class="final-time" style="font-size:12px;font-weight:normal;">成绩</div>' +
-            '<div class="rank" style="font-size:12px;font-weight:normal;">名次</div>' +
-            '<div style="width:40px;text-align:center;font-size:12px;margin-left:8px;">备注</div>' +
+            '<div class="reaction" style="font-size:12px;">' + WebLoc.t('Str_RC_ReactionColHeader') + '</div>' +
+            '<div class="final-time" style="font-size:12px;font-weight:normal;">' + WebLoc.t('Str_RC_ResultColHeader') + '</div>' +
+            '<div class="rank" style="font-size:12px;font-weight:normal;">' + WebLoc.t('Str_RC_RankColHeader') + '</div>' +
+            '<div style="width:40px;text-align:center;font-size:12px;margin-left:8px;">' + WebLoc.t('Str_RC_NoteColHeader') + '</div>' +
         '</div>';
 }
 
@@ -2524,7 +2597,7 @@ function getRelayCurrentLegName(sw) {
     // 完赛时显示最后一棒
     if (sw.isFinished) currentLeg = legCount - 1;
     var legName = (currentLeg < names.length) ? names[currentLeg].trim() : names[0].trim();
-    return '第' + (currentLeg + 1) + '棒: ' + legName;
+    return WebLoc.f('Str_Common_LegFmt', currentLeg + 1) + ': ' + legName;
 }
 
 // 泳道行 DOM 缓存：每行动态元素的引用，避免每次重建 innerHTML
@@ -2604,16 +2677,16 @@ function buildLaneRows(container, swimmers, rcRelay) {
             '<div class="lane-num">' + lane + '</div>' +
             '<div class="start-ind lr-left-ind"></div>' +
             '<div class="left-devices devices">' +
-                '<button class="touch-btn lr-touch-l" onmousedown="event.stopPropagation();manualTouch('+lane+',\'left\')" title="左端手动触板">T</button>' +
-                '<div class="device-dot lr-ld-0" title="盲表3" style="' + ldVis(0) + '"></div>' +
-                '<div class="device-dot lr-ld-1" title="盲表2" style="' + ldVis(1) + '"></div>' +
-                '<div class="device-dot lr-ld-2" title="盲表1" style="' + ldVis(2) + '"></div>' +
-                '<div class="device-dot lr-ld-3" title="出发台"></div>' +
-                '<div class="device-dot lr-ld-4" title="触板"></div>' +
+                '<button class="touch-btn lr-touch-l" onmousedown="event.stopPropagation();manualTouch('+lane+',\'left\')" title="' + WebLoc.t('Str_RC_LeftManualTouchTip') + '">T</button>' +
+                '<div class="device-dot lr-ld-0" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 3) + '" style="' + ldVis(0) + '"></div>' +
+                '<div class="device-dot lr-ld-1" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 2) + '" style="' + ldVis(1) + '"></div>' +
+                '<div class="device-dot lr-ld-2" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 1) + '" style="' + ldVis(2) + '"></div>' +
+                '<div class="device-dot lr-ld-3" title="' + WebLoc.t('Str_RC_StartBlockTip') + '"></div>' +
+                '<div class="device-dot lr-ld-4" title="' + WebLoc.t('Str_RC_TouchpadTip') + '"></div>' +
                 '<span class="lr-left-remain" style="display:inline-block;width:26px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
                 '<span class="lap-spinner" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;">' +
-                    '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',true,1)" title="左侧 +1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
-                    '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',true,-1)" title="左侧 -1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
+                    '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',true,1)" title="' + WebLoc.t('Str_RC_LeftPlus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
+                    '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',true,-1)" title="' + WebLoc.t('Str_RC_LeftMinus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
                 '</span>' +
             '</div>' +
             '<div class="lane-mid">' +
@@ -2622,22 +2695,22 @@ function buildLaneRows(container, swimmers, rcRelay) {
             '</div>' +
             '<div class="right-devices devices">' +
                 '<span class="lap-spinner" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;">' +
-                    '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',false,1)" title="右侧 +1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
-                    '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',false,-1)" title="右侧 -1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
+                    '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',false,1)" title="' + WebLoc.t('Str_RC_RightPlus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
+                    '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',false,-1)" title="' + WebLoc.t('Str_RC_RightMinus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
                 '</span>' +
                 '<span class="lr-right-remain" style="display:inline-block;width:26px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
-                '<div class="device-dot lr-rd-0" title="触板"></div>' +
-                '<div class="device-dot lr-rd-1" title="出发台"></div>' +
-                '<div class="device-dot lr-rd-2" title="盲表1" style="' + rdVis(2) + '"></div>' +
-                '<div class="device-dot lr-rd-3" title="盲表2" style="' + rdVis(3) + '"></div>' +
-                '<div class="device-dot lr-rd-4" title="盲表3" style="' + rdVis(4) + '"></div>' +
-                '<button class="touch-btn lr-touch-r" onmousedown="event.stopPropagation();manualTouch('+lane+',\'right\')" title="右端手动触板">T</button>' +
+                '<div class="device-dot lr-rd-0" title="' + WebLoc.t('Str_RC_TouchpadTip') + '"></div>' +
+                '<div class="device-dot lr-rd-1" title="' + WebLoc.t('Str_RC_StartBlockTip') + '"></div>' +
+                '<div class="device-dot lr-rd-2" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 1) + '" style="' + rdVis(2) + '"></div>' +
+                '<div class="device-dot lr-rd-3" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 2) + '" style="' + rdVis(3) + '"></div>' +
+                '<div class="device-dot lr-rd-4" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 3) + '" style="' + rdVis(4) + '"></div>' +
+                '<button class="touch-btn lr-touch-r" onmousedown="event.stopPropagation();manualTouch('+lane+',\'right\')" title="' + WebLoc.t('Str_RC_RightManualTouchTip') + '">T</button>' +
             '</div>' +
             '<div class="start-ind lr-right-ind"></div>' +
             '<div class="info-area">' +
                 '<div style="display:flex;flex-direction:column;">' +
                     '<div class="reaction lr-reaction"></div>' +
-                    '<select class="lr-blind-combo" title="盲表成绩历史 (最新)" onmousedown="event.stopPropagation();" onchange="event.stopPropagation();"></select>' +
+                    '<select class="lr-blind-combo" title="' + WebLoc.t('Str_RC_BlindHistoryTip') + '" onmousedown="event.stopPropagation();" onchange="event.stopPropagation();"></select>' +
                 '</div>' +
                 '<div class="final-time lr-final"></div>' +
                 '<div class="rank lr-rank"></div>' +
@@ -2751,7 +2824,7 @@ function refreshLaneRows(swimmers, rcRelay) {
             newTeam = '';
             nameColor = newName ? '#F59E0B' : '';
         } else if (sw.status === 'EMPTY') {
-            newName = '（空泳道）'; newTeam = '';
+            newName = WebLoc.t('Str_Label_EmptyLaneParen'); newTeam = '';
         } else {
             newName = rcRelay ? (sw.country||'') : (sw.name||'');
             newTeam = rcRelay ? getRelayCurrentLegName(sw) : (sw.country||'');
@@ -2894,7 +2967,7 @@ function toggleDeviceTest() {
     var inTest = !!(data && data.testMode);
     if (!inTest && !confirm(WebLoc.t('Str_RC_ConfirmEnterDeviceTest'))) return;
     sendCmd('DEVICE_TEST_TOGGLE');
-    addLog(inTest ? '已请求退出设备测试' : '已请求进入设备测试');
+    addLog(inTest ? WebLoc.t('Str_RC_LogExitDeviceTestRequested') : WebLoc.t('Str_RC_LogEnterDeviceTestRequested'));
 }
 
 // 2026-06-19 toggleForceOpenAll 函数已删除 (按钮并入参数设置"硬件设备: 一直打开")
@@ -2973,11 +3046,11 @@ function rcRefreshLaneEventLog() {
     var box = document.getElementById('rcLaneEventLog');
     if (!box) return;
     var content;
-    if (selectedLane < 0) content = '(请先点击或输入泳道号)';
-    else if (!data || !data.laneEventLogs) content = '(未连接主服务器或本组暂无事件)';
+    if (selectedLane < 0) content = WebLoc.t('Str_RC_ClickOrTypeLaneHint');
+    else if (!data || !data.laneEventLogs) content = WebLoc.t('Str_RC_NoServerOrNoEventsHint');
     else {
         var txt = data.laneEventLogs[String(selectedLane)] || '';
-        content = txt ? txt : ('道' + selectedLane + ': 本组暂无事件记录');
+        content = txt ? txt : WebLoc.f('Str_RC_LaneNoEventsFmt', selectedLane);
     }
     if (box.textContent !== content) {
         box.textContent = content;
@@ -3000,7 +3073,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function updateTimingSourceInfo() {
     if (selectedLane < 0 || !data || !data.swimmers) {
-        document.getElementById('timingSourceCompare').innerHTML = '<span style="color:#64748B;">点击泳道行查看计时源</span>';
+        document.getElementById('timingSourceCompare').innerHTML = '<span style="color:#64748B;">' + WebLoc.t('Str_RC_ClickLaneRowHint') + '</span>';
         return;
     }
     var swimmers = data.swimmers || [];
@@ -3016,10 +3089,10 @@ function updateTimingSourceInfo() {
         if (splitCount !== _lastTsSplitCount) {
             _lastTsSplitCount = splitCount;
             var prevIdx = combo.selectedIndex;
-            combo.innerHTML = '<option value="0">终点</option>';
+            combo.innerHTML = '<option value="0">' + WebLoc.t('Str_RC_Finish') + '</option>';
             for (var j = 0; j < splitCount; j++) {
                 var sp = splits[j];
-                combo.innerHTML += '<option value="' + (j+1) + '">第' + sp.lap + '段(' + sp.distance + 'm)</option>';
+                combo.innerHTML += '<option value="' + (j+1) + '">' + WebLoc.f('Str_RC_TSSplitItemFmt', sp.lap, sp.distance) + '</option>';
             }
             if (prevIdx >= 0 && prevIdx < combo.options.length) combo.selectedIndex = prevIdx;
             else combo.selectedIndex = 0;
@@ -3040,41 +3113,41 @@ function showTimingSourceData() {
         if (sw.lane !== selectedLane) continue;
 
         var splits = sw.splits || [];
-        var html = '<b>道' + selectedLane + '  ' + (sw.name||'') + '</b><br>';
+        var html = '<b>' + WebLoc.f('Str_RC_TsLaneNameFmt', selectedLane, (sw.name||'')) + '</b><br>';
 
         if (selIdx <= 0) {
             // 终点：反应时间、触板、盲表1/2/3、手动
-            html += '<b>【终点】</b><br>';
+            html += '<b>' + WebLoc.t('Str_RC_TsFinishHeader') + '</b><br>';
             if (reactionTimeEnabled) {
                 var rt = sw.reactionTime || '';
-                html += '反应时间: ' + (rt || '-') + '<br>';
+                html += WebLoc.t('Str_RC_TsReactionLabel') + (rt || '-') + '<br>';
             } else {
-                html += '反应时间: 已关闭<br>';
+                html += WebLoc.t('Str_RC_TsReactionLabel') + WebLoc.t('Str_RC_TsReactionOff') + '<br>';
             }
             var ts = sw.timingSources;
             if (ts) {
-                html += '触&nbsp;&nbsp;板: ' + (ts.touchpad || '-') + '<br>';
-                html += '盲表 1: ' + (ts.blindWatch1 || '-') + '<br>';
-                html += '盲表 2: ' + (ts.blindWatch2 || '-') + '<br>';
-                html += '盲表 3: ' + (ts.blindWatch3 || '-') + '<br>';
+                html += WebLoc.t('Str_RC_TsTouchpadLabel') + (ts.touchpad || '-') + '<br>';
+                html += WebLoc.f('Str_RC_TsBlindLabelFmt', 1) + (ts.blindWatch1 || '-') + '<br>';
+                html += WebLoc.f('Str_RC_TsBlindLabelFmt', 2) + (ts.blindWatch2 || '-') + '<br>';
+                html += WebLoc.f('Str_RC_TsBlindLabelFmt', 3) + (ts.blindWatch3 || '-') + '<br>';
                 var manual = ts.manual || '';
                 if (!manual) manual = (finishPosition === 'right') ? (ts.manualTouchRight||'') : (ts.manualTouchLeft||'');
-                html += '手&nbsp;&nbsp;动: ' + (manual || '-') + '<br>';
+                html += WebLoc.t('Str_RC_TsManualLabel') + (manual || '-') + '<br>';
             }
         } else if (selIdx - 1 < splits.length) {
             // 分段：反应时间(若有)、触板、盲表1/2/3、手动、计时源
             var sp = splits[selIdx - 1];
-            html += '<b>【第' + sp.lap + '段  ' + sp.distance + 'm】</b><br>';
+            html += '<b>' + WebLoc.f('Str_RC_TsSplitHeaderFmt', sp.lap, sp.distance) + '</b><br>';
             if (reactionTimeEnabled) {
                 var spReact = sw.reactionTime || '';
-                if (spReact) html += '反应时间: ' + spReact + '<br>';
+                if (spReact) html += WebLoc.t('Str_RC_TsReactionLabel') + spReact + '<br>';
             }
-            html += '触&nbsp;&nbsp;板: ' + (sp.touchpad || '-') + '<br>';
-            html += '盲表 1: ' + (sp.blind1 || '-') + '<br>';
-            html += '盲表 2: ' + (sp.blind2 || '-') + '<br>';
-            html += '盲表 3: ' + (sp.blind3 || '-') + '<br>';
-            html += '手&nbsp;&nbsp;动: ' + (sp.manual || '-') + '<br>';
-            html += '计时源: ' + (sp.source || '-') + '<br>';
+            html += WebLoc.t('Str_RC_TsTouchpadLabel') + (sp.touchpad || '-') + '<br>';
+            html += WebLoc.f('Str_RC_TsBlindLabelFmt', 1) + (sp.blind1 || '-') + '<br>';
+            html += WebLoc.f('Str_RC_TsBlindLabelFmt', 2) + (sp.blind2 || '-') + '<br>';
+            html += WebLoc.f('Str_RC_TsBlindLabelFmt', 3) + (sp.blind3 || '-') + '<br>';
+            html += WebLoc.t('Str_RC_TsManualLabel') + (sp.manual || '-') + '<br>';
+            html += WebLoc.t('Str_RC_TsSourceLabel') + (sp.source || '-') + '<br>';
         }
         document.getElementById('timingSourceCompare').innerHTML = html;
         break;
@@ -3121,12 +3194,12 @@ function manualTouch(lane, side) {
 
 function renderStartListBar() {
     var sl = document.getElementById('startList');
-    var html = '<b>出发表:</b> ';
+    var html = '<b>' + WebLoc.t('Str_RC_StartListBarLabel') + '</b> ';
     var swimmers = data.swimmers || [];
     var slbRelay = (data.currentEvent||'').indexOf('接力') >= 0;
     for (var i = 0; i < swimmers.length; i++) {
         var slbLabel = slbRelay ? (swimmers[i].country||'') : (swimmers[i].name||'');
-        html += '道' + swimmers[i].lane + '-' + slbLabel + '(' + (swimmers[i].entryTime||'') + ') ';
+        html += WebLoc.f('Str_RC_LaneCompactFmt', swimmers[i].lane) + '-' + slbLabel + '(' + (swimmers[i].entryTime||'') + ') ';
     }
     sl.innerHTML = html;
 }
@@ -3155,14 +3228,8 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault();
         sendCmd('MANUAL_TOUCH_RIGHT', {lane: e.key === '0' ? 10 : parseInt(e.key)});
     }
-    if (e.ctrlKey && e.key === 'ArrowLeft') {
-        if (!blockIfRacing(WebLoc.t('Str_RC_ActionSwitchPrevHeat'))) sendCmd('PREV_HEAT');
-        e.preventDefault();
-    }
-    if (e.ctrlKey && e.key === 'ArrowRight') {
-        if (!blockIfRacing(WebLoc.t('Str_RC_ActionSwitchNextHeat'))) sendCmd('NEXT_HEAT');
-        e.preventDefault();
-    }
+    if (e.ctrlKey && e.key === 'ArrowLeft') { goPrevHeat(); e.preventDefault(); }
+    if (e.ctrlKey && e.key === 'ArrowRight') { goNextHeat(); e.preventDefault(); }
     if (!e.shiftKey && !e.ctrlKey && e.key >= '1' && e.key <= '9') selectLane(parseInt(e.key));
     if (!e.shiftKey && !e.ctrlKey && e.key === '0') selectLane(0);
     if (e.key === 'd' || e.key === 'D') { if (selectedLane >= 0) sendCmd('MARK_DNS', {lane: selectedLane}); }
