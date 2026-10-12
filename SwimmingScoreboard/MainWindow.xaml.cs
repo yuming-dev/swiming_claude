@@ -18460,17 +18460,21 @@ namespace SwimmingScoreboard
 
         // 2026-06-12 比赛泳池、设备状态设置 子窗口 (从 参数设置 拆出 终点位置/反应时/盲表代触板/硬件设备/出发边沿/道次顺序/泳池触板 + 设备管理按钮). 确认=应用并同步; 取消=不改.
         private void ShowPoolDeviceSettingsDialog() {
-            // 2026-10-11 v3: v2 的"标签独占一行"纵向布局用户看了觉得还不如原来的左右布局——
-            //   退回"标签在左、单选项在右"一行式, 只做两处针对性修复:
-            //   1) "Backup Watch Replaces Touchpad"(31字符) 缩成 "...Replaces TP", 原标签列够装下;
-            //   2) 标签和单选项分成 Grid 两列(不再共用一个 WrapPanel)——这样"On"文字太长时,
-            //      "Off"换行只在单选项这一列内换, 自动对齐到"On"正下方, 不会对齐跑到标签下面。
+            // 2026-10-12 v4: 用户拿网页版(race_control.html 同一个对话框, 已改成共享 CSS Grid
+            //   三列对齐)跟这边对比, 发现这边"第2个选项"没对齐——v3 虽然把 标签/单选项 分成了
+            //   Grid 两列, 但两个单选项(r1/r2)还是塞进同一个 WrapPanel, r2 的起始 X 跟着 r1
+            //   的文字长度走, 行与行对不齐(截图可见"右端"/"关闭"/"关"/"按比赛流程"这些 r2 各自
+            //   位置不一样)。改成全部 8 行共用*同一个* Grid(不再每行各起一个 Grid), 三列:
+            //   标签(固定宽) / 选项1(Auto, 按所有行里最宽的选项1撑开) / 选项2(Auto, 同理)——
+            //   WPF 的 Auto 列天然按"这一列所有行中最宽的那个"统一定宽, 两列单选框自然对成
+            //   两条竖线, 跟网页版现在的效果一致。窗口也从猜一个固定像素宽度改成
+            //   SizeToContent.WidthAndHeight, 按实际内容自动变宽, 不会再因为宽度猜小了换行。
             bool enPD = Loc.CurrentLanguage == Loc.En;
             double pdLabelW = enPD ? 230 : 140;
             var dlg = new Window {
                 Title = Loc.T("Str_Win_PoolDevice_Title"),
-                Width = enPD ? 640 : 440,
-                SizeToContent = SizeToContent.Height,
+                MinWidth = enPD ? 560 : 380,
+                SizeToContent = SizeToContent.WidthAndHeight,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
@@ -18478,24 +18482,28 @@ namespace SwimmingScoreboard
             var sp = new StackPanel { Margin = new Thickness(20) };
             sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_PoolDevice_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
+            var pdGrid = new Grid();
+            pdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(pdLabelW) });
+            pdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            pdGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            sp.Children.Add(pdGrid);
+            int pdRowIdx = 0;
             Action<string, RadioButton, RadioButton> addPdRow = delegate (string label, RadioButton r1, RadioButton r2) {
-                var row = new Grid { Margin = new Thickness(0, 10, 0, 0) };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(pdLabelW) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                pdGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                 var lbl = new TextBlock {
                     Text = label, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
-                    FontSize = 15, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap
+                    FontSize = 15, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 10, 12, 0)
                 };
-                Grid.SetColumn(lbl, 0);
-                r1.Margin = new Thickness(0, 0, 12, 2);
-                r2.Margin = new Thickness(0, 0, 0, 2);
-                var wp = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
-                wp.Children.Add(r1);
-                wp.Children.Add(r2);
-                Grid.SetColumn(wp, 1);
-                row.Children.Add(lbl);
-                row.Children.Add(wp);
-                sp.Children.Add(row);
+                Grid.SetRow(lbl, pdRowIdx); Grid.SetColumn(lbl, 0);
+                r1.Margin = new Thickness(0, 10, 24, 0); r1.VerticalAlignment = VerticalAlignment.Center;
+                Grid.SetRow(r1, pdRowIdx); Grid.SetColumn(r1, 1);
+                r2.Margin = new Thickness(0, 10, 0, 0); r2.VerticalAlignment = VerticalAlignment.Center;
+                Grid.SetRow(r2, pdRowIdx); Grid.SetColumn(r2, 2);
+                pdGrid.Children.Add(lbl);
+                pdGrid.Children.Add(r1);
+                pdGrid.Children.Add(r2);
+                pdRowIdx++;
             };
 
             // 终点位置
