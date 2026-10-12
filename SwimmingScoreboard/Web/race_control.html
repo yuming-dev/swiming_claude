@@ -224,6 +224,16 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .modal-dialog .param-row label { flex: 1; font-size: 15px; color: var(--dim); }
 .modal-dialog .param-row input { width: 70px; background: #334155; border: 1px solid #475569; color: white; padding: 4px 8px; border-radius: 4px; text-align: center; font-size: 15px; }
 .modal-dialog .param-row .unit { font-size: 13px; color: var(--dim); margin-left: 4px; width: 16px; }
+/* 2026-10-12 "比赛泳池、设备状态设置"这类"标题 + 两个单选项"的行, 原来标题 flex:1 挤占剩余空间,
+   行与行之间标题宽度不一, 选项起始位置对不齐; 英文版选项文字("By Race Flow"/"Ascending 0→9"
+   这类)比中文长很多, 空间不够还会在选项内部折成两行, 很难看。改用一个共享 CSS Grid(所有行
+   是同一个 grid 容器的直接子元素, 不再各自嵌一层 flex row) ——3 列宽度按"这一列里所有行中最宽
+   的那个"统一撑开, 行与行之间两颗单选框自然对齐成两条竖线, 而且 max-content 保证选项文字
+   不会被挤到换行。 */
+.radio-grid { display: grid; grid-template-columns: minmax(130px, max-content) minmax(100px, max-content) minmax(100px, max-content); row-gap: 11px; column-gap: 20px; align-items: center; margin-bottom: 14px; }
+.radio-grid .row-title { color: var(--dim); font-size: 14px; }
+.radio-grid .radio-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); font-size: 14px; white-space: nowrap; }
+.radio-grid .radio-opt input { margin: 0; flex-shrink: 0; }
 .modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .modal-btns button { padding: 6px 20px; border: none; border-radius: 4px; font-size: 15px; cursor: pointer; }
 .modal-btns .btn-ok { background: var(--accent); color: white; font-weight: bold; }
@@ -357,53 +367,38 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <div id="poolDeviceModal" class="modal-overlay hidden" onclick="if(event.target===this)closePoolDevice()">
     <div class="modal-dialog">
         <h2 data-i18n="Str_RC_HubPoolDevice" style="color:#10B981;">比赛泳池、设备状态设置</h2>
-        <div class="param-row"><label data-i18n="Str_RC_FinishPos">终点位置</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartLeft" checked> <span data-i18n="Str_RC_LeftEnd">左端</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartRight"> <span data-i18n="Str_RC_RightEnd">右端</span></label>
-            </span>
-        </div>
-        <div class="param-row"><label data-i18n="Str_RC_ReactionTimeRT">反应时(RT)</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOn" checked> <span data-i18n="Str_RC_On">打开</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOff"> <span data-i18n="Str_RC_Off">关闭</span></label>
-            </span>
-        </div>
-        <div class="param-row"><label data-i18n="Str_RC_BlindReplTp">盲表代触板</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOn"> <span data-i18n="Str_RC_OnShort">开</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
-            </span>
-        </div>
-        <div class="param-row"><label data-i18n="Str_RC_ManualTpReplTp">手动TP代替真TP</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOn"> <span data-i18n="Str_RC_OnShort">开</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
-            </span>
-        </div>
-        <div class="param-row"><label data-i18n="Str_RC_HwDevice">硬件设备</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwAlwaysOpen"> <span data-i18n="Str_RC_AlwaysOpen">一直打开</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwFlow" checked> <span data-i18n="Str_RC_ByRaceFlow">按比赛流程</span></label>
-            </span>
-        </div>
-        <div class="param-row"><label data-i18n="Str_RC_SBEdge">出发信号边沿</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeFall" checked> <span data-i18n="Str_RC_FallingEdge">下降沿</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeRise"> <span data-i18n="Str_RC_RisingEdge">上升沿</span></label>
-            </span>
-        </div>
-        <div class="param-row"><label data-i18n="Str_RC_LaneOrder">道次顺序</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderFwd" checked> <span data-i18n="Str_RC_LaneOrderFwd">正序 0→9</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderRev"> <span data-i18n="Str_RC_LaneOrderRev">逆序 9→0</span></label>
-            </span>
-        </div>
-        <div class="param-row"><label data-i18n="Str_RC_PoolTouchpad">泳池触板</label>
-            <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolDual" checked> <span data-i18n="Str_RC_DualEnd">两端安装</span></label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolSingle"> <span data-i18n="Str_RC_SingleEnd">单边安装</span></label>
-            </span>
+        <div class="radio-grid">
+            <label class="row-title" data-i18n="Str_RC_FinishPos">终点位置</label>
+            <label class="radio-opt"><input type="radio" name="startPos" id="dlgStartLeft" checked> <span data-i18n="Str_RC_LeftEnd">左端</span></label>
+            <label class="radio-opt"><input type="radio" name="startPos" id="dlgStartRight"> <span data-i18n="Str_RC_RightEnd">右端</span></label>
+
+            <label class="row-title" data-i18n="Str_RC_ReactionTimeRT">反应时(RT)</label>
+            <label class="radio-opt"><input type="radio" name="rtSwitch" id="dlgRtOn" checked> <span data-i18n="Str_RC_On">打开</span></label>
+            <label class="radio-opt"><input type="radio" name="rtSwitch" id="dlgRtOff"> <span data-i18n="Str_RC_Off">关闭</span></label>
+
+            <label class="row-title" data-i18n="Str_RC_BlindReplTp">盲表代触板</label>
+            <label class="radio-opt"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOn"> <span data-i18n="Str_RC_OnShort">开</span></label>
+            <label class="radio-opt"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
+
+            <label class="row-title" data-i18n="Str_RC_ManualTpReplTp">手动TP代替真TP</label>
+            <label class="radio-opt"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOn"> <span data-i18n="Str_RC_OnShort">开</span></label>
+            <label class="radio-opt"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
+
+            <label class="row-title" data-i18n="Str_RC_HwDevice">硬件设备</label>
+            <label class="radio-opt"><input type="radio" name="hwOpenMode" id="dlgHwAlwaysOpen"> <span data-i18n="Str_RC_AlwaysOpen">一直打开</span></label>
+            <label class="radio-opt"><input type="radio" name="hwOpenMode" id="dlgHwFlow" checked> <span data-i18n="Str_RC_ByRaceFlow">按比赛流程</span></label>
+
+            <label class="row-title" data-i18n="Str_RC_SBEdge">出发信号边沿</label>
+            <label class="radio-opt"><input type="radio" name="sbEdge" id="dlgSbEdgeFall" checked> <span data-i18n="Str_RC_FallingEdge">下降沿</span></label>
+            <label class="radio-opt"><input type="radio" name="sbEdge" id="dlgSbEdgeRise"> <span data-i18n="Str_RC_RisingEdge">上升沿</span></label>
+
+            <label class="row-title" data-i18n="Str_RC_LaneOrder">道次顺序</label>
+            <label class="radio-opt"><input type="radio" name="laneOrder" id="dlgLaneOrderFwd" checked> <span data-i18n="Str_RC_LaneOrderFwd">正序 0→9</span></label>
+            <label class="radio-opt"><input type="radio" name="laneOrder" id="dlgLaneOrderRev"> <span data-i18n="Str_RC_LaneOrderRev">逆序 9→0</span></label>
+
+            <label class="row-title" data-i18n="Str_RC_PoolTouchpad">泳池触板</label>
+            <label class="radio-opt"><input type="radio" name="poolSide" id="dlgPoolDual" checked> <span data-i18n="Str_RC_DualEnd">两端安装</span></label>
+            <label class="radio-opt"><input type="radio" name="poolSide" id="dlgPoolSingle"> <span data-i18n="Str_RC_SingleEnd">单边安装</span></label>
         </div>
         <div style="border-top:1px solid #475569;margin-top:12px;padding-top:12px;display:flex;gap:8px;">
             <button style="flex:1;padding:9px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closePoolDevice();openDeviceManager()" data-i18n="Str_RC_DeviceStatusMgmt">设备状态管理</button>
@@ -957,7 +952,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261011-2';
+var PAGE_VER = '20261012-1';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
