@@ -21961,6 +21961,7 @@ namespace SwimmingScoreboard
             if (i >= 0 && i < rules.Length) {
                 _competitionRule = rules[i];
                 if (CompRuleDescText != null) CompRuleDescText.Text = Loc.T(descKeys[i]);
+                RefreshOverviewModeRow();   // 2026-10-12 赛事概览的只读镜像文字跟着立刻更新
                 if (_initialized) AddLog(Loc.F("Str_Log_CompetitionRuleSwitchedFmt", _competitionRule));
                 // 2026-10-10 用户手动切规则(不是加载存档时程序化设置)才问要不要自动导入
                 //   对应的四张表——这是替换性操作, 跟四个"导入XX表"按钮一样先问一句。
@@ -28759,8 +28760,31 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 赛事概览统计
         // ═══════════════════════════════════════════════════════════════
+        // 2026-10-12 "赛事概览"的 比赛模式/泳池长度/泳道数量 三项改成只读, 镜像"比赛参数设置管理"
+        //   页的 比赛规则(CompRuleCombo)/泳池长度(PoolLengthCombo)/泳道数量(LaneCountCombo) 当前选中值——
+        //   挂在 RefreshOverviewStats() 里统一刷新, 不用在它的 18 个调用点一个个补调用。
+        private void RefreshOverviewModeRow() {
+            if (CompRuleDisplayText != null && CompRuleCombo != null) {
+                CompRuleDisplayText.Text = (CompRuleCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "-";
+            }
+            if (PoolLengthDisplayText != null && PoolLengthCombo != null) {
+                PoolLengthDisplayText.Text = (PoolLengthCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "-";
+            }
+            if (LaneCountDisplayText != null && LaneCountCombo != null) {
+                LaneCountDisplayText.Text = (LaneCountCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "-";
+            }
+        }
+
+        // 2026-10-12 泳池长度/泳道数量 下拉挪到"比赛参数设置管理"页后, 改动时只刷新赛事概览的
+        //   只读预览文字(跟原来 CompModeCombo/PoolLengthCombo/LaneCountCombo 在赛事概览本来就是
+        //   "选完要点保存赛事信息才真正生效" 同一个节奏, 这里不提前改 _poolConfig)。
+        private void PoolConfigCombo_Changed(object sender, SelectionChangedEventArgs e) {
+            RefreshOverviewModeRow();
+        }
+
         private void RefreshOverviewStats() {
             if (OverviewSummaryPanel == null || OverviewStatsPanel == null) return;
+            RefreshOverviewModeRow();
 
             // 统计各项目、各性别的报名人数（排除接力队员子条目）
             var athletes = _swimmers.Where(s => s.Notes == null || !s.Notes.StartsWith("接力队员")).ToList();

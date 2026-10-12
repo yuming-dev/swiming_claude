@@ -249,48 +249,49 @@
                                                     <RowDefinition Height="34"/>
                                                     <RowDefinition Height="34"/>
                                                     <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Str_EM_EventName}" VerticalAlignment="Center" Foreground="#475569"/>
                                                 <TextBox x:Name="CompNameBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <!-- 2026-10-12 "比赛模式"下拉去掉(跟"比赛参数设置管理"的"比赛规则"重复、用户反馈多余),
+                                                     改成只读镜像三项(比赛规则/泳池长度/泳道数量), 一行显示; 泳池长度/泳道数量的
+                                                     真正可编辑下拉框挪到"比赛参数设置管理"Tab 的"比赛规则"下方(CompRuleCombo 附近)。
+                                                     三个只读 TextBlock 由 RefreshOverviewModeRow() 统一刷新(比赛规则切换/泳池参数改动/
+                                                     语言切换/加载赛事包 都会调它)。 -->
                                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Str_EM_CompMode}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <ComboBox x:Name="CompModeCombo" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" SelectedIndex="0">
+                                                <TextBlock x:Name="CompRuleDisplayText" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Foreground="#1E293B" FontWeight="SemiBold" Text="-"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{DynamicResource Str_EM_PoolLength}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBlock x:Name="PoolLengthDisplayText" Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" Foreground="#1E293B" FontWeight="SemiBold" Text="-"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{DynamicResource Str_EM_LaneCount}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBlock x:Name="LaneCountDisplayText" Grid.Row="1" Grid.Column="5" VerticalAlignment="Center" Foreground="#1E293B" FontWeight="SemiBold" Text="-"/>
+                                                <!-- 隐藏控件保留 CompModeCombo: _competitionMode(国内/国际) 仍有独立用途(System Status
+                                                     页的 Mode 文本、存档/客户端广播), 只是不再在赛事概览露出可编辑 UI, 跟 ChiefJudgeBox
+                                                     是同一个"隐藏兼容旧代码引用"套路。 -->
+                                                <ComboBox x:Name="CompModeCombo" Grid.Row="1" Width="0" Height="0" Visibility="Collapsed" SelectedIndex="0">
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_ModeDomestic}"/>
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_ModeIntl}"/>
                                                 </ComboBox>
-                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{DynamicResource Str_EM_PoolLength}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <ComboBox x:Name="PoolLengthCombo" Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" SelectedIndex="0">
-                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Pool50}"/>
-                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Pool25}"/>
-                                                </ComboBox>
-                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Str_EM_LaneCount}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <ComboBox x:Name="LaneCountCombo" Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" SelectedIndex="0">
-                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Lanes10}"/>
-                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Lanes8}"/>
-                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Lanes6}"/>
-                                                </ComboBox>
-                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Str_EM_StartDate}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <DatePicker x:Name="StartDatePicker" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center"
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Str_EM_StartDate}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <DatePicker x:Name="StartDatePicker" Grid.Row="2" Grid.Column="1" VerticalAlignment="Center"
                                                             Language="en-CA" SelectedDateFormat="Short"/>
-                                                <TextBlock Grid.Row="3" Grid.Column="2" Text="{DynamicResource Str_EM_EndDate}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <DatePicker x:Name="EndDatePicker" Grid.Row="3" Grid.Column="3" VerticalAlignment="Center"
+                                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{DynamicResource Str_EM_EndDate}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <DatePicker x:Name="EndDatePicker" Grid.Row="2" Grid.Column="3" VerticalAlignment="Center"
                                                             Language="en-CA" SelectedDateFormat="Short"/>
-                                                <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Str_EM_Location}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="LocationBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Row="5" Grid.Column="0" Text="{DynamicResource Str_EM_Organizer}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="OrganizerBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Row="6" Grid.Column="0" Text="{DynamicResource Str_EM_Host}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="HostBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Str_EM_Location}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="LocationBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Str_EM_Organizer}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="OrganizerBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="5" Grid.Column="0" Text="{DynamicResource Str_EM_Host}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="HostBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
                                                 <!-- 2026-05-26 同一行排 技术代表 / 仲裁委员 / 总裁判长 (原第 8 行 含编排长 整行删除) -->
-                                                <TextBlock Grid.Row="7" Grid.Column="0" Text="{DynamicResource Str_EM_TechDelegate}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="TechDelegateBox" Grid.Row="7" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Row="7" Grid.Column="2" Text="{DynamicResource Str_EM_Arbiter}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="ArbiterBox" Grid.Row="7" Grid.Column="3" Padding="4" VerticalAlignment="Center"
+                                                <TextBlock Grid.Row="6" Grid.Column="0" Text="{DynamicResource Str_EM_TechDelegate}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="TechDelegateBox" Grid.Row="6" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="6" Grid.Column="2" Text="{DynamicResource Str_EM_Arbiter}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="ArbiterBox" Grid.Row="6" Grid.Column="3" Padding="4" VerticalAlignment="Center"
                                                          ToolTip="{DynamicResource Str_EM_CommaSepTip}"/>
-                                                <TextBlock Grid.Row="7" Grid.Column="4" Text="{DynamicResource Str_EM_ChiefReferee}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="RefereeBox" Grid.Row="7" Grid.Column="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="6" Grid.Column="4" Text="{DynamicResource Str_EM_ChiefReferee}" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="RefereeBox" Grid.Row="6" Grid.Column="5" Padding="4" VerticalAlignment="Center"/>
                                                 <!-- 2026-05-26 编排长字段已从 UI 删除. ChiefJudgeBox 保留为隐藏控件以兼容现有 .csproj / .cs 引用 (保存/加载/秩序册/封面签字栏等仍读它); 数据=空字符串 -->
-                                                <TextBox x:Name="ChiefJudgeBox" Grid.Row="7" Width="0" Height="0" Visibility="Collapsed"/>
+                                                <TextBox x:Name="ChiefJudgeBox" Grid.Row="6" Width="0" Height="0" Visibility="Collapsed"/>
                                             </Grid>
                                             <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                                                 <Button Content="{DynamicResource Str_EM_SaveEventInfo}" Click="SaveCompetitionInfo_Click" Padding="16,7" FontSize="13" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
@@ -733,6 +734,22 @@
                                                            TextWrapping="Wrap"
                                                            Text="{DynamicResource Str_EM_RuleUDesc}"/>
                                             </Grid>
+                                            <!-- 2026-10-12 泳池长度/泳道数量 从"赛事概览"挪过来(那边改成只读镜像), 放"比赛规则"下方;
+                                                 这两个下拉是本系统里唯一能改泳池参数的地方, 改动后 PoolConfigCombo_Changed 会同步
+                                                 刷新赛事概览那三个只读 TextBlock(RefreshOverviewModeRow)。 -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                                <TextBlock Text="{DynamicResource Str_EM_PoolLength}" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="PoolLengthCombo" Width="100" VerticalAlignment="Center" SelectedIndex="0" SelectionChanged="PoolConfigCombo_Changed">
+                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Pool50}"/>
+                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Pool25}"/>
+                                                </ComboBox>
+                                                <TextBlock Text="{DynamicResource Str_EM_LaneCount}" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,6,0"/>
+                                                <ComboBox x:Name="LaneCountCombo" Width="100" VerticalAlignment="Center" SelectedIndex="0" SelectionChanged="PoolConfigCombo_Changed">
+                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Lanes10}"/>
+                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Lanes8}"/>
+                                                    <ComboBoxItem Content="{DynamicResource Str_EM_Lanes6}"/>
+                                                </ComboBox>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <TextBlock Text="{DynamicResource Str_EM_EventGroupConfig}"
