@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20261012-1";
+        public const string WEB_ASSET_VERSION = "20261012-2";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -565,14 +565,24 @@ namespace SwimmingScoreboard
             if (rtcMode) ApplyRemoteTimingControlMode();
             if (plainTimingRole) ApplyPlainTimingRoleMode();
             InitializeData();
+            // 2026-10-12 现场反馈: 开机时"显示控制"的"RT On"按钮文字是对的(_displayStyleRemarkShowReaction
+            //   字段默认值刚好也是 true), 但大屏不显示反应时, 要手动点两下(On->Off->On, 即触发一次
+            //   BroadcastDisplayStyle)才正常——根因是 LoadDisplayStyleFromDisk()/LoadTimingSettings()
+            //   原来排在 InitializeWebSocketServer() 之后, 如果大屏/比赛控制网页在这个窗口期间连上
+            //   (常见于"大屏那台机器开机自启浏览器, 比主服务器还快连上"的现场部署), DISPLAY_IDENTITY/
+            //   TIMING_WEB_IDENTITY 当场推的快照(SendDisplayStyleTo/BuildDisplayStyleJson)读到的是字段
+            //   默认值而不是上次保存的真实值——多数字段默认值碰巧等于常见设置所以不容易發現, 但只要
+            //   磁盘上存的跟字段默认值不一致就会第一次连上去拿错快照, 得等下一次有人手动改一下
+            //   (=BroadcastDisplayStyle 真正广播一次)才追上。把两个"纯读盘, 不依赖网络/硬件"的加载
+            //   提到 WebSocket/HTTP 服务起来之前, 彻底消掉这个窗口期, 不用猜是否真的被这个时序卡到。
+            LoadTimingSettings();
+            LoadDisplayStyleFromDisk();      // 2026-06-01 大屏样式持久化还原
             // 2026-06-17 RTC 也开 Server (RTC 连硬件 = 主控, 大屏直接连 RTC).
             //   主服务器和 RTC 不应同时跑同一台机器, 否则 3002 端口冲突.
             if (!editorMode) InitializeWebSocketServer();
             if (!editorMode) InitializeHttpFileServer();                // 2026-06-17 HTTP 文件服务 (大屏 display.html 用)
             if (!editorMode) InitializeTimingBridge();                  // 硬件: 主控 + RTC 都连
             InitializeTimers();
-            LoadTimingSettings();
-            LoadDisplayStyleFromDisk();      // 2026-06-01 大屏样式持久化还原
             RefreshRecordsHiddenBtn();       // 2026-06-03 同步 "记录显示/隐藏" 按钮初始文字
             RefreshRemarkReactionBtn();      // 2026-06-04 同步 "备注: 显/不显反应时" 按钮初始文字
             LoadAutoSaveTxtPath();           // 2026-06-05 加载 成绩 txt 自动存盘路径
@@ -1894,6 +1904,9 @@ namespace SwimmingScoreboard
                         AddLog(Loc.T("Str_Log_DisplayConnected"));
                         // 2026-06-01 新连接的大屏立即收到服务器侧最新样式 (bg/fs/textStyle), 不依赖本地 localStorage
                         try { SendDisplayStyleTo(socket); } catch { }
+                        // 2026-10-12 大屏没有自己的语言按钮, 完全跟主服务器走——新连上(含断线重连)
+                        //   立即校准一次语言, 不用等第一份 SHOW_LIVE_RACE 完整包里的 data.lang 才追上。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         break;
                     case "SET_DISPLAY_STYLE":
                         // 2026-06-01 任意控制端 (control.html / RemoteDisplayControl / 主控 PC / 大屏自身) 推送新样式
@@ -1913,6 +1926,9 @@ namespace SwimmingScoreboard
                         // 2026-09-03 一上线就把【比赛参数设置管理】的四张表发过去 ——
                         //   它是独立 exe, 不发它就只能用自己写死的那几个性别/组别。
                         try { socket.Send(BuildMetaListsJson()); } catch { }
+                        // 2026-10-12 register.html 去掉了自己的语言按钮, 完全跟主服务器走——
+                        //   新连上(含断线重连)用主服务器当前语言校准一次, 不等下一次常规广播。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         break;
                     // 2026-09-28【跨客户端语言同步】RegistrationTool.exe 专属身份标记(紧跟在
                     //   REGISTER_TERMINAL_IDENTITY 后面报, register.html 网页端不会报这条)——
@@ -1980,6 +1996,9 @@ namespace SwimmingScoreboard
                         if (!_checkinSockets.Contains(socket)) _checkinSockets.Add(socket);
                         AddLog(Loc.T("Str_Log_CheckinConnected"));
                         UpdateConnectionStatus();
+                        // 2026-10-12 checkin.html 去掉了自己的语言按钮, 完全跟主服务器走——
+                        //   新连上(含断线重连)用主服务器当前语言校准一次, 不等下一次常规广播。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         break;
                     case "EDITOR_IDENTITY":
                         if (!_editorSockets.Contains(socket)) _editorSockets.Add(socket);
@@ -1992,6 +2011,10 @@ namespace SwimmingScoreboard
                         if (!_querySockets.Contains(socket)) _querySockets.Add(socket);
                         AddLog(Loc.T("Str_Log_QueryTerminalConnected"));
                         UpdateConnectionStatus();
+                        // 2026-10-12 query.html 去掉了自己的语言按钮, 完全跟主服务器走——
+                        //   新连上(含断线重连)用主服务器当前语言校准一次, 不等下一次常规广播
+                        //   (本页数据走 EDITOR_PACKAGE, 不带 lang 字段, 全靠这条 + 后续 LANGUAGE_SYNC)。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         break;
                     // 2026-09-14 显示控制端(control.html / RemoteDisplayControl.exe) 身份标记 ——
                     //   只为"连接状态"面板计数, 不影响它俩原有的 REMOTE_CONTROL 命令收发。
@@ -2005,6 +2028,10 @@ namespace SwimmingScoreboard
                         //   程序刚启动的默认值, 跟真实状态可能对不上。新连上来就补一次当前快照,
                         //   不用等"下一次谁改了"才追得上。
                         try { EnqueueToSocket(socket, BuildDisplayStyleJson()); } catch { }
+                        // 2026-10-12 control.html 去掉了自己的语言按钮, 完全跟主服务器走——
+                        //   新连上(含断线重连)用主服务器当前语言校准一次, 不等下一次常规广播
+                        //   (原来只有 RDC_IDENTITY 桌面 exe 那条才做这个, 网页端漏了)。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         break;
                     // 2026-09-28【跨客户端语言同步】RemoteDisplayControl.exe 专属身份标记(紧跟在
                     //   DISPLAY_CONTROL_IDENTITY 后面报, control.html 网页端不会报这条)——只有
@@ -25376,6 +25403,13 @@ namespace SwimmingScoreboard
                     .Concat(_displaySockets)
                     .Concat(_leaderboardSockets)
                     .Concat(_timingWebSockets)
+                    // 2026-10-12 checkin.html/query.html/register.html/control.html 都去掉了
+                    //   各自的语言按钮, 完全跟主服务器走——这四个一直没在广播目标里, 之前只能
+                    //   靠自己连接那一刻的 IDENTITY 快照校准一次, 主服务器这边之后再切语言就追不上了。
+                    .Concat(_checkinSockets)
+                    .Concat(_querySockets)
+                    .Concat(_registerSockets)
+                    .Concat(_displayControlSockets)
                     .Distinct().ToList();
                 foreach (var s in targets) EnqueueToSocket(s, json);
             } catch { }

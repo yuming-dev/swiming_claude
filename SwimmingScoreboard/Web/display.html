@@ -264,9 +264,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </div>
 
 <!-- 2026-05-27 大屏底色设置: 右下角齿轮按钮 → 弹出选色面板 (纯色/渐变/灰度/图案 4 类). 数据保存在 localStorage('swimDisplayBg'). -->
-<button id="langToggleBtn" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle"
-        style="position:fixed;right:1.2vw;bottom:20vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:1.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
-        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">English</button>
+<!-- 2026-10-12 去掉手动中/英切换按钮——大屏是纯展示给观众看的屏幕, 完全跟主服务器语言走(已有 _pushedLang 同步逻辑) -->
 <button id="bgSettingsBtn" onclick="toggleBgSettings()" title="大屏底色设置" data-i18n-title="Str_Display_BgSettingsTip"
         style="position:fixed;right:1.2vw;bottom:1.2vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">⚙</button>
@@ -995,7 +993,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261012-1';
+var PAGE_VER = '20261012-2';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}

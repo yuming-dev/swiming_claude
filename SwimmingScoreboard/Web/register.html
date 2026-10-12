@@ -105,7 +105,7 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
     <div style="display:flex;justify-content:space-between;align-items:center;">
         <h1 style="margin:0;" data-i18n="Str_Register_PageTitle">运动员注册</h1>
         <span style="display:flex;gap:8px;align-items:center;">
-        <button class="btn-lang" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle" style="padding:6px 14px;background:#334155;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">English</button>
+        <!-- 2026-10-12 去掉手动中/英切换按钮——跟主服务器语言走(见 ws.onmessage 里的 _pushedLang 同步逻辑) -->
         <button class="fullscreen-btn" onclick="goFullScreen()" data-i18n="Str_Common_Fullscreen" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
         </span>
     </div>
@@ -366,7 +366,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261012-1';
+var PAGE_VER = '20261012-2';
 var PAGE_NAME = 'register.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -401,6 +401,15 @@ function checkPageVer(serverVer) {
     ws.onmessage = function(e) {
         try {
             var msg = JSON.parse(e.data);
+            // 2026-10-12 报名终端不设自己的语言按钮——完全跟主服务器当前语言走。本页数据走
+            //   REGISTER_RESULT 等专属消息类型(不带 lang), 语言只靠单独的 LANGUAGE_SYNC 消息
+            //   (顶层 lang 字段, 新连上立即补一次 + 有人切换时广播)。WebLoc.apply() 内部会自动
+            //   调用下面定义的 window.onWebLocApplied 重渲染动态内容, 这里不用重复调用。
+            var _pushedLang = msg.lang;
+            if (_pushedLang && _pushedLang !== WebLoc.currentLang()) {
+                WebLoc.setLang(_pushedLang);
+                WebLoc.apply();
+            }
             if (msg.data && msg.data.webAssetVersion) checkPageVer(msg.data.webAssetVersion);
             if (msg.type === 'REGISTER_RESULT') {
                 var ok = msg.data && msg.data.success;

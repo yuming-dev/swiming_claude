@@ -69,7 +69,7 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0f172a; color: #
         <div class="control-header">
             <h1 data-i18n="Str_Ctrl_PageTitle">显示控制</h1>
             <div style="display:flex;gap:6px;">
-                <button class="btn-lang" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle" style="padding:6px 10px;background:#475569;color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;">English</button>
+                <!-- 2026-10-12 去掉手动中/英切换按钮——跟主服务器语言走(见 ws.onmessage 里的 _pushedLang 同步逻辑) -->
                 <button onclick="goFullScreen()" data-i18n="Str_Common_Fullscreen" style="padding:6px 10px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;">全屏</button>
             </div>
         </div>
@@ -353,6 +353,14 @@ function connect() {
     ws.onmessage = function(e) {
         try {
             var msg = JSON.parse(e.data);
+            // 2026-10-12 显示控制网页不设自己的语言按钮——完全跟主服务器当前语言走。两条路都会
+            //   带语言过来: 常规状态广播里的 data.lang, 以及语言按钮一按立刻单独推的 LANGUAGE_SYNC
+            //   (顶层 lang 字段, 不在 data 里)。必须放在下面的类型过滤之前处理。
+            var _pushedLang = (msg.data && msg.data.lang) || msg.lang;
+            if (_pushedLang && _pushedLang !== WebLoc.currentLang()) {
+                WebLoc.setLang(_pushedLang);
+                WebLoc.apply();
+            }
             // 2026-06-01 大屏样式推送 → 同步 UI
             if (msg.type === 'DISPLAY_STYLE_PUSH') { _cs_applyToUi(msg.data || {}); return; }
             // 2026-06-17 远程化 list 响应
