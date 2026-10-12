@@ -333,7 +333,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <button class="hub-btn" style="background:#0EA5E9;" onclick="closeSettings();openManualButtonManager()" data-i18n="Str_RC_HubManualBtn">手动按键管理</button>
         <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openAutoSavePath()" data-i18n="Str_RC_HubAutoSavePath">成绩存盘路径</button>
         <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openThermalPrint()" data-i18n="Str_RC_HubThermalPrint">热敏打印</button>
-        <button class="hub-btn" style="background:#DC2626;" onclick="closeSettings();openHwConn()" data-i18n="Str_RC_HwTimerConn">硬件计时器连接</button>
+        <!-- 2026-10-12 "硬件计时器连接"从这个弹窗去掉——顶部导航栏已经有同功能的"硬件连接"按钮
+             (onclick="openHwConn()", 跟这里原来调的是同一个弹窗), 不用重复一份。 -->
         <button class="hub-btn" style="background:#8B5CF6;" onclick="closeSettings();openChangePwd()" data-i18n="Str_RC_HubChangePwd">用户名和密码</button>
 
         <div class="modal-btns">

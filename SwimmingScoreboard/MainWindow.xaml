@@ -1744,25 +1744,29 @@
                                         </Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="28"/>
+                                            <RowDefinition Height="28"/>
                                         </Grid.RowDefinitions>
-                                    <!-- 2026-05-14 连接按钮：硬件改走 TCP 网络连接（沿用既有 QuickConnect 控件名，
-                                         保持代码绑定不变；按钮显示文字改为"网络连接"，Click 处理走 TCP） -->
-                                    <Button x:Name="QuickConnectSerialButton" Grid.Row="0" Grid.Column="0" Content="{DynamicResource Str_RC_NetworkConnect}" Click="QuickConnectSerial_Click"
-                                            Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="{DynamicResource Str_RC_NetworkConnectTip}">
+                                    <!-- 2026-10-12 用户反馈: "参数设置"弹窗里的"硬件计时器连接"按钮(ShowHardwareConnectionDialog)
+                                         跟这里原来的"网络连接"(QuickConnectSerial_Click, 只会 TCP 快连, 功能是前者的子集)
+                                         重复——把"硬件计时器连接"挪过来占第1行(独占整行), 原"网络连接"按钮去掉;
+                                         "设备测试"挪到第2行独占。QuickConnectSerial_Click 本身不删(race_control.html
+                                         "快连串口"按钮还通过 QUICK_CONNECT_SERIAL 远程命令用这个方法), 只是这里不再
+                                         挂按钮触发它。 -->
+                                    <Button x:Name="HwConnCardButton" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Content="{DynamicResource Str_Win_ParamsHub_HwConnBtn}" Click="HwConnCardButton_Click"
+                                            Margin="2" BorderThickness="0" Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
-                                                <Border x:Name="QuickConnBorder" Background="#22C55E" CornerRadius="5">
+                                                <Border x:Name="HwConnCardBorder" Background="#DC2626" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock x:Name="QuickConnectSerialButtonText" Text="{DynamicResource Str_RC_NetworkConnect}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_Win_ParamsHub_HwConnBtn}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <!-- 2026-05-30 IsEnabled=false 时灰化 (Ready/Racing 状态用) -->
                                                     <Trigger Property="IsEnabled" Value="False">
-                                                        <Setter TargetName="QuickConnBorder" Property="Background" Value="#94A3B8"/>
-                                                        <Setter TargetName="QuickConnBorder" Property="Opacity" Value="0.5"/>
+                                                        <Setter TargetName="HwConnCardBorder" Property="Background" Value="#94A3B8"/>
+                                                        <Setter TargetName="HwConnCardBorder" Property="Opacity" Value="0.5"/>
                                                         <Setter Property="Cursor" Value="No"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
@@ -1770,7 +1774,7 @@
                                         </Button.Template>
                                     </Button>
                                     <!-- 设备测试：触板/出发台/盲表全部打开，硬件来什么数据都接收并显示 -->
-                                    <Button x:Name="DeviceTestButton" Grid.Row="0" Grid.Column="1" Content="{DynamicResource Str_RC_DeviceTest}" Click="DeviceTest_Click"
+                                    <Button x:Name="DeviceTestButton" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="{DynamicResource Str_RC_DeviceTest}" Click="DeviceTest_Click"
                                             Margin="2" BorderThickness="0" Cursor="Hand"
                                             ToolTip="{DynamicResource Str_RC_DeviceTestTip}">
                                         <Button.Template>
@@ -2282,56 +2286,14 @@
             </TabItem>
 
             <!-- ═══ 设置 ═══ -->
+            <!-- 2026-10-12 "计时硬件连接"整节(串口/TCP/UDP 配置 + 连接/断开按钮)已删除——
+                 跟"比赛控制→参数设置→硬件计时器连接"(ShowHardwareConnectionDialog, 现已挪到
+                 "系统硬件"卡第1行)完全重复, 用户反馈"显得多余"。那个弹窗是独立控件, 不复用这里
+                 的 ComPortCombo 等, 删除这节不影响它。 -->
             <TabItem Header="{DynamicResource Str_Tab_Settings}">
                 <ScrollViewer Margin="10">
                     <StackPanel MaxWidth="600" HorizontalAlignment="Left">
-                        <TextBlock Text="{DynamicResource Str_Settings_TimingHw}" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="90"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="36"/>
-                                <RowDefinition Height="36"/>
-                                <RowDefinition Height="36"/>
-                                <RowDefinition Height="36"/>
-                                <!-- 2026-10-08 状态行改 Auto 高度: 英文的连接失败提示(例如
-                                     "TCP connection failed: No connection could be made
-                                     because the target machine actively refused it")比中文
-                                     长得多, 固定 36 高 + 不换行会被右边的 Disconnect 按钮截断
-                                     看不全(用户截图发现)。配合下面 TimingStatusText 加
-                                     TextWrapping="Wrap", 这一行按内容自动撑高。 -->
-                                <RowDefinition Height="Auto" MinHeight="36"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Str_Settings_SerialPort}" VerticalAlignment="Center"/>
-                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <ComboBox x:Name="ComPortCombo" Width="120" VerticalAlignment="Center"/>
-                                <TextBlock Text="{DynamicResource Str_Settings_BaudRate}" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                                <ComboBox x:Name="BaudRateCombo" Width="90" VerticalAlignment="Center" SelectionChanged="BaudRate_Changed">
-                                    <ComboBoxItem Content="9600" IsSelected="True"/>
-                                    <ComboBoxItem Content="19200"/>
-                                    <ComboBoxItem Content="38400"/>
-                                    <ComboBoxItem Content="57600"/>
-                                    <ComboBoxItem Content="115200"/>
-                                </ComboBox>
-                            </StackPanel>
-                            <Button Grid.Row="0" Grid.Column="2" Content="{DynamicResource Str_Settings_ConnectSerial}" Click="ConnectSerial_Click" Padding="12,4" Margin="8,0,0,0"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Str_Settings_TcpAddr}" VerticalAlignment="Center"/>
-                            <TextBox x:Name="TcpHostBox" Grid.Row="1" Grid.Column="1" Text="127.0.0.1:5000" Padding="4" VerticalAlignment="Center"/>
-                            <Button Grid.Row="1" Grid.Column="2" Content="{DynamicResource Str_Settings_ConnectTcp}" Click="ConnectTcp_Click" Padding="12,4" Margin="8,0,0,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Str_Settings_UdpRecvPort}" VerticalAlignment="Center"/>
-                            <TextBox x:Name="UdpPortBox" Grid.Row="2" Grid.Column="1" Text="5001" Padding="4" VerticalAlignment="Center"/>
-                            <Button Grid.Row="2" Grid.Column="2" Content="{DynamicResource Str_Settings_ListenUdp}" Click="ConnectUdp_Click" Padding="12,4" Margin="8,0,0,0"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Str_Settings_UdpSend}" VerticalAlignment="Center"/>
-                            <TextBox x:Name="UdpSendBox" Grid.Row="3" Grid.Column="1" Text="127.0.0.1:5002" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Str_Settings_Status}" VerticalAlignment="Center" Margin="0,6,0,6"/>
-                            <TextBlock x:Name="TimingStatusText" Grid.Row="4" Grid.Column="1" Text="{DynamicResource Str_Settings_NotConnected}" VerticalAlignment="Center" Foreground="#EF4444" TextWrapping="Wrap" Margin="0,6,8,6"/>
-                            <Button x:Name="DisconnectTimingButton" Grid.Row="4" Grid.Column="2" Content="{DynamicResource Str_Settings_Disconnect}" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,6,0,6" VerticalAlignment="Top"/>
-                        </Grid>
-
-                        <TextBlock Text="{DynamicResource Str_Settings_ChiefJudge}" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
+                        <TextBlock Text="{DynamicResource Str_Settings_ChiefJudge}" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
                         <TextBlock TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"
                                    Text="{DynamicResource Str_Settings_ChiefJudgeDesc}"/>
                         <Button Content="{DynamicResource Str_Settings_ChiefJudgeBtn}" Click="ChiefJudgePassword_Click" HorizontalAlignment="Left"

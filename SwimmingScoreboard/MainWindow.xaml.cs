@@ -594,8 +594,8 @@ namespace SwimmingScoreboard
             // 2026-05-26 不在此处再调 ApplyTouchpadInstallModeToLanes — 它会覆盖 ApplyPersistedDeviceStates
             //   刚还原的 NotInstalled 标志. 所有"计算后状态"已在 (设置变更 / 硬件 0x3A / 0x42) 时
             //   通过 SaveDeviceStates 落盘, 开机只需读回即可.
-            if (!editorMode) PopulateComPorts();              // RTC 也要选串口
-            if (!editorMode) ApplyTimingConnectionToUi();     // RTC 也要还原 UI
+            // 2026-10-12 "设置"Tab 的"计时硬件连接"整节已删除(跟"参数设置→硬件计时器连接"重复),
+            //   PopulateComPorts/ApplyTimingConnectionToUi 是那节 UI 专用的, 一并删掉; 自动重连不受影响。
             if (!editorMode) TryAutoReconnectTiming();        // RTC 也要尝试自动连硬件
             UpdateConnectionStatus();
             // 2026-08-31 大屏的数据来自服务器内存 —— 开个低频轮询, 第三台机器改了库也能跟上
@@ -1560,16 +1560,9 @@ namespace SwimmingScoreboard
                     BatteryVoltageText.Text = voltText;
                     BatteryVoltageText.Foreground = voltBrush;
                 }
-                // 同时仍刷一份到 TimingStatusText（系统状态 Tab 的"硬件计时器连接"区显示）
-                if (TimingStatusText != null) {
-                    string baseText = (_timingBridge != null) ? _timingBridge.StatusText : "未连接";
-                    if (fresh) {
-                        TimingStatusText.Text = string.Format("{0}  ｜ 电池: {1}", baseText, voltText);
-                        TimingStatusText.Foreground = voltBrush;
-                    } else {
-                        TimingStatusText.Text = baseText;
-                    }
-                }
+                // 2026-10-12 TimingStatusText(原"设置"Tab"计时硬件连接"节的状态行)已随该节一起删除,
+                //   不用再往那边刷一份——"硬件计时器连接"弹窗(ShowHardwareConnectionDialog)自己
+                //   有独立的状态文字(statusText), 不依赖这里。
             } catch { }
         }
 
@@ -4046,8 +4039,6 @@ namespace SwimmingScoreboard
                 HwConnStatusText.Text = _hwOn ? Loc.T("Str_SyncStatus_Connected") : Loc.T("Str_HwConn_NotConnected");
                 HwConnStatusText.Foreground = new SolidColorBrush(_hwOn ? _hwOnCol : _hwOffCol);
             }
-            // 比赛控制面板上的快捷"连接串口"按钮跟随状态变化
-            UpdateQuickConnectButton();
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -5656,7 +5647,8 @@ namespace SwimmingScoreboard
             };
             _timingBridge.OnStatusChanged += delegate(string status) {
                 Dispatcher.BeginInvoke((Action)delegate() {
-                    TimingStatusText.Text = status;
+                    // 2026-10-12 TimingStatusText("设置"Tab"计时硬件连接"节的状态行)已删除,
+                    //   不用再往那边写; UpdateConnectionStatus() 会刷新顶栏的硬件计时器状态。
                     UpdateConnectionStatus();
                     // 2026-09-14 原则: 谁接着硬件计时器, 谁的"比赛控制"最高优先级 ——
                     //   不是"谁是 EXE 谁是网页"。RTC 硬件连接状态一变(连上/断开),
@@ -16511,8 +16503,7 @@ namespace SwimmingScoreboard
             //   防止误操作丢失实时数据; 比完赛后也必须按计时复位才能再断开/测试 (用户要求)
             bool blockHwOps = (_raceState != RaceState.Waiting);
             try {
-                if (DisconnectTimingButton != null) DisconnectTimingButton.IsEnabled = !blockHwOps;
-                if (QuickConnectSerialButton != null) QuickConnectSerialButton.IsEnabled = !blockHwOps;
+                if (HwConnCardButton != null) HwConnCardButton.IsEnabled = !blockHwOps;
                 if (DeviceTestButton != null) DeviceTestButton.IsEnabled = !blockHwOps;
             } catch { }
         }
@@ -18250,10 +18241,9 @@ namespace SwimmingScoreboard
             var btnThermalCat = new Button { Content = Loc.T("Str_Win_ParamsHub_ThermalBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnThermalCat.Click += delegate { ThermalPrinterConfig_Click(null, null); };
             sp.Children.Add(btnThermalCat);
-            // 2026-06-17 硬件计时器连接 (串口/TCP/UDP) — 主服务器 + RTC 都通过参数设置进入
-            var btnHwConnCat = new Button { Content = Loc.T("Str_Win_ParamsHub_HwConnBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
-            btnHwConnCat.Click += delegate { ShowHardwareConnectionDialog(); };
-            sp.Children.Add(btnHwConnCat);
+            // 2026-10-12 "硬件计时器连接"按钮从这个弹窗挪走了——主服务器挪到"比赛控制"右下角
+            //   "系统硬件"卡第1行(HwConnCardButton); RTC 顶栏本来就有同功能的"硬件连接"按钮
+            //   (_editorSyncHwConnButton)。两边都不用在这个弹窗里重复一份了。
             // 2026-06-17 用户名和密码 — 从顶端右上角移入参数设置. 反射打开各入口程序集的 ChangePasswordWindow
             //   主服务器 → SwimmingScoreboard.ChangePasswordWindow (credentials.json)
             //   RTC → RemoteTimingControl.ChangePasswordWindow (timing_credentials.json)
@@ -18392,7 +18382,6 @@ namespace SwimmingScoreboard
                 if (_raceState != RaceState.Waiting) { AppMessageBox.Show(Loc.T("Str_Msg_CannotDisconnectNotWaiting"), Loc.T("Str_MsgTitle_Info")); return; }
                 if (_timingBridge != null) _timingBridge.Disconnect();
                 UpdateConnectionStatus();
-                try { UpdateQuickConnectButton(); } catch { }
                 AddLog(Loc.T("Str_Log_HwDisconnected"));
                 try { Broadcast(); } catch { }
                 refreshStatus();
@@ -25316,13 +25305,14 @@ namespace SwimmingScoreboard
         /// 独立方法, 两处共用, 不用维护两份重复的"点了什么按钮该刷新什么"清单。</summary>
         private void RefreshAllForLanguageChange() {
             // "比赛控制"页几个按钮的文字是跟着状态变的(停表/继续走表、记录显示/已隐藏、
-            // RT On/Off、网络连接/断开、设备测试/退出测试)——它们的刷新函数会直接赋值 .Text,
+            // RT On/Off、设备测试/退出测试)——它们的刷新函数会直接赋值 .Text,
             // 一旦赋值就把 XAML 里的 DynamicResource 绑定冲掉了, 光调 Loc.Apply() 追不上这几个,
             // 这里主动按当前状态重刷一遍, 语言按钮点下去才能做到"立刻全部生效"而不是要等
             // 下次连接/测试状态变化才顺带更新。
+            // 2026-10-12 系统硬件卡第1行的"硬件计时器连接"按钮改静态文字(DynamicResource
+            //   直接绑定, 不再程序化赋值), 不用再在这里刷。
             try { RefreshRecordsHiddenBtn(); } catch { }
             try { RefreshRemarkReactionBtn(); } catch { }
-            try { UpdateQuickConnectButton(); } catch { }
             try { UpdateDeviceTestButton(); } catch { }
             try { UpdateScoringControlMode(); } catch { }
             try { UpdateConnectionStatus(); } catch { }
@@ -27026,41 +27016,10 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 把 _timingConn 还原到 UI 控件（在 PopulateComPorts 之后调用，确保 ComboBox 已有可选项）
-        private void ApplyTimingConnectionToUi() {
-            if (_timingConn == null) return;
-            // 串口：若保存的端口仍存在于当前可选列表中，自动选中
-            if (!string.IsNullOrEmpty(_timingConn.SerialPort) && ComPortCombo != null) {
-                foreach (var item in ComPortCombo.Items) {
-                    if (item != null && item.ToString() == _timingConn.SerialPort) {
-                        ComPortCombo.SelectedItem = item;
-                        break;
-                    }
-                }
-            }
-            // 波特率：在下拉里找匹配项；找不到就保持默认（9600）
-            if (BaudRateCombo != null && _timingConn.SerialBaudRate > 0) {
-                string want = _timingConn.SerialBaudRate.ToString();
-                foreach (var item in BaudRateCombo.Items) {
-                    var ci = item as ComboBoxItem;
-                    string txt = ci != null ? ci.Content.ToString() : (item != null ? item.ToString() : "");
-                    if (txt == want) {
-                        BaudRateCombo.SelectedItem = item;
-                        break;
-                    }
-                }
-            }
-            if (TcpHostBox != null && _timingConn.TcpPort > 0)
-                TcpHostBox.Text = string.Format("{0}:{1}",
-                    string.IsNullOrEmpty(_timingConn.TcpHost) ? "127.0.0.1" : _timingConn.TcpHost,
-                    _timingConn.TcpPort);
-            if (UdpPortBox != null && _timingConn.UdpListenPort > 0)
-                UdpPortBox.Text = _timingConn.UdpListenPort.ToString();
-            if (UdpSendBox != null && _timingConn.UdpSendPort > 0)
-                UdpSendBox.Text = string.Format("{0}:{1}",
-                    string.IsNullOrEmpty(_timingConn.UdpSendHost) ? "127.0.0.1" : _timingConn.UdpSendHost,
-                    _timingConn.UdpSendPort);
-        }
+        // 2026-10-12 ApplyTimingConnectionToUi() 已删除——只服务于"设置"Tab 已删除的
+        //   "计时硬件连接"整节 UI(ComPortCombo/BaudRateCombo/TcpHostBox/UdpPortBox/UdpSendBox),
+        //   那节 UI 没了, 这个函数也跟着没用了。_timingConn 本身的持久化/自动重连不受影响
+        //   (TryAutoReconnectTiming 直接读 _timingConn 字段, 不依赖这些 UI 控件)。
 
         // 启动时自动重连（仅当 AutoReconnectOnStartup=true）
         private void TryAutoReconnectTiming() {
@@ -29015,35 +28974,11 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 计时硬件连接
         // ═══════════════════════════════════════════════════════════════
-        private void PopulateComPorts() {
-            try {
-                ComPortCombo.Items.Clear();
-                foreach (string port in SerialPort.GetPortNames()) {
-                    ComPortCombo.Items.Add(port);
-                }
-                if (ComPortCombo.Items.Count > 0) ComPortCombo.SelectedIndex = 0;
-            } catch { }
-        }
-
-        private void ConnectSerial_Click(object sender, RoutedEventArgs e) {
-            if (ComPortCombo.SelectedItem == null) { AddLog(Loc.T("Str_Log_PleaseSelectSerialPort")); return; }
-            string portName = ComPortCombo.SelectedItem.ToString();
-            int baud = ReadBaudRateFromUi();
-            _timingBridge.ConnectSerial(portName, baud);
-            AddLog(Loc.F("Str_Log_SerialConnectedFmt", portName, baud));
-            UpdateConnectionStatus();
-            // 通讯参数立即落盘 — 下次启动自动还原 UI 选择
-            _timingConn.SerialPort = portName;
-            _timingConn.SerialBaudRate = baud;
-            _timingConn.LastType = "serial";
-            SaveTimingConnectionConfig();
-        }
-
-        // "比赛控制"面板上的"连接串口"快捷按钮：
-        // - 已连接 → 断开
-        // - 未连接 → 用 timing_connection.json 里保存的串口/波特率连接；没保存就提示去 系统工作状态 配
-        // 2026-05-14 顶部"系统硬件"栏的连接按钮改走网络连接（TCP），按钮文字也改为"网络连接"。
-        // 串口连接仍保留在"系统工作状态 → 硬件计时器连接"详细面板里，这里只负责快速 TCP 连/断。
+        // 2026-10-12 PopulateComPorts/ConnectSerial_Click 已删除("设置"Tab"计时硬件连接"整节
+        //   UI 的"连接串口"部分, ComPortCombo 已不存在)。QuickConnectSerial_Click 本身保留:
+        //   race_control.html"参数设置→硬件计时器连接→快连串口"按钮还通过 QUICK_CONNECT_SERIAL
+        //   远程命令调它(走 TCP, 跟串口无关), 只是不再有本地按钮直接触发、也不用再刷新已删除的
+        //   QuickConnectSerialButton(UpdateQuickConnectButton 一并删除, 见下)。
         private void QuickConnectSerial_Click(object sender, RoutedEventArgs e) {
             if (_timingBridge != null && _timingBridge.IsConnected) {
                 // 2026-05-30 v2: 只有 Waiting 状态允许; Ready/Racing/Finished 直接 return
@@ -29053,7 +28988,6 @@ namespace SwimmingScoreboard
                 }
                 _timingBridge.Disconnect();
                 UpdateConnectionStatus();
-                UpdateQuickConnectButton();
                 AddLog(Loc.T("Str_Log_HwDisconnected"));
                 return;
             }
@@ -29074,7 +29008,12 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_QuickNetConnectFailedFmt", ex.Message));
             }
             UpdateConnectionStatus();
-            UpdateQuickConnectButton();
+        }
+
+        // 2026-10-12 "系统硬件"卡第1行的硬件连接入口, 跟 RTC 顶栏"硬件连接"按钮
+        //   (_editorSyncHwConnButton)、"参数设置"弹窗原来的"硬件计时器连接"按钮是同一个弹窗。
+        private void HwConnCardButton_Click(object sender, RoutedEventArgs e) {
+            ShowHardwareConnectionDialog();
         }
 
         // 测试模式下事件类型简短名（用于贴到 Remain 框，长字符串会撑破布局）
@@ -29269,98 +29208,13 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
-        // 根据当前连接状态刷新"系统硬件"栏里"连接串口"按钮的文字与底色（模板里的内层 TextBlock + Border）
-        private void UpdateQuickConnectButton() {
-            if (QuickConnectSerialButton == null) return;
-            bool connected = _timingBridge != null && _timingBridge.IsConnected;
-            //2026-05-14 顶栏改走网络连接，未连接时文字为"网络连接"，已连接显示"断开"
-            // 2026-09-21 查表(复用"设置"页已有的 Str_Settings_Disconnect), 别再硬编码中文字面量。
-            string label = connected ? Loc.T("Str_Settings_Disconnect") : Loc.T("Str_RC_NetworkConnect");
-            string bgHex = connected ? "#EF4444" : "#22C55E";
-            // 模板内的 TextBlock 用 x:Name="QuickConnectSerialButtonText"，
-            // 模板里的 Border 是按钮 Template 的根元素 — 通过 VisualTreeHelper 拿到再改 Background
-            try {
-                QuickConnectSerialButton.ApplyTemplate();
-                var tb = QuickConnectSerialButton.Template.FindName("QuickConnectSerialButtonText", QuickConnectSerialButton) as TextBlock;
-                if (tb != null) tb.Text = label;
-                if (VisualTreeHelper.GetChildrenCount(QuickConnectSerialButton) > 0) {
-                    var root = VisualTreeHelper.GetChild(QuickConnectSerialButton, 0) as Border;
-                    if (root != null) root.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
-                }
-            } catch { }
-        }
-
-        private int ReadBaudRateFromUi() {
-            if (BaudRateCombo == null || BaudRateCombo.SelectedItem == null) {
-                return _timingConn != null && _timingConn.SerialBaudRate > 0 ? _timingConn.SerialBaudRate : 9600;
-            }
-            string txt = (BaudRateCombo.SelectedItem is ComboBoxItem)
-                ? ((ComboBoxItem)BaudRateCombo.SelectedItem).Content.ToString()
-                : BaudRateCombo.SelectedItem.ToString();
-            int v;
-            return int.TryParse(txt.Trim(), out v) && v > 0 ? v : 9600;
-        }
-
-        private void BaudRate_Changed(object sender, SelectionChangedEventArgs e) {
-            // 用户改波特率即落盘；连接已建立时不会立刻断开重连，等下次 ConnectSerial_Click 才生效
-            if (!_initialized || _timingConn == null) return;
-            int v = ReadBaudRateFromUi();
-            if (v > 0 && v != _timingConn.SerialBaudRate) {
-                _timingConn.SerialBaudRate = v;
-                SaveTimingConnectionConfig();
-                AddLog(Loc.F("Str_Log_BaudRateSavedFmt", v));
-            }
-        }
-
-        private void ConnectTcp_Click(object sender, RoutedEventArgs e) {
-            string addr = TcpHostBox.Text.Trim();
-            string[] parts = addr.Split(':');
-            string host = parts[0];
-            int port = 5000;
-            if (parts.Length > 1) int.TryParse(parts[1], out port);
-            _timingBridge.ConnectTcp(host, port);
-            UpdateConnectionStatus();
-            _timingConn.TcpHost = host;
-            _timingConn.TcpPort = port;
-            _timingConn.LastType = "tcp";
-            SaveTimingConnectionConfig();
-        }
-
-        private void ConnectUdp_Click(object sender, RoutedEventArgs e) {
-            int listenPort = 5001;
-            int.TryParse(UdpPortBox.Text.Trim(), out listenPort);
-            string sendHost = null;
-            int sendPort = 0;
-            string sendText = UdpSendBox.Text.Trim();
-            if (!string.IsNullOrEmpty(sendText)) {
-                string[] parts = sendText.Split(':');
-                if (parts.Length == 2) {
-                    sendHost = parts[0];
-                    int.TryParse(parts[1], out sendPort);
-                }
-            }
-            _timingBridge.ConnectUdp(listenPort, sendHost, sendPort);
-            UpdateConnectionStatus();
-            _timingConn.UdpListenPort = listenPort;
-            _timingConn.UdpSendHost = sendHost ?? "";
-            _timingConn.UdpSendPort = sendPort;
-            _timingConn.LastType = "udp";
-            SaveTimingConnectionConfig();
-        }
-
-        private void DisconnectTiming_Click(object sender, RoutedEventArgs e) {
-            // 2026-05-30 v2: 只有 Waiting 状态允许; Ready/Racing/Finished 直接 return
-            //   (按钮已在 UpdateRaceStateDisplay 里 IsEnabled=false 禁用, 这里是 backup guard)
-            if (_raceState != RaceState.Waiting) {
-                AddLog(Loc.T("Str_Log_HwDisconnectIgnoredNotWaiting"));
-                return;
-            }
-            _timingBridge.Disconnect();
-            UpdateConnectionStatus();
-            try { UpdateQuickConnectButton(); } catch { }
-            AddLog(Loc.T("Str_Log_HwDisconnected"));
-            try { Broadcast(); } catch { }
-        }
+        // 2026-10-12 UpdateQuickConnectButton/ReadBaudRateFromUi/BaudRate_Changed/ConnectTcp_Click/
+        //   ConnectUdp_Click/DisconnectTiming_Click 已删除——全部只服务于已删除的"系统硬件"卡旧
+        //   QuickConnectSerialButton 和"设置"Tab"计时硬件连接"整节 UI(ComPortCombo/BaudRateCombo/
+        //   TcpHostBox/UdpPortBox/UdpSendBox/TimingStatusText/DisconnectTimingButton)，那些控件
+        //   都不存在了。硬件连接统一走 ShowHardwareConnectionDialog()(系统硬件卡第1行 / RTC 顶栏
+        //   硬件连接按钮 / race_control.html 硬件连接按钮三处共用同一个弹窗，弹窗自己的断开按钮
+        //   逻辑在 ShowHardwareConnectionDialog 内部，不依赖这里删掉的任何东西)。
 
         // ═══════════════════════════════════════════════════════════════
         // 纪录管理
