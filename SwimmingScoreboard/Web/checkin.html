@@ -26,7 +26,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .main { flex: 1; display: flex; overflow: hidden; }
 
 /* 左侧赛程导航 */
-.sched-panel { width: 240px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+/* 2026-10-12 用户反馈: 这个界面右侧 .content 有 max-width:860px 封顶 + margin:0 auto 居中,
+   宽屏下两边有空余——240px 偏窄, 英文项目名("[Junior] Men 200m Breaststroke Final")
+   经常要左右滚动条才能看全。加宽到 340px(仍在"吃掉旁边空白"的范围内, 不挤占 .content)。 */
+.sched-panel { width: 340px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
 .sched-header { padding: 8px 10px; font-size: 14px; font-weight: bold; color: #3B82F6; background: #172033; border-bottom: 1px solid var(--border); }
 .sched-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
 .tree-session-header { padding: 4px 10px; font-size: 13px; font-weight: bold; color: var(--dim); cursor: pointer; user-select: none; }
@@ -134,7 +137,7 @@ table.checkin .leg-tag { display: inline-block; background: #334155; color: #94a
     <span class="title" data-i18n="Str_Checkin_PageTitle">游泳竞赛检录台</span>
     <span class="comp" id="compName" data-i18n="Str_Common_NotConnectedParen">（未连接）</span>
     <span><span class="conn-dot" id="connDot"></span><span id="connText" style="font-size:12px;color:var(--dim);" data-i18n="Str_Common_Disconnected">未连接</span></span>
-    <button class="btn-lang" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle">English</button>
+    <!-- 2026-10-12 去掉手动中/英切换按钮——跟主服务器语言走(见 handleMessage 里的 _pushedLang 同步逻辑) -->
     <button class="btn-server" onclick="showServerDialog()" data-i18n="Str_Common_Server">服务器</button>
     <button class="btn-print" onclick="doPrint()" data-i18n="Str_Common_Print">打印</button>
     <button class="btn-confirm" onclick="confirmCheckin()" data-i18n="Str_Checkin_ConfirmBtn">确认检录</button>
@@ -239,6 +242,16 @@ function setConnState(ok, text) {
 //   其余类型一律不理会(该干嘛干嘛, 不影响 data)。跟 query.html / race_control.html
 //   处理同一份广播用的是同一个思路。
 function handleMessage(msg) {
+    // 2026-10-12 检录台不设自己的语言按钮——完全跟主服务器当前语言走(同 race_control.html/
+    //   leaderboard.html 那一套)。两条路都会带语言过来: 常规状态广播里的 data.lang, 以及
+    //   语言按钮一按立刻单独推的 LANGUAGE_SYNC(顶层 lang 字段, 不在 data 里)。必须放在下面
+    //   的类型过滤之前处理, 否则 LANGUAGE_SYNC 会被 SHOW_LIVE_RACE(_LITE) 白名单直接挡掉。
+    var _pushedLang = (msg.data && msg.data.lang) || msg.lang;
+    if (_pushedLang && _pushedLang !== WebLoc.currentLang()) {
+        WebLoc.setLang(_pushedLang);
+        WebLoc.apply();
+        try { renderScheduleTree(); } catch (eRenderLang) {}
+    }
     if (msg.type === 'HEAT_SWIMMERS') {
         renderSwimmers(msg.data);
         return;
@@ -289,18 +302,36 @@ function renderScheduleTree() {
         return;
     }
     // 按场分组
+    // 2026-10-12 参照主服务器"比赛控制"赛程树的 BuildSessionHeaderText/PeriodDisplay 现拼算法
+    //   (跟 display.html 这边已经在用的同一套)——sessionName 是赛程生成那一刻按当时界面语言
+    //   拼好存下来的缓存串("第1场（2026-08-22上午）"), 不会跟着语言切换重新翻译; 改成每次画树
+    //   都从 session/date/time 这几个活字段现拼"场次号 + (日期 时段)", 时段走 WebLoc 翻译,
+    //   保证任何语言下都显示对的文字。sessionName 里真正用户自定义的额外说明(剥掉自动生成的
+    //   "第N场"前缀和"（日期时段）"块之后剩下的部分)仍然保留追加在后面。
     var sessions = {};
     for (var i = 0; i < schedule.length; i++) {
         var s = schedule[i];
         var sn = s.session || 1;
-        // 2026-06-16 SessionName 持久化可能含 "第N场" 或旧版 "第N单元" 前缀, 强制 "第X场" + 剥 sname 前缀避免重复 / 显示旧"单元"字样
         if (!sessions[sn]) {
             var _sname = '';
             if (s.sessionName) {
-                var _t = String(s.sessionName).replace(/^\s*第\d+(场|单元)\s*/, '');
-                if (_t.trim()) _sname = ' ' + _t;
+                var _t = String(s.sessionName)
+                    .replace(/^\s*第\d+(场|单元)\s*/, '')
+                    .replace(/^\s*（[^（）]*）\s*/, '');
+                if (_t.trim()) _sname = '  ' + _t;
             }
-            sessions[sn] = { name: WebLoc.f('Str_Common_SessionNumFmt', sn) + _sname, events: [] };
+            var _periodTxt;
+            if (s.time) {
+                var _hh = parseInt(String(s.time).split(':')[0], 10);
+                if (isNaN(_hh)) _hh = 9;
+                _periodTxt = _hh >= 18 ? WebLoc.t('Str_Common_PeriodEvening') : (_hh >= 12 ? WebLoc.t('Str_Common_PeriodPM') : WebLoc.t('Str_Common_PeriodAM'));
+            } else {
+                _periodTxt = WebLoc.t('Str_Common_PeriodAM');
+            }
+            var _header = s.date
+                ? WebLoc.f('Str_Common_SessionWithPeriodFmt', sn, s.date, _periodTxt)
+                : WebLoc.f('Str_Common_SessionNumFmt', sn);
+            sessions[sn] = { name: _header + _sname, events: [] };
         }
         sessions[sn].events.push(s);
     }
@@ -320,7 +351,7 @@ function renderScheduleTree() {
                 // 2026-09-21 序号跟主服务器那棵树同一个算法: 有项次(evNum)用项次, 否则按场内顺序
                 var seqNum = (ev.evNum && ev.evNum > 0) ? ev.evNum : evSeq;
                 // 2026-06-16 显示 ageGroup 前缀, key 含 ageGroup 修跨组别污染
-                var ageHead = ev.ageGroup ? (ev.ageGroup + ' ') : '';
+                var ageHead = ev.ageGroup ? ('[' + ev.ageGroup + '] ') : '';
                 var label = seqNum + '. ' + ageHead + WebLoc.genderDisplay(ev.gender) + ' ' + (ev.eventName || '') + ' ' + WebLoc.stageDisplay(ev.stage);
                 html += '<div class="tree-event">' + escHtml(label) + '</div>';
                 var hc = ev.heatCount || 1;

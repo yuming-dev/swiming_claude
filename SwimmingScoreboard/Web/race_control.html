@@ -952,7 +952,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261012-1';
+var PAGE_VER = '20261012-2';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -2294,18 +2294,33 @@ function renderScheduleTree() {
     if (schedule.length === 0) { container.innerHTML = '<div style="padding:10px;color:var(--dim);font-size:11px;">' + WebLoc.t('Str_Common_NoSchedule') + '</div>'; return; }
 
     // 按场分组
+    // 2026-10-12 参照主服务器"比赛控制"赛程树的 BuildSessionHeaderText/PeriodDisplay 现拼算法
+    //   (跟 display.html/checkin.html 已经在用的同一套)——sessionName 是缓存串, 不跟语言走,
+    //   改成每次画树都从 session/date/time 现拼, 时段走 WebLoc 翻译。
     var sessions = {};
     for (var i = 0; i < schedule.length; i++) {
         var s = schedule[i];
         var sn = s.session || 1;
-        // 2026-06-16 SessionName 持久化可能含 "第N场" 或旧版 "第N单元" 前缀, 强制 "第X场" + 剥 sname 前缀避免重复 / 显示旧"单元"字样
         if (!sessions[sn]) {
             var _sname = '';
             if (s.sessionName) {
-                var _t = String(s.sessionName).replace(/^\s*第\d+(场|单元)\s*/, '');
-                if (_t.trim()) _sname = ' ' + _t;
+                var _t = String(s.sessionName)
+                    .replace(/^\s*第\d+(场|单元)\s*/, '')
+                    .replace(/^\s*（[^（）]*）\s*/, '');
+                if (_t.trim()) _sname = '  ' + _t;
             }
-            sessions[sn] = { name: WebLoc.f('Str_Common_SessionNumFmt', sn) + _sname, events: [] };
+            var _periodTxt;
+            if (s.time) {
+                var _hh = parseInt(String(s.time).split(':')[0], 10);
+                if (isNaN(_hh)) _hh = 9;
+                _periodTxt = _hh >= 18 ? WebLoc.t('Str_Common_PeriodEvening') : (_hh >= 12 ? WebLoc.t('Str_Common_PeriodPM') : WebLoc.t('Str_Common_PeriodAM'));
+            } else {
+                _periodTxt = WebLoc.t('Str_Common_PeriodAM');
+            }
+            var _header = s.date
+                ? WebLoc.f('Str_Common_SessionWithPeriodFmt', sn, s.date, _periodTxt)
+                : WebLoc.f('Str_Common_SessionNumFmt', sn);
+            sessions[sn] = { name: _header + _sname, events: [] };
         }
         sessions[sn].events.push(s);
     }
