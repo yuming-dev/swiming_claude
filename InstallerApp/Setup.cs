@@ -376,6 +376,19 @@ class SetupForm : Form
                 CreateShortcut(Path.Combine(desktop, "编排记录及成绩处理.lnk"),
                     Path.Combine(installDir, "ScheduleEditor", "ScheduleEditor.exe"),
                     Path.Combine(installDir, "ScheduleEditor"));
+                // 2026-10-12 用户要求: 大屏幕显示(display.html)和检录签到台(checkin.html)也要
+                //   有桌面快捷方式——这两个是网页, 不是 exe, 但 CreateShortcut 本身不挑目标类型
+                //   (IShellLinkW::SetPath 认文件路径就行), 直接指向装好的本地 .html 文件, 双击用
+                //   系统默认浏览器打开。指本地文件路径(不是 http://localhost:8080/... 这个 URL)是
+                //   因为这两个网页也可能装在"检录/大屏专用机"上、不一定跑着主服务器的 HTTP 服务,
+                //   本地文件路径在任何装了本安装包的机器上都能双击打开, 页面自己的"请输入服务器
+                //   IP地址"弹窗负责把 WebSocket 连到真正的主服务器, 不依赖这个 .html 是怎么打开的。
+                CreateShortcut(Path.Combine(desktop, "大屏幕显示.lnk"),
+                    Path.Combine(installDir, "Server", "Web", "display.html"),
+                    Path.Combine(installDir, "Server", "Web"));
+                CreateShortcut(Path.Combine(desktop, "检录签到台.lnk"),
+                    Path.Combine(installDir, "Server", "Web", "checkin.html"),
+                    Path.Combine(installDir, "Server", "Web"));
             } else {
                 SetProgress(80, "跳过桌面快捷方式（未勾选）...");
             }
@@ -398,6 +411,12 @@ class SetupForm : Form
             CreateShortcut(Path.Combine(startMenu, "编排记录及成绩处理.lnk"),
                 Path.Combine(installDir, "ScheduleEditor", "ScheduleEditor.exe"),
                 Path.Combine(installDir, "ScheduleEditor"));
+            CreateShortcut(Path.Combine(startMenu, "大屏幕显示.lnk"),
+                Path.Combine(installDir, "Server", "Web", "display.html"),
+                Path.Combine(installDir, "Server", "Web"));
+            CreateShortcut(Path.Combine(startMenu, "检录签到台.lnk"),
+                Path.Combine(installDir, "Server", "Web", "checkin.html"),
+                Path.Combine(installDir, "Server", "Web"));
 
             // 复制使用说明书（PDF）
             string manualSrc = Path.Combine(sourceDir, "使用说明书.pdf");

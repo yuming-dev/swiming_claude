@@ -189,6 +189,8 @@ class UninstallForm : Form
             SafeDelete(Path.Combine(desktop, "远程显示控制台.lnk"));
             SafeDelete(Path.Combine(desktop, "运动员报名工具.lnk"));
             SafeDelete(Path.Combine(desktop, "编排记录及成绩处理.lnk"));
+            SafeDelete(Path.Combine(desktop, "大屏幕显示.lnk"));
+            SafeDelete(Path.Combine(desktop, "检录签到台.lnk"));
 
             SetProgress(20, "删除开始菜单快捷方式...");
             SafeDeleteDir(startMenu);
