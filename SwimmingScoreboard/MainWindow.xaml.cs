@@ -18299,13 +18299,16 @@ namespace SwimmingScoreboard
             var lblSerial = new TextBlock { Text = Loc.T("Str_Win_HwConn_SerialLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(lblSerial, 0); Grid.SetColumn(lblSerial, 0); grid.Children.Add(lblSerial);
             var serialRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            Style darkComboStyle = TryFindResource("DarkComboBoxStyle") as Style;
             var cbCom = new ComboBox { Width = 120, Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder };
+            if (darkComboStyle != null) cbCom.Style = darkComboStyle;
             foreach (var p in System.IO.Ports.SerialPort.GetPortNames()) cbCom.Items.Add(p);
             if (_timingConn != null && !string.IsNullOrEmpty(_timingConn.SerialPort) && cbCom.Items.Contains(_timingConn.SerialPort)) cbCom.SelectedItem = _timingConn.SerialPort;
             else if (cbCom.Items.Count > 0) cbCom.SelectedIndex = 0;
             serialRow.Children.Add(cbCom);
             serialRow.Children.Add(new TextBlock { Text = Loc.T("Str_Win_HwConn_BaudLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center });
             var cbBaud = new ComboBox { Width = 90, Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder };
+            if (darkComboStyle != null) cbBaud.Style = darkComboStyle;
             foreach (var b in new[] { "9600", "19200", "38400", "57600", "115200" }) cbBaud.Items.Add(b);
             int curBaud = (_timingConn != null && _timingConn.SerialBaudRate > 0) ? _timingConn.SerialBaudRate : 9600;
             cbBaud.SelectedItem = curBaud.ToString();
