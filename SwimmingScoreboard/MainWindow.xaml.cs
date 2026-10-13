@@ -5676,6 +5676,9 @@ namespace SwimmingScoreboard
                         }
                         //2026-05-12 一上线就发送当前PC的日期+时间，让硬件RTC自动校时
                         try { _timingBridge.SendDateTimeSync(); } catch { }
+                        //2026-10-14 一上线也把当前界面语言同步给硬件(新连接/重连的那一刻, 硬件可能还停在
+                        //   上次手动切的语言, 立刻按 PC 当前语言纠正一次; 不需要等下次语言切换事件)
+                        try { _timingBridge.SendLanguageSync(Loc.CurrentLanguage == Loc.En); } catch { }
                         SendTimingSettingsToHardware();
                         SendDeviceStatusesToHardware();
                         SendSetMatchEventToHardware();   // 0x43 — 总圈数+左右触板次数+空泳道位图
@@ -25371,6 +25374,10 @@ namespace SwimmingScoreboard
             // 2026-10-14 现场反馈排查: "硬件计时器连接"弹窗(ShowHardwareConnectionDialog)开着时如果
             //   由远端客户端触发语言切换(本机点不到, 模态窗口挡住了"设置"页), 窗口内文字要跟着刷新
             try { if (_openHwConnDialogRefresh != null) _openHwConnDialogRefresh(); } catch { }
+            // 2026-10-14 新功能: 硬件计时器(若已连接)也跟着切语言(LCD 泳道按钮文字) —— 需要硬件
+            //   烧录对应固件(H753SWIM2026-10 之后, commit c23b241)才会真的生效, 旧固件收到这帧会被
+            //   default 分支忽略, 不会报错。放在这个级联里, 本机点按钮/收到远端 LANGUAGE_SYNC 都会发送。
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLanguageSync(Loc.CurrentLanguage == Loc.En); } catch { }
             try { if (PauseClockBtnText != null) PauseClockBtnText.Text = Loc.T(_clockPaused ? "Str_RC_ResumeClock" : "Str_RC_PauseClock"); } catch { }
             try { UpdateRaceStateDisplay(); } catch { }
             // 2026-09-21 赛程导航树上的 [已确认] 这类状态标签是拼进 TreeViewItem.Header 的

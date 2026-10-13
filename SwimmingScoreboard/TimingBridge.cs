@@ -682,6 +682,20 @@ namespace SwimmingScoreboard
             RaiseLog(string.Format("发送泳池触板安装方式: {0}", isSingleSide ? "单边" : "两端"));
         }
 
+        /// <summary>2026-10-14 PC"比赛控制"切换中/英文时, 同步下发给硬件计时器, 让硬件 LCD 泳道按钮文字也跟着切。
+        /// 协议: command=0x3B (硬件内部 Set_Language=0x2B, wire=0x2B+0x10), d3=0(简体中文)/2(English) ——
+        /// 跟硬件固件自身 gui_phy.language/systemset.syslanguage 的取值约定(0=简体/1=繁体/2=English)保持一致,
+        /// PC 只用 0/2 两档(对应 Loc.Zh/Loc.En), 不碰"1=繁体"。
+        /// 注: 这是 2026-10-14 新增的硬件协议命令(firmware H753SWIM2026-10, commit c23b241), 需要硬件烧录
+        /// 对应固件才会生效; 旧固件收到这帧会落入 default 分支被忽略, 不报错, 但也不会真的切换硬件界面语言。
+        /// 硬件端不持久化这次切换(见固件注释), 所以每次语言变化 + 每次硬件重连都要再发一次——
+        /// 调用点: RefreshAllForLanguageChange()(本机点按钮 / 收到远端 LANGUAGE_SYNC 都走这条级联)、
+        /// 硬件刚连上时(OnStatusChanged, 跟 SendDateTimeSync() 同一处)。</summary>
+        public void SendLanguageSync(bool isEnglish) {
+            SendFullFrame(0x3B, (byte)(isEnglish ? 2 : 0), 0);
+            RaiseLog(string.Format("发送硬件界面语言同步: {0} (0x3B)", isEnglish ? "English" : "中文"));
+        }
+
         /// <summary>2026-06-15 设置硬件 UI 显示的泳姿类型 (第 2 行 "+1" 键左侧显示)。
         /// 协议: wire command=0x69 (硬件内部 Set_StrokeType_Command=0x59, wire=0x59+0x10), d3=泳姿编码
         ///   0=自由泳, 1=蝶泳, 2=蛙泳, 3=仰泳, 4=混合泳, 5+=空白 (硬件不显示)
