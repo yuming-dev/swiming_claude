@@ -392,8 +392,10 @@ var ws, data = {}, reconnectTimer;
 var currentMode = 'SHOW_LIVE_RACE';
 var publishedData = null;
 var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
-// 2026-06-04 备注栏 是否显示 出发反应时 (默认 true; 由 control / 主控 经 SET_DISPLAY_STYLE 推 false 关掉)
-var _remarkShowReaction = true;
+// 2026-06-04 备注栏 是否显示 出发反应时 (由 control / 主控 经 SET_DISPLAY_STYLE 推送实际值覆盖)
+// 2026-10-12 默认值改为 false, 跟主服务器 _displayStyleRemarkShowReaction 新默认一致 —— 只在连上前的
+//   极短窗口期生效, 连上后立即被服务器推的真实值覆盖
+var _remarkShowReaction = false;
 // 第1名分段成绩显示
 var _dspFirstDetected = 0;
 var _dspFirstTime = '';
@@ -993,7 +995,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261012-2';
+var PAGE_VER = '20261012-3';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}

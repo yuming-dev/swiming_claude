@@ -175,6 +175,10 @@ namespace SwimmingScoreboard
             { "Str_EvtLog_ManualRight",   new[] { "手右", "ManR" } },
             { "Str_EvtLog_BasisMB",       new[] { " (基准:MB)", " (Basis: MB)" } },
             { "Str_EvtLog_BasisHandTP",   new[] { " (基准:手动)", " (Basis: Manual)" } },
+            // 2026-10-12 BackupEventInfo(TimingBridge.cs) 事件备份弹窗用, 跟上面同一套缩写风格
+            { "Str_EvtLog_Gun",           new[] { "发", "Gun" } },
+            { "Str_EvtLog_Press",         new[] { "按下", "Down" } },
+            { "Str_EvtLog_Release",       new[] { "松开", "Up" } },
 
             // "设置" 页：界面语言（新增）
             { "Str_Settings_Language",     new[] { "界面语言", "Interface Language" } },
@@ -2986,6 +2990,18 @@ namespace SwimmingScoreboard
             { "Str_Win_EventBackup_LaneQueryLabel", new[] { "泳道查询:", "Lane Filter:" } },
             { "Str_Win_EventBackup_LanePrefix", new[] { "道", "Lane " } },
             { "Str_Win_EventBackup_PrintDocName", new[] { "事件备份", "Event Backup" } },
+            // 2026-10-12 现场反馈: 英文模式下这个弹窗内容(buildLines 拼出来的列表)仍是硬编码中文,
+            //   切语言也不跟着变 —— 根因是内容在 Loc.T/F 查表体系之外, 不是刷新绑定漏了, 这里补全翻译
+            { "Str_Win_EventBackup_ScopeAll", new[] { "全部道次", "All lanes" } },
+            { "Str_Win_EventBackup_HeaderFmt", new[] { "==== 事件备份 [{0}] ({1} 条 [按下+松开 全部], 共 {2} 条原始, 含 {3} 条发令时刻) ====", "==== Event Backup [{0}] ({1} entries [press+release, all], {2} raw total, {3} gun-moment entries) ====" } },
+            { "Str_Win_EventBackup_LegendLine", new[] { "说明: '按下' = 下降沿 (= 成绩瞬间, 跟比赛日志 '= XX.XX' 同源); '松开' = 上升沿", "Note: 'Down' = falling edge (= result moment, same source as the race log '= XX.XX'); 'Up' = rising edge" } },
+            { "Str_Win_EventBackup_NoGunWarning", new[] { "⚠ 未收到发令时刻记录: 确认固件已烧录 2026-06-14 v6 版本 (StartTiming 末尾应有 EvtType=10 push); 或本场未真正按发令键", "⚠ No gun-moment record received: confirm the firmware is flashed with the 2026-06-14 v6 build (StartTiming should push EvtType=10 at the end), or the gun button wasn't actually pressed this heat" } },
+            { "Str_Win_EventBackup_GunSummaryHeader", new[] { "---- 发令时刻摘要 ----", "---- Gun Moment Summary ----" } },
+            { "Str_Win_EventBackup_GunSummaryLineFmt", new[] { "  [发令] PreStart 计数器 = {0}", "  [Gun] PreStart counter = {0}" } },
+            { "Str_Win_EventBackup_GunMomentFmt", new[] { "[发令时刻] = {0,8} (PreStart 计数器值, 后续 TP/SB 反应时 = 该 TP 时间 - 此处)", "[Gun Moment] = {0,8} (PreStart counter value; later TP/SB reaction time = that TP time minus this)" } },
+            { "Str_Win_EventBackup_EventLineFmt", new[] { "道{0}{1} {2} {3} = {4,8}{5} 硬件状态={6}", "Ln{0}{1} {2} {3} = {4,8}{5} dev-state={6}" } },
+            { "Str_Win_EventBackup_RangeReady", new[] { "比赛就绪", "Race Ready" } },
+            { "Str_Win_EventBackup_RangeReset", new[] { "计时复位", "Clock Reset" } },
             { "Str_Win_ManualSplit_Title", new[] { "手工补段成绩", "Manual Split Entry" } },
             { "Str_Win_ManualSplit_Tip", new[] { "📌 分段时间 = 累计时间 (从出发到此段触板, 例: 200m 比赛第 2 段 = 100m 触板时刻)", "📌 Split time = cumulative time (from the start to this touch, e.g. leg 2 of a 200m race = the 100m touch time)" } },
             { "Str_Win_ManualSplit_LaneLabel", new[] { "道次:", "Lane:" } },
@@ -3050,7 +3066,8 @@ namespace SwimmingScoreboard
             { "Str_Win_ParamsHub_ManualBtnBtn", new[] { "手动按键管理", "Manual Button Management" } },
             { "Str_Win_ParamsHub_AutoSaveBtn", new[] { "成绩存盘路径", "Result Save Path" } },
             { "Str_Win_ParamsHub_ThermalBtn", new[] { "热敏打印", "Thermal Printing" } },
-            { "Str_Win_ParamsHub_HwConnBtn", new[] { "硬件计时器连接", "Hardware Timer Connection" } },
+            // 2026-10-12 现场反馈: 英文"Hardware Timer Connection"太长, 在"系统硬件"卡片按钮里被遮挡/显示不全, 缩写
+            { "Str_Win_ParamsHub_HwConnBtn", new[] { "硬件计时器连接", "Hardware Connect" } },
             { "Str_Win_ParamsHub_PwdBtn", new[] { "用户名和密码", "Username & Password" } },
             { "Str_Win_HwConn_CurrentStatusLabel", new[] { "当前状态: ", "Current Status: " } },
             { "Str_Win_HwConn_Connected", new[] { "已连接", "Connected" } },

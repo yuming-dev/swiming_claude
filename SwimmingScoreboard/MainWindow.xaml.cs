@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20261012-2";
+        public const string WEB_ASSET_VERSION = "20261012-3";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -399,8 +399,10 @@ namespace SwimmingScoreboard
         private string _displayStyleFsPartsJson = "{\"title\":1,\"event\":1,\"time\":1,\"info\":1,\"header\":1}";
         // 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 (= display.html .header-records visibility)
         private bool _displayStyleRecordsHidden = false;
-        // 2026-06-04 备注 栏是否显示 出发反应时 (= display.html lane-row .remark, 默认 true = 旧行为, 显示窗口期内 SB 反应时落到备注栏)
-        private bool _displayStyleRemarkShowReaction = true;
+        // 2026-06-04 备注 栏是否显示 出发反应时 (= display.html lane-row .remark)
+        // 2026-10-12 现场反馈: 按钮"RT On"初始化值改为"RT Off" —— 新装/未保存过大屏样式时默认不显示反应时,
+        //   需要时由"显示控制"手动开启; 已持久化过的机器仍读 display_style.json 里保存的值, 不受此默认值影响。
+        private bool _displayStyleRemarkShowReaction = false;
         private DisplayStyleWindow _displayStyleWin;        // 当前打开的"大屏样式"窗口 (主控 PC 端)
         private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
 
@@ -5773,24 +5775,24 @@ namespace SwimmingScoreboard
                 // 2026-06-13 (晚) 调试用: 显示全部事件 (按下+松开), 不再过滤. 用于诊断"前 17 秒缺数据"等问题
                 // 2026-06-14 发令事件 (IsGunEvent) 不受泳道筛选影响, 永远计入
                 foreach (var e in _pendingBackupEvents) if (laneFilter < 0 || e.IsGunEvent || e.Lane == laneFilter) pc++;
-                string scope = laneFilter < 0 ? "全部道次" : ("道" + laneFilter);
+                string scope = laneFilter < 0 ? Loc.T("Str_Win_EventBackup_ScopeAll") : (Loc.T("Str_Win_EventBackup_LanePrefix") + laneFilter);
                 // 2026-06-14 加发令事件统计: 让用户立即知道固件 v6 (EventBackup 发令 push) 是否生效
                 int gunCount = 0;
                 foreach (var e in _pendingBackupEvents) if (e.IsGunEvent) gunCount++;
-                ls.Add(string.Format("==== 事件备份 [{0}] ({1} 条 [按下+松开 全部], 共 {2} 条原始, 含 {3} 条发令时刻) ====", scope, pc, _pendingBackupEvents.Count, gunCount));
-                ls.Add("说明: '按下' = 下降沿 (= 成绩瞬间, 跟比赛日志 '= XX.XX' 同源); '松开' = 上升沿");
+                ls.Add(Loc.F("Str_Win_EventBackup_HeaderFmt", scope, pc, _pendingBackupEvents.Count, gunCount));
+                ls.Add(Loc.T("Str_Win_EventBackup_LegendLine"));
                 if (gunCount == 0) {
-                    ls.Add("⚠ 未收到发令时刻记录: 确认固件已烧录 2026-06-14 v6 版本 (StartTiming 末尾应有 EvtType=10 push); 或本场未真正按发令键");
+                    ls.Add(Loc.T("Str_Win_EventBackup_NoGunWarning"));
                 } else {
                     // 2026-06-14 把所有发令时刻汇总在顶部, 方便用户对比反应时
-                    ls.Add("---- 发令时刻摘要 ----");
+                    ls.Add(Loc.T("Str_Win_EventBackup_GunSummaryHeader"));
                     foreach (var e in _pendingBackupEvents) {
                         if (!e.IsGunEvent) continue;
                         string tsG;
                         if (e.Hour > 0)        tsG = string.Format("{0}:{1:00}:{2:00}.{3:00}", e.Hour, e.Minute, e.Second, e.Msecond);
                         else if (e.Minute > 0) tsG = string.Format("{0}:{1:00}.{2:00}", e.Minute, e.Second, e.Msecond);
                         else                   tsG = string.Format("{0}.{1:00}", e.Second, e.Msecond);
-                        ls.Add(string.Format("  [发令] PreStart 计数器 = {0}", tsG));
+                        ls.Add(Loc.F("Str_Win_EventBackup_GunSummaryLineFmt", tsG));
                     }
                 }
                 ls.Add("");
@@ -5845,7 +5847,7 @@ namespace SwimmingScoreboard
                         // 2026-06-14 发令时刻特殊格式: 时间是 Gun_PreStart_* (= 反应时核对参考点)
                         // 2026-06-23 同时更新 currentGunPs, 后续本组 PreStart 事件用它算 Δ
                         currentGunPs = evt.Hour * 3600.0 + evt.Minute * 60.0 + evt.Second + evt.Msecond / 100.0;
-                        ls.Add(string.Format("[发令时刻] = {0,8} (PreStart 计数器值, 后续 TP/SB 反应时 = 该 TP 时间 - 此处)", ts));
+                        ls.Add(Loc.F("Str_Win_EventBackup_GunMomentFmt", ts));
                     } else {
                         // 2026-06-14 IsPreStartTime: 固件设了 EvtType bit7 表示时间字段是 PreStart 计数器值 (= 发令前/开门窗口内事件),
                         //   不是 race timer. 加 " (P)" 标志, 避免操作员把出发反应时段的时间当成 race timer 比较.
@@ -5863,7 +5865,7 @@ namespace SwimmingScoreboard
                                 pFlag = " (P)";
                             }
                         }
-                        ls.Add(string.Format("道{0}{1} {2} {3} = {4,8}{5} 硬件状态={6}",
+                        ls.Add(Loc.F("Str_Win_EventBackup_EventLineFmt",
                             evt.Lane, evt.SideLabel, evt.EventLabel, evt.ActionLabel, ts, pFlag, evt.DevState));
                     }
                 }
@@ -5959,11 +5961,24 @@ namespace SwimmingScoreboard
 
             var btnCopy = new Button { Content = Loc.T("Str_Btn_Copy"), Width = 80, Height = 30, Margin = new Thickness(5) };
             btnCopy.Click += delegate(object s, RoutedEventArgs e) {
-                try {
-                    System.Windows.Clipboard.SetText(string.Join("\r\n", lines));
+                // 2026-10-12 现场反馈: 偶发 "OpenClipboard failed (CLIPBRD_E_CANT_OPEN)" —— 系统剪贴板
+                //   被其它进程(剪贴板历史/截图工具等)瞬时占用的常见错误, 不是真正的 bug, 重试几次通常就过去。
+                string text = string.Join("\r\n", lines);
+                Exception lastEx = null;
+                bool ok = false;
+                for (int attempt = 0; attempt < 5 && !ok; attempt++) {
+                    try {
+                        System.Windows.Clipboard.SetText(text);
+                        ok = true;
+                    } catch (Exception ex) {
+                        lastEx = ex;
+                        if (attempt < 4) System.Threading.Thread.Sleep(80);
+                    }
+                }
+                if (ok) {
                     AppMessageBox.Show(Loc.T("Str_Msg_CopiedToClipboard"), Loc.T("Str_MsgTitle_Copy"));
-                } catch (Exception ex) {
-                    AppMessageBox.Show(Loc.F("Str_Msg_CopyFailedFmt", ex.Message));
+                } else {
+                    AppMessageBox.Show(Loc.F("Str_Msg_CopyFailedFmt", lastEx != null ? lastEx.Message : ""));
                 }
             };
             btnPanel.Children.Add(btnCopy);

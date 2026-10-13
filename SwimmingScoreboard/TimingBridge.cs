@@ -45,26 +45,28 @@ namespace SwimmingScoreboard
         public string ActionLabel {
             get {
                 if (BaseType == 10) return "";  // 发令事件无按下/松开语义
-                return (BaseType % 2 == 0) ? "按下" : "松开";
+                return (BaseType % 2 == 0) ? Loc.T("Str_EvtLog_Press") : Loc.T("Str_EvtLog_Release");
             }
         }
         // 2026-06-14 发令事件 Lane/Side 都填 0xFF (= 全场事件), SideLabel 返回空串方便上层用模板拼字符串
         public string SideLabel {
             get {
                 if (BaseType == 10 || Lane == 0xFF) return "";
-                return Side == 0 ? "左" : "右";
+                return Side == 0 ? Loc.T("Str_EvtLog_Left") : Loc.T("Str_EvtLog_Right");
             }
         }
         // 2026-06-10 跟主比赛日志事件 label 风格一致: 出/触/盲N
+        // 2026-10-12 现场反馈: 事件备份弹窗英文模式下这里仍硬编码中文, 不随语言切换 —— 改走 Loc.T,
+        //   跟"比赛日志"面板(Str_EvtLog_*)同一套 key, 两处用词保持一致
         public string EventLabel {
             get {
-                if (BaseType == 10) return "发";  // 2026-06-14 发令时刻 (时间字段 = Gun_PreStart_*)
+                if (BaseType == 10) return Loc.T("Str_EvtLog_Gun");  // 2026-06-14 发令时刻 (时间字段 = Gun_PreStart_*)
                 switch (BaseType / 2) {
-                    case 0: return "出";  // SB → 出发台
-                    case 1: return "触";  // TP → 触板
-                    case 2: return "盲1"; // MB1
-                    case 3: return "盲2"; // MB2
-                    case 4: return "盲3"; // MB3
+                    case 0: return Loc.T("Str_EvtLog_Start");    // SB → 出发台
+                    case 1: return Loc.T("Str_EvtLog_Touch");    // TP → 触板
+                    case 2: return Loc.T("Str_EvtLog_Backup1");  // MB1
+                    case 3: return Loc.T("Str_EvtLog_Backup2");  // MB2
+                    case 4: return Loc.T("Str_EvtLog_Backup3");  // MB3
                     default: return "?";
                 }
             }
@@ -79,8 +81,8 @@ namespace SwimmingScoreboard
         public bool IsRangeMarker { get { return BaseType == 11 || BaseType == 12; } }
         public string RangeMarkerLabel {
             get {
-                if (BaseType == 11) return "比赛就绪";
-                if (BaseType == 12) return "计时复位";
+                if (BaseType == 11) return Loc.T("Str_Win_EventBackup_RangeReady");
+                if (BaseType == 12) return Loc.T("Str_Win_EventBackup_RangeReset");
                 return "";
             }
         }
