@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20261012-3";
+        public const string WEB_ASSET_VERSION = "20261013-1";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -2213,6 +2213,22 @@ namespace SwimmingScoreboard
                     case "CONNECT_HW":
                         HandleConnectHw(msg);
                         break;
+                    // 2026-10-13 网页版"硬件计时器连接"弹窗(race_control.html)原来串口号文本框
+                    //   硬编码写死 value="COM3", 跟主服务器真实串口号(cbCom 下拉里 GetPortNames())
+                    //   毫无关系, 看着就是假的。网页没法直接读浏览器所在机器的串口(浏览器沙箱也读
+                    //   不到——真正持有串口的是主服务器/RTC), 只能问服务器要它自己这台机器上的真实
+                    //   列表, 再回填成下拉建议(datalist), 不再是摆设的假默认值。
+                    case "LIST_SERIAL_PORTS":
+                        HandleListSerialPorts(socket);
+                        break;
+                    // 2026-10-13 race_control.html 的 Ctrl+Shift+B / Ctrl+Shift+L——见
+                    // HandleQueryBackupLogRemote / HandleClearBackupLogRemote 上面的注释。
+                    case "QUERY_BACKUP_LOG":
+                        HandleQueryBackupLogRemote(socket);
+                        break;
+                    case "CLEAR_BACKUP_LOG":
+                        HandleClearBackupLogRemote(socket);
+                        break;
                     case "TIMING_CMD":
                         HandleTimingCommand(msg, socket);
                         break;
@@ -3730,6 +3746,64 @@ namespace SwimmingScoreboard
             }
             UpdateConnectionStatus();
             Broadcast();
+        }
+
+        // 2026-10-13 race_control.html 的 Ctrl+Shift+B——复刻本机 QueryBackupLog() 键盘快捷键,
+        //   但远端没有本机 AppMessageBox 可用: 硬件未连接时要把原因发回请求的那个 socket,
+        //   而不是在服务器屏幕上弹一个网页操作员根本看不到的对话框。
+        private void HandleQueryBackupLogRemote(IWebSocketConnection socket) {
+            if (_timingBridge == null || !_timingBridge.IsConnected) {
+                try { EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                    type = "BACKUP_LOG_ERROR", error = Loc.T("Str_Msg_HwNotConnected")
+                })); } catch { }
+                return;
+            }
+            _pendingBackupEvents.Clear();
+            _timingBridge.SendCommand(0x66);   // Query_BackupLog_Command (0x56) + 0x10
+            AddLog(Loc.T("Str_Log_EventBackupQuerySent"));
+        }
+
+        // 2026-10-13 race_control.html 的 Ctrl+Shift+L——复刻本机 ClearBackupLog()。本机那份靠
+        //   AppMessageBox(...YesNo) 二次确认; 网页版的"二次确认"已经在浏览器里用 confirm() 做过了
+        //   (见 race_control.html rcClearBackupLog()), 这里不再重复弹一次本机对话框——否则现场变成
+        //   "网页点了清除, 服务器屏幕上却弹出一个没人看的确认框, 网页那边干等"。
+        private void HandleClearBackupLogRemote(IWebSocketConnection socket) {
+            if (_timingBridge == null || !_timingBridge.IsConnected) {
+                try { EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                    type = "BACKUP_LOG_ERROR", error = Loc.T("Str_Msg_HwNotConnected")
+                })); } catch { }
+                return;
+            }
+            _timingBridge.SendCommand(0x68);   // Clear_BackupLog_Command (0x58) + 0x10
+            AddLog(Loc.T("Str_Log_EventBackupCleared"));
+        }
+
+        // 2026-10-13 把 BuildBackupLogLines(laneFilter) 对 "全部"+道0..9 共 11 种预先格式化好,
+        //   一次性发给网页版比赛控制——网页端拿到就能直接切换下拉筛选瞬间换文本, 不用每切一次
+        //   泳道都再跑一趟 Δ 反应时计算(那段逻辑是有状态的 pre-pass/anchor 扫描, 不适合在 JS 里
+        //   重新实现一遍、也容易跟服务器这份权威算法走偏)。
+        private void PushBackupLogResultToWeb() {
+            if (_timingWebSockets.Count == 0) return;
+            var byLane = new System.Collections.Generic.Dictionary<string, object>();
+            byLane["all"] = BuildBackupLogLines(-1);
+            for (int lane = 0; lane <= 9; lane++) byLane[lane.ToString()] = BuildBackupLogLines(lane);
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                type = "BACKUP_LOG_RESULT",
+                data = new { total = _pendingBackupEvents.Count, byLane = byLane }
+            });
+            EnqueueToSet(_timingWebSockets, json);
+        }
+
+        // 2026-10-13 见上面 case "LIST_SERIAL_PORTS" 的注释。只读本机真实串口号, 回给请求的那个 socket。
+        private void HandleListSerialPorts(IWebSocketConnection socket) {
+            string[] ports;
+            try { ports = System.IO.Ports.SerialPort.GetPortNames(); } catch { ports = new string[0]; }
+            try {
+                EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                    type = "SERIAL_PORTS",
+                    data = new { ports = ports }
+                }));
+            } catch { }
         }
 
         private void HandleRemoteControl(JObject msg, IWebSocketConnection socket) {
@@ -5718,6 +5792,10 @@ namespace SwimmingScoreboard
                 Dispatcher.BeginInvoke((Action)delegate() {
                     AddLog(Loc.F("Str_Log_EventBackupQueryDoneFmt", _pendingBackupEvents.Count));
                     ShowBackupEventDialog();
+                    // 2026-10-13 不管这次查询是本机按 Ctrl+Shift+B 触发还是网页版(race_control.html)
+                    //   远程触发的, 查完都顺手推一份给所有网页版比赛控制——它没有 WPF 弹窗可用,
+                    //   全靠服务器把格式化好的文本行发过去自己弹 modal 展示。
+                    try { PushBackupLogResultToWeb(); } catch { }
                 });
             };
         }
@@ -5766,17 +5844,15 @@ namespace SwimmingScoreboard
             AddLog(Loc.T("Str_Log_EventBackupCleared"));
         }
 
-        private void ShowBackupEventDialog() {
-            if (_pendingBackupEvents.Count == 0) {
-                AppMessageBox.Show(Loc.T("Str_Msg_EventBackupEmpty"), Loc.T("Str_MsgTitle_EventBackup"));
-                return;
-            }
-            // 2026-06-10 格式: 道N侧 出/触/盲X = 设备按下瞬间硬件时间 (= 跟比赛日志 = 后 SB/TP/MB 成绩同源)
-            // 按键电路上拉到 1, 按下变 0 → 1→0 下降沿 = 按下 = 成绩瞬间. 硬件 OnSendSWData 帧也在此时刻发
-            // 2026-06-10 lines 按当前泳道筛选动态生成. laneFilter = -1 表示全部, 0..9 表示只看道N
-            //   存盘/打印/复制 均使用当前筛选后的 lines, 故反复重赋值 (闭包按引用捕获 lines 变量)
-            var lines = new List<string>();
-            Func<int, List<string>> buildLines = delegate(int laneFilter) {
+        // 2026-10-13 从 ShowBackupEventDialog() 的本地闭包抽出来的独立方法——
+        //   race_control.html(网页版比赛控制) 的 Ctrl+Shift+B 也要能看"事件备份"弹窗,
+        //   但网页端没有 WPF ListBox, 只能让服务器把格式化好的文本行发过去。抽成命名方法后
+        //   两边(本机 WPF 弹窗 + PushBackupLogResultToWeb 的远端推送)共用同一份格式化逻辑,
+        //   不会出现"网页版文案跟主服务器对不上"的问题(本次 9 条反馈里第 5/4 条本质同源)。
+        // 格式: 道N侧 出/触/盲X = 设备按下瞬间硬件时间 (= 跟比赛日志 = 后 SB/TP/MB 成绩同源)
+        // 按键电路上拉到 1, 按下变 0 → 1→0 下降沿 = 按下 = 成绩瞬间. 硬件 OnSendSWData 帧也在此时刻发
+        // laneFilter = -1 表示全部, 0..9 表示只看道N
+        private List<string> BuildBackupLogLines(int laneFilter) {
                 var ls = new List<string>();
                 int pc = 0;
                 // 2026-06-13 (晚) 调试用: 显示全部事件 (按下+松开), 不再过滤. 用于诊断"前 17 秒缺数据"等问题
@@ -5878,7 +5954,15 @@ namespace SwimmingScoreboard
                 }
                 if (pc == 0) ls.Add(laneFilter < 0 ? Loc.T("Str_Win_EventBackup_NoEvents") : Loc.F("Str_Win_EventBackup_NoEventsLaneFmt", laneFilter));
                 return ls;
-            };
+        }
+
+        private void ShowBackupEventDialog() {
+            if (_pendingBackupEvents.Count == 0) {
+                AppMessageBox.Show(Loc.T("Str_Msg_EventBackupEmpty"), Loc.T("Str_MsgTitle_EventBackup"));
+                return;
+            }
+            var lines = new List<string>();
+            Func<int, List<string>> buildLines = BuildBackupLogLines;
 
             // 滚动窗口
             var wnd = new Window {

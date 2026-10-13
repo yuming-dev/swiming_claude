@@ -90,7 +90,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .touch-btn:hover:not(:disabled) { background: var(--accent); }
 .touch-btn:active:not(:disabled) { background: var(--green); }
 .touch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.device-label { width: 22px; font-size: 12px; color: var(--dim); text-align: center; flex-shrink: 0; }
+/* 2026-10-13 英文模式下 SB/MB1/MB2/MB3 等缩写比中文"出发"/"盲1"宽, 22px 单行容易挤变形——
+   跟主服务器 WPF 端 RenderPoolHeader() 同一个毛病、同一个解法: 允许 \n 拆成上下 2 行
+   (white-space:pre-line 识别文案里的真实换行符), 列宽本身不变, 保证跟下方泳道行设备点对齐。 */
+.device-label { width: 22px; font-size: 12px; color: var(--dim); text-align: center; flex-shrink: 0; overflow: hidden; white-space: pre-line; line-height: 11px; }
 .device-label-btn { width: 80px; font-size: 12px; color: var(--dim); text-align: center; flex-shrink: 0; }
 
 .lane-mid { flex: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
@@ -428,7 +431,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <div id="hwSerialPanel" style="display:none;align-items:center;gap:6px;margin-bottom:10px;">
             <label data-i18n="Str_RC_Serial" style="color:#94A3B8;font-size:13px;width:70px;">串口</label>
-            <input id="dlgHwPort" value="COM3" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
+            <input id="dlgHwPort" list="dlgHwPortList" value="" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
+            <datalist id="dlgHwPortList"></datalist>
         </div>
         <div id="hwUdpPanel" style="display:none;flex-direction:column;gap:6px;margin-bottom:10px;">
             <div style="display:flex;align-items:center;gap:6px;">
@@ -457,6 +461,32 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeHwConn()" data-i18n="Str_Common_Close">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-10-13 事件备份弹窗 (Ctrl+Shift+B 查 / Ctrl+Shift+L 清) —— 复刻主服务器同名弹窗,
+     文字内容(除了下面这几条 UI 外壳)全部是服务器用 BuildBackupLogLines() 按当前服务器语言
+     现格式化好直接发过来的, 不在网页端二次翻译, 保证跟主服务器逐字一致。 -->
+<div id="backupLogModal" class="modal-overlay hidden" onclick="if(event.target===this)closeBackupLog()">
+    <div class="modal-dialog" style="width:800px;max-width:92vw;height:80vh;display:flex;flex-direction:column;">
+        <h2 id="backupLogTitle" style="color:#DC2626;flex-shrink:0;">Event Backup</h2>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-shrink:0;">
+            <label data-i18n="Str_Win_EventBackup_LaneQueryLabel" style="color:#94A3B8;font-size:13px;">泳道查询:</label>
+            <select id="backupLogLaneFilter" onchange="renderBackupLog()" style="background:#0F172A;color:white;border:1px solid #475569;padding:4px 8px;border-radius:6px;font-size:13px;">
+                <option value="all" data-i18n="Str_Common_All">全部</option>
+                <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+                <option value="9">9</option>
+            </select>
+        </div>
+        <pre id="backupLogContent" style="flex:1;overflow:auto;background:#0F172A;color:#E2E8F0;font-family:Consolas,monospace;font-size:12px;padding:8px;border-radius:6px;border:1px solid #334155;margin:0;white-space:pre-wrap;"></pre>
+        <div class="modal-btns" style="flex-shrink:0;">
+            <button class="btn-ok" onclick="saveBackupLog()" data-i18n="Str_Btn_Save" style="background:#3B82F6;">保存</button>
+            <button class="btn-ok" onclick="printBackupLog()" data-i18n="Str_Win_DocPreview_PrintBtn" style="background:#0EA5E9;">打印</button>
+            <button class="btn-ok" onclick="copyBackupLog()" data-i18n="Str_Btn_Copy" style="background:#64748B;">复制</button>
+            <button class="btn-cancel" onclick="closeBackupLog()" data-i18n="Str_Btn_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -953,7 +983,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261012-3';
+var PAGE_VER = '20261013-1';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1015,6 +1045,16 @@ function checkPageVer(serverVer) {
             try { renderDeviceStatusPanel(); } catch (eDevLang) {}
             try { renderManualBtnPanel(); } catch (eMbLang) {}
         }
+        // 2026-10-13 单独推的 LANGUAGE_SYNC 没有 data 字段——上面翻译完必须到此为止,
+        //   不能漏到下面的"其它广播走帧合并"兜底(最后一行 _rcScheduleRender(msg.data)):
+        //   那条路会把 msg.data(此处是 undefined)当成本轮完整数据, 下一帧用 {} 整个覆盖
+        //   全局 data, 把赛程导航/泳道行/名单等刚渲染好的内容全部冲空——现场表现就是"切完
+        //   语言界面大面积空白/只剩部分英文", 比对着像是断线。(常规状态广播里带的 data.lang
+        //   不受影响, 那条路的 msg.data 是真实完整数据, 要继续往下走正常渲染。)
+        if (msg.type === 'LANGUAGE_SYNC') return;
+        if (msg.type === 'SERIAL_PORTS') { applySerialPortList(msg.data && msg.data.ports); return; }
+        if (msg.type === 'BACKUP_LOG_RESULT') { _rcHandleBackupLogResult(msg.data); return; }
+        if (msg.type === 'BACKUP_LOG_ERROR') { _rcHandleBackupLogError(msg.error); return; }
         if (msg.data && msg.data.webAssetVersion) checkPageVer(msg.data.webAssetVersion);
         if (msg.data && msg.data.scoringControlMode) applyCtrlLock(msg.data.scoringControlMode);
         // 服务端硬拦的回执 —— 旧页面/缓存绕过前端置灰时, 这条保证操作员看得到原因
@@ -1914,8 +1954,95 @@ function applyPoolDevice() {
 }
 
 // ─── 子弹窗 3: 硬件计时器连接 ───
-function openHwConn() { document.getElementById('hwConnModal').classList.remove('hidden'); }
+function openHwConn() {
+    document.getElementById('hwConnModal').classList.remove('hidden');
+    // 2026-10-13 打开就问一次服务器真实串口号, 回填到 datalist(见 dlgHwPort 旁注释)
+    if (ws && ws.readyState === 1) { try { ws.send(JSON.stringify({ type: 'LIST_SERIAL_PORTS' })); } catch (e) {} }
+}
+function applySerialPortList(ports) {
+    var dl = document.getElementById('dlgHwPortList');
+    if (!dl) return;
+    dl.innerHTML = '';
+    (ports || []).forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p;
+        dl.appendChild(opt);
+    });
+    var inp = document.getElementById('dlgHwPort');
+    // 只有一个真实串口、且输入框还是空的时候才帮忙填上；多个或没有都留给操作员自己选/填
+    if (inp && !inp.value && ports && ports.length === 1) inp.value = ports[0];
+}
 function closeHwConn() { document.getElementById('hwConnModal').classList.add('hidden'); }
+
+// ─── 子弹窗 3.5: 事件备份 (Ctrl+Shift+B 查 / Ctrl+Shift+L 清) ───
+// 2026-10-13 跟主服务器 QueryBackupLog()/ClearBackupLog()/ShowBackupEventDialog() 对应。
+//   本页不直连硬件, 查询/清空都是让服务器代为执行; 服务器把 BuildBackupLogLines() 对
+//   "全部"+道0..9 共 11 种预格式化好的文本行一次性发回来(见 BACKUP_LOG_RESULT), 本页
+//   只管切换下拉筛选时换一下显示内容, 不自己算 Δ 反应时(那段逻辑是有状态的, 照抄一遍
+//   容易跟服务器权威算法走偏)。
+var _backupLogByLane = null;
+function rcQueryBackupLog() {
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_RC_PleaseConnectServerFirst')); return; }
+    ws.send(JSON.stringify({ type: 'QUERY_BACKUP_LOG' }));
+    addLog(WebLoc.t('Str_RC_LogBackupLogQuerySent'));
+}
+function rcClearBackupLog() {
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_RC_PleaseConnectServerFirst')); return; }
+    if (!confirm(WebLoc.t('Str_Msg_ClearHwBackupConfirm'))) return;
+    ws.send(JSON.stringify({ type: 'CLEAR_BACKUP_LOG' }));
+    addLog(WebLoc.t('Str_RC_LogBackupLogCleared'));
+}
+function _rcHandleBackupLogResult(d) {
+    if (!d) return;
+    _backupLogByLane = d.byLane || {};
+    var total = d.total || 0;
+    if (total === 0) { alert(WebLoc.t('Str_Msg_EventBackupEmpty')); return; }
+    document.getElementById('backupLogTitle').textContent = WebLoc.f('Str_Win_EventBackup_TitleFmt', total);
+    document.getElementById('backupLogModal').classList.remove('hidden');
+    renderBackupLog();
+}
+function _rcHandleBackupLogError(msg) {
+    alert(msg || WebLoc.t('Str_Msg_HwNotConnected'));
+}
+function renderBackupLog() {
+    var sel = document.getElementById('backupLogLaneFilter').value;
+    var lines = (_backupLogByLane && _backupLogByLane[sel]) || [];
+    document.getElementById('backupLogContent').textContent = lines.join('\n');
+}
+function closeBackupLog() { document.getElementById('backupLogModal').classList.add('hidden'); }
+function saveBackupLog() {
+    var text = document.getElementById('backupLogContent').textContent;
+    var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var ts = new Date();
+    function p2(n) { return (n < 10 ? '0' : '') + n; }
+    a.download = WebLoc.t('Str_MsgTitle_EventBackup') + '_' + ts.getFullYear() + p2(ts.getMonth()+1) + p2(ts.getDate())
+        + '_' + p2(ts.getHours()) + p2(ts.getMinutes()) + p2(ts.getSeconds()) + '.txt';
+    a.href = url;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+function printBackupLog() {
+    var text = document.getElementById('backupLogContent').textContent;
+    var w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write('<html><head><title>' + WebLoc.t('Str_MsgTitle_EventBackup') + '</title></head>'
+        + '<body><pre style="font-family:Consolas,monospace;font-size:12px;white-space:pre-wrap;">'
+        + text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre></body></html>');
+    w.document.close();
+    w.focus();
+    w.print();
+}
+function copyBackupLog() {
+    var text = document.getElementById('backupLogContent').textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() { addLog(WebLoc.t('Str_RC_LogBackupLogCopied')); })
+            .catch(function() { alert(WebLoc.t('Str_RC_CopyFailed')); });
+    } else {
+        alert(WebLoc.t('Str_RC_CopyFailed'));
+    }
+}
 
 // ─── 子弹窗 4: 成绩存盘路径 (浏览器本机 localStorage) ───
 function openAutoSavePath() {
@@ -3226,6 +3353,15 @@ function addLog(msg) {
 // 键盘快捷键
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    // 2026-10-13 Ctrl+Shift+B 查事件备份 / Ctrl+Shift+L 清空事件备份——跟主服务器
+    // MainWindow_PreviewKeyDown_BackupShortcut 同一套快捷键, 必须最先判断并 preventDefault
+    // (浏览器自己拿 Ctrl+Shift+B 切书签栏, 不挡住会被浏览器抢走)。
+    if (e.ctrlKey && e.shiftKey && !e.altKey && (e.key === 'B' || e.key === 'b')) {
+        e.preventDefault(); rcQueryBackupLog(); return;
+    }
+    if (e.ctrlKey && e.shiftKey && !e.altKey && (e.key === 'L' || e.key === 'l')) {
+        e.preventDefault(); rcClearBackupLog(); return;
+    }
     switch(e.key) {
         case 'F5': e.preventDefault(); readyClick(); break;
         case 'F6': e.preventDefault(); sendCmd('START_RACE'); break;
