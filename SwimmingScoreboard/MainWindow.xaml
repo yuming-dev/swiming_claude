@@ -290,9 +290,10 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="16">
                                     <!-- 赛事基本信息卡片 -->
-                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+                                    <!-- 2026-10-13 现场反馈: 整体优化更美观 —— 圆角加大、标题下间距加大、整体呼吸感更好 -->
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,14">
                                         <StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                                                 <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#3B82F6" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                 <TextBlock Text="{DynamicResource Str_EM_BasicInfo}" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                                             </StackPanel>
@@ -307,27 +308,34 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <Grid.RowDefinitions>
-                                                    <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
+                                                    <RowDefinition Height="38"/>
+                                                    <RowDefinition Height="38"/>
+                                                    <RowDefinition Height="38"/>
+                                                    <RowDefinition Height="38"/>
+                                                    <RowDefinition Height="38"/>
+                                                    <RowDefinition Height="38"/>
+                                                    <RowDefinition Height="38"/>
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Str_EM_EventName}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="CompNameBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="CompNameBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="5" Padding="6,4" VerticalAlignment="Center"/>
                                                 <!-- 2026-10-12 "比赛模式"下拉去掉(跟"比赛参数设置管理"的"比赛规则"重复、用户反馈多余),
                                                      改成只读镜像三项(比赛规则/泳池长度/泳道数量), 一行显示; 泳池长度/泳道数量的
                                                      真正可编辑下拉框挪到"比赛参数设置管理"Tab 的"比赛规则"下方(CompRuleCombo 附近)。
                                                      三个只读 TextBlock 由 RefreshOverviewModeRow() 统一刷新(比赛规则切换/泳池参数改动/
                                                      语言切换/加载赛事包 都会调它)。 -->
+                                                <!-- 2026-10-13 现场反馈: 比赛模式/泳池长度/泳道数量 三个只读值加背景色"小标签"样式, 更美观易读 -->
                                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Str_EM_CompMode}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBlock x:Name="CompRuleDisplayText" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Foreground="#1E293B" FontWeight="SemiBold" Text="-"/>
-                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{DynamicResource Str_EM_PoolLength}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBlock x:Name="PoolLengthDisplayText" Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" Foreground="#1E293B" FontWeight="SemiBold" Text="-"/>
-                                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{DynamicResource Str_EM_LaneCount}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBlock x:Name="LaneCountDisplayText" Grid.Row="1" Grid.Column="5" VerticalAlignment="Center" Foreground="#1E293B" FontWeight="SemiBold" Text="-"/>
+                                                <Border Grid.Row="1" Grid.Column="1" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="10,3" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="CompRuleDisplayText" Foreground="#2563EB" FontWeight="SemiBold" Text="-"/>
+                                                </Border>
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{DynamicResource Str_EM_PoolLength}" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,0,0"/>
+                                                <Border Grid.Row="1" Grid.Column="3" Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="4" Padding="10,3" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="PoolLengthDisplayText" Foreground="#059669" FontWeight="SemiBold" Text="-"/>
+                                                </Border>
+                                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{DynamicResource Str_EM_LaneCount}" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,0,0"/>
+                                                <Border Grid.Row="1" Grid.Column="5" Background="#F5F3FF" BorderBrush="#DDD6FE" BorderThickness="1" CornerRadius="4" Padding="10,3" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="LaneCountDisplayText" Foreground="#7C3AED" FontWeight="SemiBold" Text="-"/>
+                                                </Border>
                                                 <!-- 隐藏控件保留 CompModeCombo: _competitionMode(国内/国际) 仍有独立用途(System Status
                                                      页的 Mode 文本、存档/客户端广播), 只是不再在赛事概览露出可编辑 UI, 跟 ChiefJudgeBox
                                                      是同一个"隐藏兼容旧代码引用"套路。 -->
@@ -336,25 +344,27 @@
                                                     <ComboBoxItem Content="{DynamicResource Str_EM_ModeIntl}"/>
                                                 </ComboBox>
                                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Str_EM_StartDate}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <DatePicker x:Name="StartDatePicker" Grid.Row="2" Grid.Column="1" VerticalAlignment="Center"
+                                                <!-- 2026-10-13 现场反馈: "结束日期"太贴着左边的开始日期框——StartDatePicker 默认 Stretch 撑满
+                                                     "*"列, 右边界紧挨下一列标签文字, 加右边距隔开; 下面"仲裁委员"/"总裁判长"同理 -->
+                                                <DatePicker x:Name="StartDatePicker" Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0"
                                                             Language="en-CA" SelectedDateFormat="Short"/>
                                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="{DynamicResource Str_EM_EndDate}" VerticalAlignment="Center" Foreground="#475569"/>
                                                 <DatePicker x:Name="EndDatePicker" Grid.Row="2" Grid.Column="3" VerticalAlignment="Center"
                                                             Language="en-CA" SelectedDateFormat="Short"/>
                                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Str_EM_Location}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="LocationBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="LocationBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="5" Padding="6,4" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Str_EM_Organizer}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="OrganizerBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="OrganizerBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="5" Padding="6,4" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="{DynamicResource Str_EM_Host}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="HostBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="HostBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="5" Padding="6,4" VerticalAlignment="Center"/>
                                                 <!-- 2026-05-26 同一行排 技术代表 / 仲裁委员 / 总裁判长 (原第 8 行 含编排长 整行删除) -->
                                                 <TextBlock Grid.Row="6" Grid.Column="0" Text="{DynamicResource Str_EM_TechDelegate}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="TechDelegateBox" Grid.Row="6" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="TechDelegateBox" Grid.Row="6" Grid.Column="1" Padding="6,4" VerticalAlignment="Center" Margin="0,0,16,0"/>
                                                 <TextBlock Grid.Row="6" Grid.Column="2" Text="{DynamicResource Str_EM_Arbiter}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="ArbiterBox" Grid.Row="6" Grid.Column="3" Padding="4" VerticalAlignment="Center"
+                                                <TextBox x:Name="ArbiterBox" Grid.Row="6" Grid.Column="3" Padding="6,4" VerticalAlignment="Center" Margin="0,0,16,0"
                                                          ToolTip="{DynamicResource Str_EM_CommaSepTip}"/>
                                                 <TextBlock Grid.Row="6" Grid.Column="4" Text="{DynamicResource Str_EM_ChiefReferee}" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="RefereeBox" Grid.Row="6" Grid.Column="5" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="RefereeBox" Grid.Row="6" Grid.Column="5" Padding="6,4" VerticalAlignment="Center"/>
                                                 <!-- 2026-05-26 编排长字段已从 UI 删除. ChiefJudgeBox 保留为隐藏控件以兼容现有 .csproj / .cs 引用 (保存/加载/秩序册/封面签字栏等仍读它); 数据=空字符串 -->
                                                 <TextBox x:Name="ChiefJudgeBox" Grid.Row="6" Width="0" Height="0" Visibility="Collapsed"/>
                                             </Grid>
@@ -376,14 +386,14 @@
                                     </Border>
 
                                     <!-- 报名统计卡片 -->
-                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,0">
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,0">
                                         <StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                                 <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#8B5CF6" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                 <TextBlock Text="{DynamicResource Str_EM_RegStats}" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                                             </StackPanel>
                                             <!-- 汇总统计条 -->
-                                            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,10">
+                                            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
                                                 <StackPanel x:Name="OverviewSummaryPanel" Orientation="Horizontal">
                                                     <TextBlock Text="{DynamicResource Str_EM_NoRegData}" Foreground="#94A3B8"/>
                                                 </StackPanel>
