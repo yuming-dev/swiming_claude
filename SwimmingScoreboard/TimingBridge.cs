@@ -686,9 +686,12 @@ namespace SwimmingScoreboard
         /// 协议: command=0x3B (硬件内部 Set_Language=0x2B, wire=0x2B+0x10), d3=0(简体中文)/2(English) ——
         /// 跟硬件固件自身 gui_phy.language/systemset.syslanguage 的取值约定(0=简体/1=繁体/2=English)保持一致,
         /// PC 只用 0/2 两档(对应 Loc.Zh/Loc.En), 不碰"1=繁体"。
-        /// 注: 这是 2026-10-14 新增的硬件协议命令(firmware H753SWIM2026-10, commit c23b241), 需要硬件烧录
-        /// 对应固件才会生效; 旧固件收到这帧会落入 default 分支被忽略, 不报错, 但也不会真的切换硬件界面语言。
-        /// 硬件端不持久化这次切换(见固件注释), 所以每次语言变化 + 每次硬件重连都要再发一次——
+        /// 注: 这是 2026-10-14 新增的硬件协议命令(firmware H753SWIM2026-10, commit c23b241/320916f), 需要
+        /// 硬件烧录对应固件才会生效; 旧固件收到这帧会落入 default 分支被忽略, 不报错, 但也不会真的切换
+        /// 硬件界面语言。硬件端收到后会跟设备本机"中文/English"按键一样持久化(systemset.syslanguage +
+        /// sysset_save_para), 下次开机直接按保存的语言显示——PC 这边仍然每次语言变化 + 每次硬件重连都
+        /// 发一次, 不是因为硬件不记得, 而是确保"谁最后改的算谁的"(比如现场有人手动按了设备上的切换键,
+        /// PC 重连硬件那一刻会把 PC 当前语言重新纠正回来, 避免两边长期不一致)。
         /// 调用点: RefreshAllForLanguageChange()(本机点按钮 / 收到远端 LANGUAGE_SYNC 都走这条级联)、
         /// 硬件刚连上时(OnStatusChanged, 跟 SendDateTimeSync() 同一处)。</summary>
         public void SendLanguageSync(bool isEnglish) {
