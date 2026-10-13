@@ -404,6 +404,10 @@ namespace SwimmingScoreboard
         //   需要时由"显示控制"手动开启; 已持久化过的机器仍读 display_style.json 里保存的值, 不受此默认值影响。
         private bool _displayStyleRemarkShowReaction = false;
         private DisplayStyleWindow _displayStyleWin;        // 当前打开的"大屏样式"窗口 (主控 PC 端)
+        // 2026-10-14 ShowHardwareConnectionDialog() 开着时, 如果语言切换由【远端】客户端触发(非本机
+        //   点按钮, 模态窗口点不进本机"设置"页), 窗口内文字原来是构造那一刻定死不会跟着变——这里挂一个
+        //   刷新动作, 窗口没开时为 null, RefreshAllForLanguageChange() 按需调用
+        private Action _openHwConnDialogRefresh;
         private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
 
         // ═══════════════════════════════════════════════════════════════
@@ -18288,10 +18292,12 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_ParamsHub_HwConnBtn"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 10) });
+            var titleText = new TextBlock { Text = Loc.T("Str_Win_ParamsHub_HwConnBtn"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 10) };
+            sp.Children.Add(titleText);
             // 当前状态行
             var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-            statusRow.Children.Add(new TextBlock { Text = Loc.T("Str_Win_HwConn_CurrentStatusLabel"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), VerticalAlignment = VerticalAlignment.Center });
+            var lblCurrentStatus = new TextBlock { Text = Loc.T("Str_Win_HwConn_CurrentStatusLabel"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), VerticalAlignment = VerticalAlignment.Center };
+            statusRow.Children.Add(lblCurrentStatus);
             var statusText = new TextBlock { FontSize = 14, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
             Action refreshStatus = delegate {
                 bool conn = _timingBridge != null && _timingBridge.IsConnected;
@@ -18321,7 +18327,8 @@ namespace SwimmingScoreboard
             if (_timingConn != null && !string.IsNullOrEmpty(_timingConn.SerialPort) && cbCom.Items.Contains(_timingConn.SerialPort)) cbCom.SelectedItem = _timingConn.SerialPort;
             else if (cbCom.Items.Count > 0) cbCom.SelectedIndex = 0;
             serialRow.Children.Add(cbCom);
-            serialRow.Children.Add(new TextBlock { Text = Loc.T("Str_Win_HwConn_BaudLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center });
+            var lblBaud = new TextBlock { Text = Loc.T("Str_Win_HwConn_BaudLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            serialRow.Children.Add(lblBaud);
             var cbBaud = new ComboBox { Width = 90, Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder };
             if (darkComboStyle != null) cbBaud.Style = darkComboStyle;
             foreach (var b in new[] { "9600", "19200", "38400", "57600", "115200" }) cbBaud.Items.Add(b);
@@ -18410,6 +18417,33 @@ namespace SwimmingScoreboard
             btnRow.Children.Add(btnClose);
             sp.Children.Add(btnRow);
             dlg.Content = sp;
+            // 2026-10-14 现场反馈排查: 本窗口是模态(Owner=this), 本机点"设置"页语言按钮时根本点不进来,
+            //   没有这个缺口; 但语言切换也能由【远端】客户端触发(跨端 LANGUAGE_SYNC, 见
+            //   BroadcastLanguageSync 的接收端 case "LANGUAGE_SYNC": → RefreshAllForLanguageChange()) ——
+            //   如果这个窗口正好开着收到远端语言切换, 之前所有文字都是构造那一刻 Loc.T() 取值定死,
+            //   不会跟着更新, 要关掉重开才对。这里注册一个刷新动作, 窗口开着时让
+            //   RefreshAllForLanguageChange() 能摸到它, 跟其它"切语言级联"项一样处理; 关闭时注销。
+            // 2026-10-14 只刷新文字, 不碰 grid 列宽/窗口宽度等布局属性——窗口此刻处于 ShowDialog()
+            //   嵌套消息泵中, 布局结构性改动(列宽/CenterOwner 重新定位)风险未经充分验证, 保守起见
+            //   只做最安全的"文字赋值", 极端情况下(语言切换后标签变长)英文版标签可能略挤但不会出错。
+            Action refreshHwConnDialogLanguage = delegate {
+                dlg.Title = Loc.T("Str_Win_ParamsHub_HwConnBtn");
+                titleText.Text = Loc.T("Str_Win_ParamsHub_HwConnBtn");
+                lblCurrentStatus.Text = Loc.T("Str_Win_HwConn_CurrentStatusLabel");
+                refreshStatus();
+                lblSerial.Text = Loc.T("Str_Win_HwConn_SerialLabel");
+                lblBaud.Text = Loc.T("Str_Win_HwConn_BaudLabel");
+                btnSerial.Content = Loc.T("Str_Win_HwConn_ConnectSerialBtn");
+                lblTcp.Text = Loc.T("Str_Win_HwConn_TcpLabel");
+                btnTcp.Content = Loc.T("Str_Win_HwConn_ConnectTcpBtn");
+                lblUdp.Text = Loc.T("Str_Win_HwConn_UdpRecvLabel");
+                btnUdp.Content = Loc.T("Str_Win_HwConn_ListenUdpBtn");
+                lblUdpSend.Text = Loc.T("Str_Win_HwConn_UdpSendLabel");
+                btnDisc.Content = Loc.T("Str_Win_HwConn_DisconnectBtn");
+                btnClose.Content = Loc.T("Str_Btn_Close");
+            };
+            _openHwConnDialogRefresh = refreshHwConnDialogLanguage;
+            dlg.Closed += delegate { _openHwConnDialogRefresh = null; };
             dlg.ShowDialog();
         }
 
@@ -25334,6 +25368,9 @@ namespace SwimmingScoreboard
             try { UpdateDeviceTestButton(); } catch { }
             try { UpdateScoringControlMode(); } catch { }
             try { UpdateConnectionStatus(); } catch { }
+            // 2026-10-14 现场反馈排查: "硬件计时器连接"弹窗(ShowHardwareConnectionDialog)开着时如果
+            //   由远端客户端触发语言切换(本机点不到, 模态窗口挡住了"设置"页), 窗口内文字要跟着刷新
+            try { if (_openHwConnDialogRefresh != null) _openHwConnDialogRefresh(); } catch { }
             try { if (PauseClockBtnText != null) PauseClockBtnText.Text = Loc.T(_clockPaused ? "Str_RC_ResumeClock" : "Str_RC_PauseClock"); } catch { }
             try { UpdateRaceStateDisplay(); } catch { }
             // 2026-09-21 赛程导航树上的 [已确认] 这类状态标签是拼进 TreeViewItem.Header 的
