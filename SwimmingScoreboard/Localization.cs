@@ -3899,7 +3899,28 @@ namespace SwimmingScoreboard
         // 当前 exe 所在目录的上一级就是安装根目录, 对哪个 exe 都成立。开发机直接从
         // bin\Release 跑、没有对应名字的快捷方式时, RenameShortcutIfExists 的
         // File.Exists 检查会直接跳过, 不会出错也不会凭空建一个。
+        // 2026-10-14 现场反馈: 切语言后硬件计时器"陪跑"卡 8~20 秒——排查到根源其实不在
+        //   RefreshAllForLanguageChange() 那串 UI 重建(上一版已经把硬件命令挪到那串最前面,
+        //   但完全没用), 而是在更早的 Toggle()/SetLanguage() 内部: UpdateShortcutsForLanguage()
+        //   对桌面/开始菜单最多 6 个快捷方式 × 2 个位置 = 12 次 IShellLinkW COM 调用(每次都是
+        //   读旧的 → 建新的 → 删旧的, COM 对象创建/封送/释放每次 0.5~1s), 全部同步跑在
+        //   Toggle()/SetLanguage() 里, 挡在 RefreshAllForLanguageChange()(连同已经挪到最前面的
+        //   硬件命令)前面——12 次 × 零点几秒正好对上现场测出的 8 秒; RTC 场景下主服务器这边跑一遍、
+        //   RTC 收到 LANGUAGE_SYNC 后在自己机器上再跑一遍 SetLanguage() 又重复一次同样的耗时,
+        //   两边累加正好对上 20 秒。
+        //   这几个快捷方式改名纯粹是桌面图标文字的锦上添花, 不影响任何功能——挪到独立的 STA
+        //   后台线程异步执行(Shell IShellLinkW/IPersistFile 这类经典 COM 对象要求 STA 单元,
+        //   不能直接扔线程池/Task.Run, 那是 MTA), Toggle()/SetLanguage() 不再等它, 立刻返回,
+        //   让 RefreshAllForLanguageChange() 和硬件命令马上跑起来。快捷方式本身几秒后台更新完,
+        //   用户基本不会察觉延迟(切语言这种操作不要求跟界面同一瞬间生效)。
         private static void UpdateShortcutsForLanguage() {
+            var th = new Thread(UpdateShortcutsForLanguageWorker);
+            th.IsBackground = true;
+            th.SetApartmentState(ApartmentState.STA);
+            th.Start();
+        }
+
+        private static void UpdateShortcutsForLanguageWorker() {
             try {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
                 string installDir = Path.GetDirectoryName(baseDir);
