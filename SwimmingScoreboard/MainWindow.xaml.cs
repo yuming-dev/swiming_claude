@@ -25337,6 +25337,13 @@ namespace SwimmingScoreboard
         // (走 DynamicResource, 立即生效, 见 Localization.cs 顶部说明)。系统日志/弹窗等
         // 仍是硬编码中文, 不受这个按钮影响, 这里补一条日志说明白, 别让人以为按了没反应。
         private void LanguageToggle_Click(object sender, RoutedEventArgs e) {
+            // 2026-10-14 现场反馈排查: 用户现场直接观察到"点按钮后整个程序卡住(鼠标都没反应)
+            //   大约8~11秒, 卡死解除后硬件才跟着转换"——怀疑是点击事件本身排队排了很久(界面线程
+            //   当时正被【别的事】占着), 而不是这个方法自己执行慢。这里整体计个时, 如果这个方法
+            //   真的要跑 300ms 以上, 日志能直接证实"确实是这里慢"; 如果方法本身很快(应该是这样,
+            //   跟硬件发送指令验证过的"同一秒完成"对得上), 就能排除这个方法, 把注意力集中到
+            //   "点击事件为什么排队"这条线上(DbPoll_Tick 嫌疑最大, 已经单独加了计时)。
+            var _diagSwClick = System.Diagnostics.Stopwatch.StartNew();
             Loc.Toggle();
             RefreshAllForLanguageChange();
             // 2026-09-21 这条日志本身就是随每个阶段的翻译范围在扩大——写成"已覆盖到第几阶段"
@@ -25344,6 +25351,7 @@ namespace SwimmingScoreboard
             AddLog(Loc.CurrentLanguage == Loc.En
                 ? "界面语言已切换为 English（标签页/设置页/比赛控制页/赛事管理与报名/成绩与排名/文档编辑输出打印/系统日志与数据 页面及赛程导航状态标签已生效；系统日志正文/弹窗提示仍为中文，后续阶段逐步覆盖）"
                 : "界面语言已切换为中文");
+            AddLog(string.Format("DIAG LanguageToggle_Click 方法自身耗时 {0}ms", _diagSwClick.ElapsedMilliseconds));
             // 2026-09-28【跨客户端语言同步】只有真身主服务器点这个按钮才是权威指令, 要广播给
             //   ScheduleEditor.exe/RemoteTimingControl.exe/RegistrationTool.exe/RemoteDisplayControl.exe
             //   这几个桌面客户端跟随; 这两个"编排/计时"模式的实例本身也共用这份代码、同样能点到
@@ -25388,14 +25396,26 @@ namespace SwimmingScoreboard
             // 2026-09-21 赛程导航树上的 [已确认] 这类状态标签是拼进 TreeViewItem.Header 的
             // 静态字符串, 不会跟着 DynamicResource 自己变——重建一次树(顺带联动
             // RebuildBothNavTrees() 那三棵), 已经在屏幕上的标签才会立刻换成新语言。
+            // 2026-10-14 现场反馈排查: 怀疑这一串重建里有个别调用对大赛事规模很慢, 把界面线程
+            //   卡住好几秒——逐个计时, 单项超过 150ms 才打日志, 别处(正常小赛事)不受影响。
+            var _diagSw3 = System.Diagnostics.Stopwatch.StartNew();
             try { BuildScheduleTree(); } catch { }   // 顺带联动 RebuildScheduleGroupedView()(赛程管理分组视图)
+            if (_diagSw3.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG BuildScheduleTree(语言切换) 耗时 {0}ms", _diagSw3.ElapsedMilliseconds));
+            _diagSw3.Restart();
             try { RefreshOverviewStats(); } catch { }
+            if (_diagSw3.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG RefreshOverviewStats 耗时 {0}ms", _diagSw3.ElapsedMilliseconds));
+            _diagSw3.Restart();
             try { RebuildRelayGroupedView(); } catch { }
+            if (_diagSw3.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG RebuildRelayGroupedView 耗时 {0}ms", _diagSw3.ElapsedMilliseconds));
+            _diagSw3.Restart();
             try { RefreshEditPreview(); } catch { }
+            if (_diagSw3.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG RefreshEditPreview 耗时 {0}ms", _diagSw3.ElapsedMilliseconds));
             // 2026-09-28 第十一阶段 Step2: "参赛单位及号码分配"是代码生成的 tab(不是 XAML 静态绑定),
             // 重建一次让它的按钮/标签/DataGrid列头跟着换语言(会连带重置 _bibAllocWorking = 当前 _bibRanges,
             // 丢弃未保存的编辑——跟本方法里其它几个 RebuildXxx() 一个道理, 属于"切语言=重建视图"的既有代价)。
+            _diagSw3.Restart();
             try { BuildUnitBibAllocTab(); } catch { }
+            if (_diagSw3.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG BuildUnitBibAllocTab 耗时 {0}ms", _diagSw3.ElapsedMilliseconds));
             // 2026-10-10 现场反馈: "纪录管理" tab 的性别筛选下拉("全部"那一项)和下方"共N条/总N条"
             //   计数文字切语言不跟着变——这两处都是"数据变化时才刷"的程序化赋值(RefillGenderCombos/
             //   ApplyRecordFilter), 不在原有的语言切换级联里, 得跟 BuildUnitBibAllocTab 一样补进来。
@@ -27944,6 +27964,10 @@ namespace SwimmingScoreboard
         }
 
         private void DbPoll_Tick(object sender, EventArgs e) {
+            // 2026-10-14 现场反馈排查: 怀疑这个 10 秒一次的轮询偶尔会卡住界面线程好几秒
+            //   (导致点击按钮排不上队、看起来像"点一下就卡死"), 加一段计时诊断——只在整次
+            //   tick 耗时超过 300ms 时才打日志, 正常情况(没变化, 走得快)不会刷屏。
+            var _diagSw = System.Diagnostics.Stopwatch.StartNew();
             try {
                 // 2026-09-19 见 PackageApplyDebounceTick 的说明: 比赛期间收到的整包同步
                 //   被原样按下不表存在这里——每次轮询(含 DATA_CHANGED 触发的立即那一次)
@@ -27984,7 +28008,12 @@ namespace SwimmingScoreboard
                         try { Broadcast(); } catch { }
                     }
                 }
-            } catch { }
+            } catch { } finally {
+                _diagSw.Stop();
+                if (_diagSw.ElapsedMilliseconds > 300) {
+                    AddLog(string.Format("DIAG DbPoll_Tick 耗时 {0}ms", _diagSw.ElapsedMilliseconds));
+                }
+            }
         }
 
         private string _lastPollSignature = "";
@@ -28036,8 +28065,16 @@ namespace SwimmingScoreboard
         }
 
         internal void RefreshChangedFromDb() {
+            // 2026-10-14 现场反馈排查: 疑似这个函数(10 秒一次 DbPoll_Tick 调它)偶尔卡界面线程
+            //   好几秒——给内部几个数据库查询/重建步骤分别计时, 哪一步超过 150ms 就单独打日志,
+            //   正常情况(数据没变化)不会刷屏。跟 DbPoll_Tick 自己的整体计时配合, 能直接从日志
+            //   定位到具体是 ListHeatStamps/ApplyEventRankingsFromDb/ListConfirmedHeats/
+            //   GetRacingHeats 哪一步(或者是 BuildScheduleTree/RebuildBothNavTrees 这类随之
+            //   触发的重建)在拖时间。
+            var _diagSw2 = System.Diagnostics.Stopwatch.StartNew();
             try {
                 var stamps = _meetDb.ListHeatStamps();
+                if (_diagSw2.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG ListHeatStamps 耗时 {0}ms", _diagSw2.ElapsedMilliseconds));
                 if (stamps == null || stamps.Count == 0) return;
                 int changed = 0;
                 foreach (var s in stamps) {
@@ -28057,14 +28094,18 @@ namespace SwimmingScoreboard
                 // 2026-08-31 再把【组排名表】里已定稿的名次灌回内存 ——
                 //   晋级查询/前八名/总排名/成绩公报/团体个人总分 读的都是它,
                 //   这样这几张表就都认定稿那一份, 不再各自汇总。
+                _diagSw2.Restart();
                 try { ApplyEventRankingsFromDb(); } catch { }
+                if (_diagSw2.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG ApplyEventRankingsFromDb 耗时 {0}ms", _diagSw2.ElapsedMilliseconds));
 
                 // 赛程树的"已完赛"读 _confirmedHeats(内存集合), 同样会落后于库。
                 // 这一条也是轻查询(只返回 key, 不带成绩), 按库补齐。
                 // 【只加不删】: 库里没有、内存里有的先留着(可能是刚确认还没落库的那一组) ——
                 // 少标一个"已完赛"比多标一个危险。
+                _diagSw2.Restart();
                 try {
                     var confirmed = _meetDb.ListConfirmedHeats();
+                    long _msListConfirmed = _diagSw2.ElapsedMilliseconds;
                     int add = 0;
                     foreach (var c in confirmed) {
                         int hno2;
@@ -28074,21 +28115,29 @@ namespace SwimmingScoreboard
                         if (IsHeatUnlocked(c[0], c[1], c[2], c[3], hno2)) continue;
                         if (_confirmedHeats.Add(ConfirmedHeatKey(c[0], c[1], c[2], c[3], hno2))) add++;
                     }
+                    if (_msListConfirmed > 150) AddLog(string.Format("DIAG ListConfirmedHeats 耗时 {0}ms ({1} 行)", _msListConfirmed, confirmed.Count));
                     if (add > 0) {
                         AddLog(Loc.F("Str_Log_FinishedFlagsBackfilledFmt", add));
+                        _diagSw2.Restart();
                         try { BuildScheduleTree(); } catch { }
+                        if (_diagSw2.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG BuildScheduleTree(由已完赛回填触发) 耗时 {0}ms", _diagSw2.ElapsedMilliseconds));
                     }
                 } catch (Exception ex) { AddLog(Loc.F("Str_Log_BackfillFinishedFlagFailedFmt", ex.Message)); }
 
                 // 2026-09-18 本机没在计时(没走 EnterReadyStateInternal 那条本地补刷) 时,
                 //   "赛程导航"的[正在计时]全指望这 10 秒一次的轮询捡回来 —— 只有"谁在
                 //   racing"这个集合真变了(开新组/组结束)才重建树, 不然每 10 秒都重建太浪费。
+                _diagSw2.Restart();
                 try {
                     var racing = _meetDb.GetRacingHeats() ?? new List<string[]>();
+                    long _msGetRacing = _diagSw2.ElapsedMilliseconds;
+                    if (_msGetRacing > 150) AddLog(string.Format("DIAG GetRacingHeats 耗时 {0}ms", _msGetRacing));
                     string sig = string.Join(",", racing.Select(r => (r != null && r.Length >= 5) ? string.Join("|", r) : ""));
                     if (sig != _lastRacingSignature) {
                         _lastRacingSignature = sig;
+                        _diagSw2.Restart();
                         try { RebuildBothNavTrees(); } catch { }
+                        if (_diagSw2.ElapsedMilliseconds > 150) AddLog(string.Format("DIAG RebuildBothNavTrees 耗时 {0}ms", _diagSw2.ElapsedMilliseconds));
                     }
                 } catch (Exception ex) { AddLog(Loc.F("Str_Log_QueryTimingHeatFailedFmt", ex.Message)); }
             } catch (Exception ex) {
