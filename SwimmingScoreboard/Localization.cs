@@ -3790,14 +3790,33 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
+        // 2026-10-14 现场反馈排查: 点"中文/English"按钮后整个程序假死 8 秒以上, 排查到底——
+        //   Table 现在有 3404 条("打测试包"这类增量功能持续往里加), 之前 Apply() 是
+        //   foreach 挨个 app.Resources[key]=value 直接写 Application.Resources——WPF 的
+        //   DynamicResource 绑定系统在"直接 ResourceDictionary 索引器赋值"这条路径上,
+        //   每一次单独赋值都会触发一轮资源失效/重新查找扫描(= 现场点一下按钮, 整个可视化树
+        //   没卡在某一个具体的重建函数上, 而是被这 3404 次零散赋值, 每次都捅一下整个资源系统,
+        //   累计捅出 8 秒多——这也是为什么加的那些分段计时诊断一个都没触发: 真正的瓶颈在
+        //   所有那些函数运行之前, Apply() 这一步就已经把时间花光了)。
+        //   改成: 先在一个全新的、还没挂到 Application.Resources 上的 ResourceDictionary 里
+        //   把 3404 条全部填好(纯内存操作, 不碰任何 WPF 资源系统, 几乎不耗时), 填完后只做
+        //   一次 MergedDictionaries 替换(先 Remove 旧的再 Add 新的)——这是 WPF 批量换肤/
+        //   换语言的标准做法, 把"3404 次零散触发"变成"1 次整体触发"。
+        private static ResourceDictionary _langDict;
+
         /// <summary>把当前语言下的每一条文字写进 Application.Resources —— DynamicResource 绑定会跟着活刷新。</summary>
         public static void Apply() {
             ApplyThreadCulture();
             var app = Application.Current;
             if (app == null) return;
+            var newDict = new ResourceDictionary();
             foreach (var kv in Table) {
-                app.Resources[kv.Key] = T(kv.Key);
+                newDict[kv.Key] = T(kv.Key);
             }
+            var oldDict = _langDict;
+            app.Resources.MergedDictionaries.Add(newDict);
+            _langDict = newDict;
+            if (oldDict != null) app.Resources.MergedDictionaries.Remove(oldDict);
         }
 
         /// <summary>2026-10-05 现场反馈: CSV导入成功后弹窗——标题/正文都是英文, 唯独"确定"按钮
