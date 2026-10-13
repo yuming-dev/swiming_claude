@@ -25359,6 +25359,15 @@ namespace SwimmingScoreboard
         /// (ScheduleEditor.exe/RemoteTimingControl.exe 收到主服务器 LANGUAGE_SYNC 推送时), 抽成
         /// 独立方法, 两处共用, 不用维护两份重复的"点了什么按钮该刷新什么"清单。</summary>
         private void RefreshAllForLanguageChange() {
+            // 2026-10-14 现场反馈: 切语言到硬件计时器真正转换好, 之前测出大约 8~20 秒——排查后确认
+            //   硬件本身收到命令后转换耗时 < 1 秒, 真正慢的是本方法后面那一串 PC 自己的界面重建
+            //   (赛程导航树/报名统计/参赛单位分配表等七八个 Rebuild/Build/Refresh, 大赛事规模下
+            //   累计耗时数秒到十几秒), 硬件命令排在这些重建后面, 只是"陪跑"被拖慢了观感。
+            //   用户确认: 语言切换只发生在比赛开始前, 比赛中途不会切, 没必要去优化那一串界面重建的
+            //   性能——直接把硬件同步这一行挪到整个级联最前面, 不用等后面任何 PC 本机 UI 重建就能
+            //   立刻把命令发出去, 硬件那边几乎秒开; PC 自己的界面该多久还是多久(不受影响, 只是不再
+            //   连带拖慢硬件)。
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLanguageSync(Loc.CurrentLanguage == Loc.En); } catch { }
             // "比赛控制"页几个按钮的文字是跟着状态变的(停表/继续走表、记录显示/已隐藏、
             // RT On/Off、设备测试/退出测试)——它们的刷新函数会直接赋值 .Text,
             // 一旦赋值就把 XAML 里的 DynamicResource 绑定冲掉了, 光调 Loc.Apply() 追不上这几个,
@@ -25374,10 +25383,6 @@ namespace SwimmingScoreboard
             // 2026-10-14 现场反馈排查: "硬件计时器连接"弹窗(ShowHardwareConnectionDialog)开着时如果
             //   由远端客户端触发语言切换(本机点不到, 模态窗口挡住了"设置"页), 窗口内文字要跟着刷新
             try { if (_openHwConnDialogRefresh != null) _openHwConnDialogRefresh(); } catch { }
-            // 2026-10-14 新功能: 硬件计时器(若已连接)也跟着切语言(LCD 泳道按钮文字) —— 需要硬件
-            //   烧录对应固件(H753SWIM2026-10 之后, commit c23b241)才会真的生效, 旧固件收到这帧会被
-            //   default 分支忽略, 不会报错。放在这个级联里, 本机点按钮/收到远端 LANGUAGE_SYNC 都会发送。
-            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLanguageSync(Loc.CurrentLanguage == Loc.En); } catch { }
             try { if (PauseClockBtnText != null) PauseClockBtnText.Text = Loc.T(_clockPaused ? "Str_RC_ResumeClock" : "Str_RC_PauseClock"); } catch { }
             try { UpdateRaceStateDisplay(); } catch { }
             // 2026-09-21 赛程导航树上的 [已确认] 这类状态标签是拼进 TreeViewItem.Header 的
