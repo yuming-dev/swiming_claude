@@ -987,7 +987,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261014-2';
+var PAGE_VER = '20261014-3';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -2680,14 +2680,19 @@ function renderHeader() {
             leftBlindLabels +
             '<span class="device-label">' + WebLoc.t('Str_RC_StartColHeader') + '</span>' +
             '<span class="device-label">' + WebLoc.t('Str_RC_TpColHeader') + '</span>' +
-            '<span class="device-label" style="width:44px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
+            // 2026-10-14 用户现场反馈: 表头"Name/Team"跟下边泳道行实际姓名对不齐——泳道行的"圈"
+            // 那一列其实是 2 个独立子元素(圈数 lr-left-remain + 加减圈 spinner, 中间也占一份
+            // flex gap), 而表头这里只有 1 个 Lap 文案元素, 比泳道行少一份 gap(3px), 累计下来
+            // 泳道行的 Name/Team 内容就比表头文字整体偏右几像素。补一个 margin-right 抵掉这份
+            // gap 差, 保证 .lane-mid(姓名列)在表头和泳道行里的起始 x 坐标完全一致。
+            '<span class="device-label" style="width:44px;margin-right:3px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
         '</div>' +
-        '<div class="lane-mid" style="padding:0 6px;">' +
+        '<div class="lane-mid">' +
             '<div class="swimmer-info" style="font-size:12px;">' + WebLoc.t('Str_RC_NameTeamColHeader') + '</div>' +
             '<div class="lane-track" style="font-size:12px;height:auto;background:none;text-align:center;">' + WebLoc.t('Str_RC_DirProgColHeader') + '</div>' +
         '</div>' +
         '<div class="right-devices devices">' +
-            '<span class="device-label" style="width:44px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
+            '<span class="device-label" style="width:44px;margin-left:3px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
             '<span class="device-label">' + WebLoc.t('Str_RC_TpColHeader') + '</span>' +
             '<span class="device-label">' + WebLoc.t('Str_RC_StartColHeader') + '</span>' +
             rightBlindLabels +
