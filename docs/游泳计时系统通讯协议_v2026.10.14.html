@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳计时系统通讯协议 v2026.10.14</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei","微软雅黑",sans-serif; font-size: 11pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 12px; color: #1e3a8a; margin-bottom: 6pt; }
+  h1 + p { text-align: center; color: #64748b; margin-top: 0; font-size: 11pt; }
+  h2 { font-size: 15pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 24px; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color: #1e3a8a; margin-top: 18px; background: #eff6ff; padding: 5px 10px; border-radius: 4px; page-break-after: avoid; }
+  h4 { font-size: 11.5pt; color: #334155; margin: 14px 0 6px 0; page-break-after: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: 10pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: Consolas, monospace; font-size: 10pt; }
+  pre { background: #0f172a; color: #f1f5f9; padding: 10px 14px; border-radius: 6px; font-family: Consolas, monospace; font-size: 9.5pt; overflow-x: auto; line-height: 1.4; }
+  .note { background: #fef9c3; padding: 7px 11px; border-left: 4px solid #ca8a04; border-radius: 4px; margin: 6px 0; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 7px 12px; border-radius: 4px; margin: 6px 0; }
+  .new { background: #fff7ed; padding: 7px 12px; border-left: 4px solid #ea580c; border-radius: 4px; margin: 6px 0; }
+  .danger { background: #fee2e2; padding: 7px 11px; border-left: 4px solid #b91c1c; border-radius: 4px; margin: 6px 0; }
+  ul { margin: 3px 0 8px 22px; } li { margin: 2px 0; }
+  .toc { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 6px; margin: 8px 0 16px; font-size: 10.5pt; }
+  .toc a { color: #1e3a8a; text-decoration: none; }
+  .toc div { margin: 2px 0; }
+  .badge-new { display: inline-block; background: #fef3c7; color: #92400e; padding: 1px 8px; border-radius: 10px; font-size: 9pt; font-weight: bold; }
+  .badge-fix { display: inline-block; background: #fee2e2; color: #991b1b; padding: 1px 8px; border-radius: 10px; font-size: 9pt; font-weight: bold; }
+  .footer { text-align: center; color: #64748b; font-size: 9.5pt; margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+
+<h1>游泳计时系统通讯协议</h1>
+<p>v2026.10.14 &nbsp;|&nbsp; 中文/English 全系统双语协议 + EDITOR_PATCH 增量编排同步 + 大屏推送帧瘦身(staticOmitted) + 硬件 0x3B 语言同步</p>
+
+<div class="toc">
+<b>目录</b>
+<div><a href="#p1">一、协议总览</a></div>
+<div><a href="#p2">二、客户端身份声明</a></div>
+<div><a href="#p3">三、显示模式控制 (REMOTE_CONTROL)</a></div>
+<div><a href="#p4">四、计时命令 (TIMING_CMD)</a></div>
+<div><a href="#p5">五、RTC 转发链 (RTC_FORWARD)</a></div>
+<div><a href="#p6">六、编排同步 (EDITOR_*)</a></div>
+<div><a href="#p7">七、大屏样式 (DISPLAY_STYLE_*)</a></div>
+<div><a href="#p8">八、媒体 / PPT 上传</a></div>
+<div><a href="#p9">九、锁机制 (LOCK_*)</a></div>
+<div><a href="#p10">十、数据查询与响应</a></div>
+<div><a href="#p11">十一、大屏推送消息 (SHOW_*)</a></div>
+<div><a href="#p12">十二、硬件计时器协议 <span class="badge-fix">本版重新核对全表</span></a></div>
+<div><a href="#p13">十三、HTTP 文件服务</a></div>
+<div><a href="#p14">十四、v2026.06.22 → v2026.10.14 协议变更</a></div>
+<div><a href="#p15">十五、历史协议变更 (v2026.06.22 及以前)</a></div>
+</div>
+
+<h2 id="p1">一、协议总览</h2>
+
+<h3>1.1 通信层次</h3>
+<table>
+  <tr><th>层</th><th>协议</th><th>用途</th></tr>
+  <tr><td>消息总线</td><td>WebSocket :3002</td><td>主服务器 ↔ 所有客户端 (display / RDC / RTC / Editor / register / query / 等)</td></tr>
+  <tr><td>Web 文件服务</td><td>HTTP :8080</td><td>主服务器提供 Web/ 目录下全部静态文件 (display.html / control.html / race_control.html / query.html 等，见 §13)</td></tr>
+  <tr><td>竞赛数据服务 <span class="badge-new">本版新增小节</span></td><td>WebSocket :3002 内的 MeetRpc 请求/响应</td><td>主服务器独占 <code>meet.db</code>，其它机器(ScheduleEditor 等)通过 RPC 读写，而不是各自开库。详见 §1.4</td></tr>
+  <tr><td>硬件计时</td><td>TCP 5555 / UDP 5002 / 串口 (RS232)</td><td>计时主控 (主服务器或 RTC) ↔ 硬件计时器</td></tr>
+</table>
+
+<div class="note">
+<b>v2026.06.19 实测</b>: 硬件 TCP 链路下硬件开始送时间帧后 PC 端 HTML 客户端污染 (全 0 / 闪烁 / 调不到数据).
+<b>大型比赛优先 RS232</b>, TCP 链路问题待固件层后续修复. (本版未见该问题修复记录，结论维持不变。)
+</div>
+
+<h3>1.2 WebSocket 消息格式</h3>
+<p>JSON 文本, 顶层字段:</p>
+<pre>{
+  "type": "消息类型大写下划线",
+  "data": { ... }  // 可选, 消息体
+}</pre>
+<p>所有时间字段统一格式: <code>分:秒.毫秒</code> (例 <code>1:23.45</code>) 或纯秒 <code>23.45</code>。</p>
+
+<h3>1.3 主服务器消息路由 (HandleMessage)</h3>
+<table>
+  <tr><th>type</th><th>方向</th><th>处理</th></tr>
+  <tr><td>REMOTE_CONTROL</td><td>客户端 → 主服务器</td><td>切换大屏显示模式 (调 BroadcastDisplayMode)</td></tr>
+  <tr><td>TIMING_CMD</td><td>客户端 → 主服务器</td><td>比赛流程命令 (就位/开始/暂停/复位/确认/解锁/弹窗/CRUD 等，本版种类大增，见 §4)</td></tr>
+  <tr><td>RTC_FORWARD</td><td>RTC → 主服务器</td><td>包装 payload 透传给所有 display</td></tr>
+  <tr><td>EDITOR_*</td><td>编排端 ↔ 主服务器</td><td>整包同步 (1.5s 去抖，见 6.1) <b>+ 本版新增 EDITOR_PATCH 增量补丁 (见 6.2)</b></td></tr>
+  <tr><td>DISPLAY_STYLE_*</td><td>RDC / control → 主服务器</td><td>大屏样式设置 + 持久化</td></tr>
+  <tr><td>UPLOAD_AND_PLAY_*</td><td>客户端 → 主服务器</td><td>base64 上传媒体并播放</td></tr>
+  <tr><td>LOCK_*</td><td>客户端 ↔ 主服务器</td><td>资源锁 (锁定大屏样式编辑等)</td></tr>
+  <tr><td>EDITOR_IDENTITY / TIMING_EXE_IDENTITY</td><td>客户端 → 主服务器</td><td>声明客户端身份 (本版新增 <code>LANGUAGE_SYNC</code> / <code>CLIENT_VERSION</code>，见 §2)</td></tr>
+  <tr><td>MeetRpc <span class="badge-new">本版新增</span></td><td>客户端 ↔ 主服务器</td><td>竞赛数据服务 RPC (读写 meet.db)，见 §1.4</td></tr>
+</table>
+
+<h3>1.4 竞赛数据服务 (MeetRpc) <span class="badge-new">本版新增小节</span></h3>
+<p>主服务器是 <code>meet.db</code>(竞赛库，成绩/名次/审计日志)的唯一持有者；其它机器不再各自打开这份数据库文件，
+而是通过 WebSocket 内的一套 RPC 请求/响应（<code>SwimmingScoreboard.Db.MeetRpc.RequestType</code>，由 <code>HandleMeetRpc</code> 处理）
+向主服务器请求读/写。</p>
+<div class="note">
+<b>本节未展开</b>：这是本版审查中发现的一个结构性较大的新增子系统，但具体消息形状(RequestType 枚举值、请求/响应字段)本轮未逐一核实，
+留作后续专项补充。日常集成如需用到，建议直接查 <code>Db/MeetRpc.cs</code>(或同名命名空间下的协议定义文件)与 <code>MainWindow.xaml.cs</code> 里的
+<code>HandleMeetRpc</code> 实现。
+</div>
+
+<h2 id="p2">二、客户端身份声明</h2>
+
+<table>
+  <tr><th>消息</th><th>发送方</th><th>用途</th></tr>
+  <tr><td><code>EDITOR_IDENTITY</code></td><td>ScheduleEditor / register.html</td><td>声明为编排端 → 主服务器推 EDITOR_PACKAGE</td></tr>
+  <tr><td><code>TIMING_EXE_IDENTITY</code></td><td>RTC.exe</td><td>声明为计时 EXE → 主服务器状态显示 "RTC 已连"</td></tr>
+  <tr><td><code>EDITOR_PULL_PACKAGE</code></td><td>编排端</td><td>请求重新拉整包</td></tr>
+  <tr><td><code>LANGUAGE_SYNC</code> <span class="badge-new">本版新增</span></td><td>双向</td><td>{type, lang}。主服务器切语言后广播，并在新连接建立时推一次，<b>只发给桌面 EXE 客户端</b>(ScheduleEditor/RTC/RegistrationTool/RemoteDisplayControl 对应的 socket 集合) <b>和大屏</b>(display.html，2026-10-08 起跟随主服务器语言)；<b>不发给</b> ScheduleEditor 网页版 register.html、control.html 等网页端 —— 网页端各自在浏览器本地独立选语言，不受这项同步影响（用户手册 2.6 节的"跨客户端自动同步"就是这条消息）</td></tr>
+  <tr><td><code>CLIENT_VERSION</code> <span class="badge-new">本版新增</span></td><td>网页客户端 → 主服务器</td><td>{type, page, ver}，ver 取自该网页自己的 <code>PAGE_VER</code> JS 变量。主服务器比对 <code>WEB_ASSET_VERSION</code> 常量(当前 <code>20261014-5</code>)，不一致则在系统日志点名，网页侧据此弹版本不一致红条(见用户手册 2.2 节)</td></tr>
+</table>
+
+<h2 id="p3">三、显示模式控制 (REMOTE_CONTROL)</h2>
+
+<h3>3.1 基础显示模式</h3>
+<pre>{ "type": "REMOTE_CONTROL", "command": "SHOW_LIVE_RACE" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_START_LIST" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_HEAT_RESULT" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_EVENT_RANKING" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_TEAM_STANDINGS" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_AWARDS" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_REFEREES" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_WELCOME" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_SCHEDULE" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_RECORDS" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_MEDIA" }
+{ "type": "REMOTE_CONTROL", "command": "SHOW_PAUSE" }          // 本版新增: 暂停屏
+{ "type": "REMOTE_CONTROL", "command": "SHOW_EVENT_LIST" }     // 本版新增: 比赛日程/项目一览
+{ "type": "REMOTE_CONTROL", "command": "SHOW_PROMOTION_LIST" } // 本版新增: 晋级名单</pre>
+
+<div class="new">
+<b>本版新增：SHOW_EVENT_RANKING / SHOW_AWARDS 可附带选定项目</b><br>
+两个命令现在可以在顶层附带 <code>eventName</code> 等字段，主服务器用 <code>FindConfirmedFinalEventFromMessage</code> 校验后，
+写入 §11 所述的 <code>rankingSelection</code> / <code>awardSelection</code> 再广播——这是用户手册 10.5 节
+"点『总排名』/『颁奖』会先弹出选择项目窗口"背后的协议机制。配套新增 <code>LIST_RANKING_CANDIDATES</code>
+（见下方 3.3），客户端先拉候选列表再发带 eventName 的 SHOW_* 命令。
+</div>
+
+<h3>3.2 切换类</h3>
+<table>
+  <tr><th>命令</th><th>用途</th></tr>
+  <tr><td><code>TOGGLE_RECORDS_HIDDEN</code></td><td>切换 WR/CR 横条显示</td></tr>
+  <tr><td><code>TOGGLE_REMARK_REACTION</code></td><td>切换备注栏反应时显示</td></tr>
+  <tr><td><code>OPEN_DISPLAY_STYLE</code></td><td>主控本机弹大屏样式窗口</td></tr>
+  <tr><td><code>OPEN_AUTOSAVE_PATH_DIALOG</code></td><td>主控本机弹成绩存盘路径窗口</td></tr>
+  <tr><td><code>OPEN_THERMAL_PRINTER_DIALOG</code></td><td>主控本机弹热敏打印窗口</td></tr>
+  <tr><td><code>OPEN_CHANGE_PASSWORD_DIALOG</code></td><td>主控本机弹用户名/密码窗口</td></tr>
+  <tr><td><code>RELEASE_MEMORY</code></td><td>主控强制 GC + 压 WorkingSet (比赛控制顶栏 ♻ 触发)</td></tr>
+</table>
+
+<h3>3.3 媒体 / PPT / 日程 / 排名 — 远程列表选择类 <span class="badge-fix">本版结构调整</span></h3>
+<p>旧版"PC 本机弹文件选择对话框"（<code>PLAY_MEDIA</code>/<code>PLAY_PPT</code> 直接带 <code>{file}</code>）的用法仍然保留，
+但本版新增了一套"客户端先拉列表、再选一项"的远程化路径，适合从手机/平板等不在主机旁的设备上操作：</p>
+<table>
+  <tr><th>命令</th><th>方向</th><th>用途</th></tr>
+  <tr><td><code>LIST_MEDIA_FILES</code> / <code>LIST_PPT_FILES</code> <span class="badge-new">本版新增</span></td><td>客户端 → 主服务器</td><td>请求 Media/ 或 Documents/PPT/ 目录下的文件列表</td></tr>
+  <tr><td><code>PLAY_MEDIA_FILE</code> / <code>PLAY_PPT_FILE</code> <span class="badge-new">本版新增</span></td><td>客户端 → 主服务器</td><td>从列表里选中一项后播放，取代早期"文件名靠自己拼"的 PLAY_MEDIA/PLAY_PPT 用法</td></tr>
+  <tr><td><code>PLAY_PPT</code></td><td>客户端 → 主服务器</td><td>旧路径仍存在，PC 本机弹选择框后走这条（两条路并存，非替换关系）</td></tr>
+  <tr><td><code>PPT_NEXT</code> / <code>PPT_PREV</code> / <code>PPT_GOTO</code></td><td>客户端 → 主服务器</td><td>翻页</td></tr>
+  <tr><td><code>STOP_MEDIA</code></td><td>客户端 → 主服务器</td><td>停止媒体显示, 切回 SHOW_LIVE_RACE</td></tr>
+  <tr><td><code>UPLOAD_AND_PLAY_MEDIA</code> / <code>UPLOAD_AND_PLAY_PPT</code></td><td>客户端 → 主服务器</td><td>客户端本地选文件 base64 上传立即播放（见 §8）</td></tr>
+  <tr><td><code>LIST_SCHEDULE_SESSIONS</code> / <code>SHOW_SCHEDULE_SESSION</code> <span class="badge-new">本版新增</span></td><td>客户端 → 主服务器</td><td>先拉场次列表，再选一场切到该场次的大屏日程显示</td></tr>
+  <tr><td><code>LIST_RANKING_CANDIDATES</code> <span class="badge-new">本版新增</span></td><td>客户端 → 主服务器</td><td>拉取"已有成绩、可以显示总排名/颁奖"的项目候选列表，配合 3.1 的 SHOW_EVENT_RANKING/SHOW_AWARDS 选定项目机制使用</td></tr>
+</table>
+
+<h2 id="p4">四、计时命令 (TIMING_CMD)</h2>
+
+<p>本版命令数量比 v2026.06.22 大幅增加。下表按功能分组；<code>_REPORT</code> 族（RTC 直连硬件时的扩展命令转发）
+已在用户手册附录 A.5 详述，此处不重复字段表，仅列出命令名备查。</p>
+
+<h4>比赛流程</h4>
+<table>
+  <tr><th>命令</th><th>data</th><th>用途</th></tr>
+  <tr><td>READY</td><td>—</td><td>就位</td></tr>
+  <tr><td>START_RACE</td><td>—</td><td>开始计时</td></tr>
+  <tr><td>PAUSE_CLOCK</td><td>—</td><td>暂停时钟</td></tr>
+  <tr><td>PAUSE_CLOCK_TOGGLE <span class="badge-new">本版新增</span></td><td>—</td><td>暂停/恢复一键切换（PAUSE_CLOCK 的便捷版，不用客户端自己记当前是否已暂停）</td></tr>
+  <tr><td>RESET / TIMER_RESET <span class="badge-fix">命名变化</span></td><td>—</td><td>计时复位；<code>TIMER_RESET</code> 是当前代码里实际使用的命令名，<code>RESET</code> 为旧文档记录名，建议新对接统一用 <code>TIMER_RESET</code></td></tr>
+  <tr><td>RESTART <span class="badge-new">本版新增</span></td><td>—</td><td>重新开始（具体语义区别于 TIMER_RESET 的"两种含义"，见用户手册 8.4）</td></tr>
+  <tr><td>CONFIRM_RESULT</td><td>—</td><td>确认本组成绩</td></tr>
+  <tr><td><b>UNLOCK_HEAT_RESULT</b> <span class="badge-new">本版新增</span></td><td>{heat, reason, ...}</td><td>解锁本组成绩（用户手册 4.4 节"解锁本组成绩"的计时站入口；编排端走的是 §6.2 EDITOR_PATCH 的 <code>Unlock</code> op，殊途同归）</td></tr>
+  <tr><td>CANCEL_NOTE <span class="badge-new">本版新增</span></td><td>{lane}</td><td>取消备注（即"取消备注"按钮，语义同旧版 UNMARK，命名统一）</td></tr>
+  <tr><td>PUBLISH_EVENT_RANKING_STORE</td><td>—</td><td>公布项目总排名 (存盘)</td></tr>
+  <tr><td>PRINT_HEAT_RESULT</td><td>—</td><td>远程请求 PC 端构建本组成绩 HTML 并推回</td></tr>
+  <tr><td>AUTO_GENERATE_HEATS <span class="badge-new">本版新增</span></td><td>—</td><td>自动生成分组（测试机器人/远程触发用）</td></tr>
+  <tr><td>NEXT_HEAT / PREV_HEAT <span class="badge-new">本版新增</span></td><td>—</td><td>切下一组/上一组</td></tr>
+  <tr><td>SET_GENDER / SET_AGEGROUP / SET_EVENT / SET_STAGE / SET_HEAT <span class="badge-new">本版新增</span></td><td>{value}</td><td>远程切换比赛控制当前筛选的性别/组别/项目/赛次/组次</td></tr>
+</table>
+
+<h4>判罚与成绩</h4>
+<table>
+  <tr><th>命令</th><th>data</th><th>用途</th></tr>
+  <tr><td>MARK_DSQ / MARK_DNS / MARK_DNF / MARK_TRI</td><td>{lane}</td><td>标记某泳道状态</td></tr>
+  <tr><td>UNMARK</td><td>{lane}</td><td>取消标记（见上表 CANCEL_NOTE 的命名口径说明）</td></tr>
+  <tr><td>USE_BLIND_RESULT</td><td>{lane}</td><td>使用某道盲表代触；<b>本版起服务端会回发 <code>USE_BLIND_RESULT_RESULT</code></b>（见 §11），race_control.html 据此给出成功/失败提示</td></tr>
+  <tr><td>MANUAL_SPLIT</td><td>{lane, time}</td><td>手动输入分段成绩</td></tr>
+  <tr><td>OVERRIDE_TIME <span class="badge-new">本版新增</span></td><td>{lane, time}</td><td>整道成绩手工键入（用户手册 8.5 节"手动输入"），与 MANUAL_SPLIT 的区别是覆盖的是最终成绩而非某一段</td></tr>
+  <tr><td>MARK_STATUS <span class="badge-new">本版新增</span></td><td>{lane, status}</td><td>泛化版状态标记命令，具体与 MARK_DSQ 等专用命令的分工关系未逐一核实</td></tr>
+</table>
+
+<h4>设备 / 泳道</h4>
+<table>
+  <tr><th>命令</th><th>data</th><th>用途</th></tr>
+  <tr><td>OPEN_LANE / CLOSE_LANE</td><td>{lane}</td><td>打开/关闭泳道</td></tr>
+  <tr><td>OPEN_ALL_LANES / CLOSE_ALL_LANES <span class="badge-new">本版新增</span></td><td>—</td><td>全开/全关</td></tr>
+  <tr><td>MANUAL_LANE_OPEN / MANUAL_LANE_CLOSE <span class="badge-new">本版新增</span></td><td>{lane}</td><td>手动按键相关的泳道开关（区别于硬件自动流程）</td></tr>
+  <tr><td>MANUAL_TOUCH_LEFT / MANUAL_TOUCH_RIGHT <span class="badge-new">本版新增</span></td><td>{lane}</td><td>模拟左/右端手动触板按键</td></tr>
+  <tr><td>ADJUST_LAP_DISPLAY <span class="badge-new">本版新增</span></td><td>{lane, side, remaining}</td><td>调整剩余圈数显示（对应硬件 0x61，见 §12）</td></tr>
+  <tr><td>SET_DEVICE_STATUS</td><td>{lane, device, status}</td><td>设置设备状态 (status: installed / not_installed / good / broken)</td></tr>
+  <tr><td>SET_LANE_CLOSE_TIME</td><td>{lane, time}</td><td>设置某泳道关闭倒计时</td></tr>
+  <tr><td>SET_MANUAL_STATUS</td><td>{lane, leftEnabled, rightEnabled}</td><td>设置手动按键启用</td></tr>
+  <tr><td>SET_LANE_CLOSE_SETTINGS</td><td>{各时间参数}</td><td>批量更新时间参数（含接力交接棒抢跳判定阀值等 9 项，见用户手册 8.8.1）</td></tr>
+  <tr><td>DEVICE_TEST_TOGGLE <span class="badge-new">本版新增</span></td><td>—</td><td>切换设备测试模式</td></tr>
+  <tr><td>QUICK_CONNECT_SERIAL</td><td>—</td><td>快连/断开串口</td></tr>
+  <tr><td>CONNECT_HW</td><td>{mode, host, port}</td><td>连接硬件计时器 (TCP/UDP/串口)</td></tr>
+</table>
+
+<h4>RTC 硬件扩展上报 (_REPORT 族，详见用户手册附录 A.5)</h4>
+<table>
+  <tr><th>命令</th><th>用途</th></tr>
+  <tr><td>BATTERY_REPORT / TIMINGS_BUNDLE_REPORT / LANE_ORDER_REPORT / FINISH_POS_REPORT / POOL_SIDE_REPORT / LANE_OPEN_CLOSE_REPORT</td><td>RTC.exe 直连硬件时，把硬件→PC 的扩展帧拆成这些 TIMING_CMD 子命令转发给主服务器，再由 <code>HandleHardwareReportForwarded</code> 还原</td></tr>
+</table>
+
+<h4>数据增删改（CRUD，供远程/测试工具用）</h4>
+<table>
+  <tr><th>命令</th><th>用途</th></tr>
+  <tr><td>UPDATE_SWIMMER / DELETE_SWIMMER</td><td>运动员信息增改/删除</td></tr>
+  <tr><td>UPDATE_RESULT</td><td>成绩修改</td></tr>
+  <tr><td>UPDATE_RELAY / DELETE_RELAY</td><td>接力队信息增改/删除</td></tr>
+  <tr><td>UPDATE_EVENT_LIST / UPDATE_AGE_GROUP_LIST / UPDATE_GENDER_LIST / UPDATE_STAGE_LIST</td><td>项目/组别/性别/赛次表维护</td></tr>
+  <tr><td>ADD_SCHEDULE_ITEM / UPDATE_SCHEDULE_ITEM / DELETE_SCHEDULE_ITEM</td><td>赛程条目增删改</td></tr>
+  <tr><td>ADD_RECORD / UPDATE_RECORD / DELETE_RECORD</td><td>纪录增删改</td></tr>
+  <tr><td>CALCULATE_TEAM_SCORES</td><td>重算团体总分</td></tr>
+  <tr><td>CANCEL_PROMOTION / EXECUTE_PROMOTION</td><td>晋级处理的撤销/执行</td></tr>
+  <tr><td>PUBLISH_RESULT</td><td>发布成绩</td></tr>
+  <tr><td>EXPORT_RESULT_TXT_LIST / EXPORT_RESULT_TXT_BUILD</td><td>成绩 TXT 导出（先列候选再构建，同 §3.3 的列表-选择模式）</td></tr>
+  <tr><td>LIST_DOCUMENTS / GENERATE_REPORT</td><td>文档列表 / 生成报表（远程触发"文档编辑/输出/打印"功能）</td></tr>
+</table>
+
+<div class="note">
+以上 CRUD / 流程类命令大多是自测试机器人(test_bot.html，开发工具)和远程集成场景驱动增加的，字段形状多为对应实体的直接镜像；
+本轮研究以覆盖命令名的广度为主，未逐一核实每条的精确 data 字段，对接前建议用 test_bot.html 或抓包核对一次实际报文。
+</div>
+
+<h2 id="p5">五、RTC 转发链 (RTC_FORWARD)</h2>
+
+<h3>5.1 设计目的</h3>
+<p>RTC.exe 直连硬件, 但不开自己的 WebSocket Server (端口 3002 冲突), 通过主服务器中转大屏数据。</p>
+
+<h3>5.2 消息格式</h3>
+<pre>{
+  "type": "RTC_FORWARD",
+  "payload": { ... }   // 完整的 SHOW_LIVE_RACE / SHOW_HEAT_RESULT 等消息
+}</pre>
+
+<h3>5.3 主服务器 RTC_FORWARD 处理</h3>
+<p>主服务器收到 RTC_FORWARD 时:</p>
+<ol>
+  <li>缓存 payload 到 <code>_lastRtcSnapshot</code></li>
+  <li>把 payload 原样广播给所有 display 客户端 (BroadcastJsonToClients)</li>
+</ol>
+
+<h3>5.4 新连接 display 的初始化</h3>
+<p>新连接的 display 第一时间收 <code>_lastRtcSnapshot</code>, 立即恢复显示 (不等下一帧 RTC 推送)。</p>
+
+<h3>5.5 RTC 端节流</h3>
+<p>RTC Broadcast 100ms 节流, 多次事件合并一次推主服务器。</p>
+
+<div class="note">
+本节本版未发现明确变化（未找到 payload 上出现按 <code>to</code> 字段区分收件人范围的新路由逻辑），维持 v2026.06.22 时点描述。
+若后续排查广播范围相关问题，建议直接在 <code>BroadcastImmediate()</code>/<code>BroadcastJsonToClients</code> 源码核实一次，不要只信这份文档。
+</div>
+
+<h2 id="p6">六、编排同步 (EDITOR_*)</h2>
+
+<h3>6.1 整包推送（原有机制，保留）</h3>
+<table>
+  <tr><th>消息</th><th>方向</th><th>用途</th></tr>
+  <tr><td><code>EDITOR_PACKAGE</code></td><td>主服务器 → 编排端</td><td>整包 (CompetitionPackage JSON), 含项目/运动员/赛程/纪录等</td></tr>
+  <tr><td><code>EDITOR_PUSH_PACKAGE</code></td><td>编排端 → 主服务器</td><td>编排端改完回推</td></tr>
+  <tr><td><code>EDITOR_PUSH_REJECTED</code> <span class="badge-new">本版新增</span></td><td>主服务器 → 编排端</td><td>{reason}。整包回推若被 <code>IsPackageApplyBlocked</code> 判定命中(存在正在比/成绩未确认的组)，主服务器不再静默丢弃，而是明确回这条拒绝消息——用户手册 9.2 节"被拒时编排端会明确告诉你原因"背后的协议落点</td></tr>
+</table>
+<p>RTC 端 1.5s 去抖、编排端身份声明两段内容未变：主服务器改赛程 → RTC 端 EditorSyncClient 收到后启动 1.5s 定时器，
+期间多次推送合并，到期才应用最新一份；ScheduleEditor / RegistrationTool / register.html 连主服务器时发
+<code>EDITOR_IDENTITY</code>，主服务器加入 <code>_editorClients</code> 集合，每次 AutoSaveData 后自动推 EDITOR_PACKAGE。</p>
+
+<h3>6.2 增量补丁 (EDITOR_PATCH) <span class="badge-new">本版重点新增</span></h3>
+<p>这是本版协议层面最大的新增机制，对应用户手册 4.5 节"比赛中可以改别的项目"和 9.1 节"两种同步方式"。
+并组、道次/分组调整、临场微调、晋级处理、纪录维护这几类最常用的临场操作，不再走 6.1 的整包推送，
+而是只把"这一次操作"本身发给主服务器，秒级生效，且不会跟正在计时的那一组冲突。</p>
+
+<h4>请求</h4>
+<pre>{
+  "type": "EDITOR_PATCH",
+  "op": "&lt;操作名&gt;",
+  "corrId": "...",      // 关联 ID，用于匹配下面的 ACK
+  ... // 按 op 不同，携带各自的字段
+}</pre>
+
+<h4>已确认的 op 取值</h4>
+<table>
+  <tr><th>op</th><th>用途</th></tr>
+  <tr><td><code>Assign</code></td><td>分组/道次指派类调整（上移/下移/交换泳道/增加到本组/移出本组等落到这一类操作）</td></tr>
+  <tr><td><code>MergeHeats</code></td><td>并组/取消组。字段比较完整，单独列出：<code>{ageGroup, gender, eventName, stage, reason, clientName, srcHeat, dstHeat}</code>——<code>dstHeat</code> 省略或特殊值表示"仅取消，不并入"</td></tr>
+  <tr><td><code>Unlock</code></td><td>解锁本组成绩（编排端入口；计时站侧走 §4 的 TIMING_CMD <code>UNLOCK_HEAT_RESULT</code>，两条路最终效果一致）</td></tr>
+  <tr><td><code>CheckIn</code></td><td>检录状态变更</td></tr>
+  <tr><td><code>RelayEdit</code> / <code>RelayDelete</code></td><td>接力队信息编辑 / 删除</td></tr>
+  <tr><td><code>SwimmerEdit</code> / <code>SwimmerDelete</code></td><td>运动员信息编辑 / 删除</td></tr>
+  <tr><td><code>SwimmerRowsAdd</code> / <code>SwimmerRowsUpsert</code></td><td>批量新增 / 新增或更新运动员行（CSV 导入等场景）</td></tr>
+  <tr><td><code>Records</code></td><td>纪录维护。<b>特殊：此 op 成功后不触发下方的 meet.db 防抖重建</b>（纪录表不进 heat 相关的同步路径）</td></tr>
+  <tr><td><code>ListSet</code></td><td>整表替换类操作（具体对应项目/组别/性别/赛次四张表中的哪一张，取决于附带字段，未逐一核实）</td></tr>
+</table>
+
+<h4>响应</h4>
+<pre>{
+  "type": "EDITOR_PATCH_ACK",
+  "corrId": "...",
+  "ok": true,
+  "reason": "..."   // ok=false 时携带拒绝原因
+}</pre>
+
+<h4>成功后的连锁动作</h4>
+<ol>
+  <li>把这条 <code>EDITOR_PATCH</code> <b>原样转发</b>给其它所有已连接的编排端 socket（不重新处理，纯转发，让其它编排端界面跟着刷新）</li>
+  <li>除 <code>op == "Records"</code> 外，触发一次 <b>0.5 秒防抖</b>的 <code>meet.db</code> 增量重建（<code>ScheduleMeetDbSyncFromPatch</code> / <code>MeetDbSyncDebounceTick</code>）——这个防抖时长本版从 2 秒缩短为 0.5 秒</li>
+</ol>
+
+<h4>相关：HEAT_CONFIRMED_ACK <span class="badge-new">本版新增</span></h4>
+<p>另有一条独立的 <code>HEAT_CONFIRMED_ACK</code> 确认消息，在两处"确认本组成绩"相关调用点发出；具体字段形状本轮未核实，
+推测与"某一组成绩确认后，通知相关编排端刷新"有关，对接前建议抓包确认。</p>
+
+<div class="danger">
+<b>拒绝判定</b>：无论是整包推送(6.1)还是增量补丁(6.2)，命中"该组正在计时/已就位/已完赛/已有未确认成绩"任一条件都会被拒绝——
+这跟用户手册 4.5 节"按组上锁，不是按『比赛中』一刀切"完全对应，不要在协议层面假设"没有比赛就等于能改任何东西"，
+具体判定逻辑仍以 <code>IsHeatLocked</code>/<code>IsPackageApplyBlocked</code> 一类的服务端函数为准。
+</div>
+
+<h2 id="p7">七、大屏样式 (DISPLAY_STYLE_*)</h2>
+
+<h3>7.1 消息</h3>
+<table>
+  <tr><th>消息</th><th>方向</th><th>用途</th></tr>
+  <tr><td><code>GET_DISPLAY_STYLE</code></td><td>客户端 → 主服务器</td><td>请求当前大屏样式</td></tr>
+  <tr><td><code>DISPLAY_STYLE_DATA</code></td><td>主服务器 → 客户端</td><td>响应样式数据</td></tr>
+  <tr><td><code>SET_DISPLAY_STYLE</code></td><td>客户端 → 主服务器</td><td>更新样式 + 主服务器广播给所有 display</td></tr>
+</table>
+
+<h3>7.2 SET_DISPLAY_STYLE 数据字段</h3>
+<pre>{
+  "type": "SET_DISPLAY_STYLE",
+  "data": {
+    "bgType": "solid|gradient",
+    "fontSize": 1.0,        // 全局字号系数
+    "fsTitle": 1.0,         // 标题字号系数
+    "fsEvent": 1.0,         // 项目字号系数
+    "fsTime": 1.0,          // 时间字号系数
+    "fsInfo": 1.0,          // 信息字号系数
+    "colors": { ... },      // 文字颜色，含"比赛纪录(第3行)"项
+    "fonts": { ... }        // 字体，含"比赛纪录(第3行)"项
+  }
+}</pre>
+<div class="note">
+<b>"比赛纪录(第3行)"样式项澄清</b>：用户手册附录 D-1 提到 control.html / RemoteDisplayControl.exe 本版补齐了这一项的文字样式设置。
+经核实，<code>SET_DISPLAY_STYLE</code> 的 <code>colors</code>/<code>fonts</code> 字段结构本身<b>没有新增字段</b>——该字段此前就存在，
+缺的是这两个客户端界面上的 CSS/控件没接上已有的协议字段。也就是说：<b>这是一处客户端渲染补全，不是协议变更</b>。
+</div>
+
+<h2 id="p8">八、媒体 / PPT 上传</h2>
+
+<h3>8.1 客户端本地上传 (UPLOAD_AND_PLAY_MEDIA)</h3>
+<pre>{
+  "type": "UPLOAD_AND_PLAY_MEDIA",
+  "fileName": "abc.mp4",
+  "data": "base64..."
+}</pre>
+<p>主服务器存到 <code>Media/uploaded/</code>, 立即广播 PLAY_MEDIA 给所有 display。</p>
+
+<h3>8.2 PPT 上传 (UPLOAD_AND_PLAY_PPT)</h3>
+<pre>{
+  "type": "UPLOAD_AND_PLAY_PPT",
+  "fileName": "abc.pptx",
+  "data": "base64..."
+}</pre>
+<p>主服务器存到 <code>Documents/PPT/uploaded/</code>, 转 PNG 后翻页推送。</p>
+
+<p>本版新增的"先列表后选择"远程播放路径（<code>LIST_MEDIA_FILES</code>/<code>PLAY_MEDIA_FILE</code> 等）见 §3.3，
+跟本节的"本地文件直接 base64 上传"是两条互不冲突的路：前者播放服务器上已有的文件，后者把本地新文件送上去。</p>
+
+<h2 id="p9">九、锁机制 (LOCK_*)</h2>
+
+<h3>9.1 用途</h3>
+<p>避免多个客户端同时编辑同一资源 (如大屏样式)。</p>
+
+<h3>9.2 消息</h3>
+<table>
+  <tr><th>消息</th><th>用途</th></tr>
+  <tr><td><code>LOCK_ACQUIRE</code> {resource}</td><td>请求锁</td></tr>
+  <tr><td><code>LOCK_RELEASE</code> {resource}</td><td>释放锁</td></tr>
+  <tr><td><code>LOCK_STATUS</code> {resource, holder}</td><td>锁状态推送</td></tr>
+</table>
+<p>本节本版未发现变化。</p>
+
+<h2 id="p10">十、数据查询与响应</h2>
+
+<table>
+  <tr><th>请求</th><th>响应</th><th>用途</th></tr>
+  <tr><td><code>QUERY_RANKING</code> {event, gender, stage}</td><td><code>RANKING_DATA</code></td><td>查询项目排名</td></tr>
+  <tr><td><code>QUERY_RECORDS</code></td><td><code>RECORDS_DATA</code></td><td>查询纪录库</td></tr>
+  <tr><td><code>QUERY_HEAT</code> {event, gender, stage, heat}</td><td><code>HEAT_DATA</code></td><td>查询某组数据</td></tr>
+  <tr><td><code>PRINT_HEAT_RESULT</code></td><td><code>PRINT_HEAT_RESULT_HTML</code></td><td>请求 HTML 打印</td></tr>
+</table>
+<p>本节本版未发现变化；与 §4 新增的 <code>LIST_RANKING_CANDIDATES</code>/<code>LIST_SCHEDULE_SESSIONS</code> 等"列表类"请求是不同的用途分组，
+后者用于显示控制的"先选再看"交互，本节是数据查询/打印用途，未合并。</p>
+
+<h2 id="p11">十一、大屏推送消息 (SHOW_*)</h2>
+
+<h3>11.0 大屏推送帧瘦身机制 (staticOmitted) <span class="badge-new">本版重点新增，2026-08-25</span></h3>
+<p>随着状态包字段越来越多，每 100ms 心跳都把 <code>allSwimmers</code>/<code>schedule</code>/<code>eventList</code> 这类"重/静态"字段
+整包重发的成本越来越高。本版引入 <code>staticOmitted</code> 机制：</p>
+<pre>{
+  "type": "SHOW_LIVE_RACE",
+  "data": {
+    "staticOmitted": ["allSwimmers", "schedule", "eventList", ...],  // 本帧省略了哪些字段
+    // 省略的字段不会出现在 data 里；客户端应保留上一次收到的旧值，不能当成"清空"处理
+    ...
+  }
+}</pre>
+<p>默认省略列表（非"全量帧"/非 <code>keepStatic</code> 请求时）：<code>allSwimmers, allRelayTeams, schedule, teamScores,
+ageGroups, ageGroupsDetail, eventList, genderList, stageList, eventRanking, eventRankingSplit,
+applicableRecords, laneEventLogs, laneDevices</code>。</p>
+<div class="danger">
+<b>客户端必须读 <code>staticOmitted</code> 后再决定是否清空/覆盖对应字段。</b> 这是对 v2026.06.22 旧版 11.5 节
+"不能 <code>if (msg.data) data = msg.data</code> 全吞"那条告诫的进一步延伸——不仅 <code>RUNNING_TIME_UPDATE</code> 这类独立消息类型要白名单处理，
+连 <code>SHOW_LIVE_RACE</code> 本身的常规帧现在也可能是"精简帧"，贸然把 <code>data</code> 整体覆盖旧状态会导致运动员名单、赛程树等大面积丢失。
+</div>
+
+<h3>11.1 SHOW_LIVE_RACE</h3>
+<p>主服务器主动推送 (或 RTC 通过 RTC_FORWARD 中转), data 字段含完整状态包 (GetStatusData 投影):</p>
+<pre>{
+  "type": "SHOW_LIVE_RACE",
+  "modeExplicit": false,     // true=操作员主动切显示模式, false=状态心跳
+  "data": {
+    "lang": "zh",              // 本版新增(2026-10-08): 主服务器当前权威语言, display.html 据此跟随而非自行决定
+    "webAssetVersion": "20261014-5",  // 本版新增: 对应 §2 的 CLIENT_VERSION 版本比对机制
+    "staticOmitted": [ ... ],  // 见 11.0
+    "competitionName": "甘肃省第十六届运动会群众组游泳比赛",
+    "currentGender": "男子",
+    "currentEvent": "100米仰泳",
+    "currentAgeGroup": "",
+    "currentStage": "决赛",
+    "currentHeat": 1,
+    "totalHeats": 2,
+    "raceState": "racing",
+    "runningTime": "1:23.45",
+    "clockPaused": false,
+    "swimmers": [ { lane, name, country, ..., deviceStatus, ... }, ... ],
+    "allSwimmers": [ { ..., results: [{ stage, heat, finalTime, rank, ... }] }, ... ],
+    "schedule": [ { sessionNumber, sessionName, date, time, ageGroup, eventName, gender, stage, heatCount, isRelay,
+                     heatConfirmed[], heatCancelled[],   // heatCancelled[] 本版新增(2026-09-18), 与 heatConfirmed[] 同下标对应
+                     heatStatus[],                       // 本版新增: 每组的数字状态码(= HEAT_STATUS 枚举, 1未开始~6已取消, 见用户手册 8.2)
+                     allConfirmed }, ... ],
+    "eventRanking": [ ... ],
+    "eventRankingSplit": [ { gender, age, title, items[] }, ... ],
+    "applicableRecords": [ ... ],
+    "teamScores": [ ... ],
+    "records": [ ... ],
+    "refereeList": [ ... ],
+    "ageGroups": [ ... ], "ageGroupsDetail": [ {name, minAge, maxAge}, ... ],
+    "eventList": [ ... ], "genderList": [ ... ], "stageList": [ ... ],
+    "laneDevices": [ { lane, leftTouchpadBroken, leftTouchpadNotInstalled, ..., endLocked }, ... ],
+    "memoryStatus": "350MB · 剩余 12.3/16.0GB · 占用 23%",
+    "batteryVoltage": "12.5V",
+    "scoringControlMode": "local|remote_exe|remote_web",  // 本版起每次广播实时计算(= IsRaceControlTakenByExe() 判定), 不再用可能过期的缓存值
+    "awardSelection": null | { gender, ageGroup, eventName, stage },
+    "awardRanking": [ ... ],
+    "rankingSelection": null | { ... },
+    "rankingRanking": [ ... ]
+  }
+}</pre>
+
+<h3>11.2 SHOW_HEAT_RESULT / SHOW_EVENT_RANKING / SHOW_AWARDS 等</h3>
+<p>type 切换为对应模式名, data 字段相同 (主服务器一次构建多模式共用)。</p>
+
+<h3>11.3 颁奖 / 总排名回放字段</h3>
+<p>PC 端用户从 "颁奖" / "总排名" 弹窗选定项目后 (或客户端直接按 §3.1 新机制带 eventName 发 SHOW_* 命令)，GetStatusData 投影附加:</p>
+<ul>
+  <li><code>awardSelection</code> / <code>awardRanking</code>: SHOW_AWARDS 模式下, display.html 优先用此项目 (= 全项目总排名前 3) 渲染领奖台</li>
+  <li><code>rankingSelection</code> / <code>rankingRanking</code>: SHOW_EVENT_RANKING 模式下, display.html 强制单表分页, 10 行 1 页轮播</li>
+  <li>切到其他大屏模式 → 服务器自动清这两组字段</li>
+  <li>display.html 检测 selection 为 null 时退回 <code>currentXxx + eventRanking</code> (兼容远端直接命令)</li>
+</ul>
+
+<h3>11.4 排名字段 (eventRanking / awardRanking / rankingRanking)</h3>
+<p>统一结构, 每元素:</p>
+<pre>{
+  "rank": 1,           // 名次 (0 = DSQ/DNS/DNF/无成绩)
+  "heat": 1,
+  "lane": 4,
+  "bibNumber": "001",
+  "name": "魏延北",
+  "country": "兰州文理",
+  "entryTime": "0:28.55",
+  "finalTime": "0:27.85",
+  "timingSource": "TP",
+  "status": "",         // 空 / DSQ / DNS / DNF
+  "resultStatus": "",
+  "recordNote": "WR",   // 破/平纪录标识
+  "qualifiedToNext": false
+}</pre>
+<p><b>排序规则</b>:</p>
+<ol>
+  <li>有成绩运动员按 FinalTime 升序 (并列名次 1-2-2-4)</li>
+  <li>末尾追加 DSQ/DNS/DNF 等 (rank=0), 按 <b>DSQ → DNF → DNS → 其他</b> 排序</li>
+  <li>TRI 试游不进总排名 (= 仅展示, 排除)</li>
+</ol>
+
+<h3>11.5 RUNNING_TIME_UPDATE</h3>
+<p>硬件 100ms 节拍, 轻量级滚动时间帧:</p>
+<pre>{
+  "type": "RUNNING_TIME_UPDATE",
+  "data": {
+    "runningTime": "35.42",
+    "clockPaused": false
+  }
+}</pre>
+<p><b>客户端注意</b>: 必须按 <code>msg.type</code> 白名单分发处理, 不能 <code>if (msg.data) { data = msg.data }</code> 全吞,
+否则会覆盖整个 data, 导致 schedule/allSwimmers 丢失 (整页闪烁)。这条告诫现在同样适用于 11.0 的 <code>staticOmitted</code> 精简帧。</p>
+
+<h3>11.6 DEVICE_STATES_UPDATE <span class="badge-new">本版新增</span></h3>
+<pre>{
+  "type": "DEVICE_STATES_UPDATE",
+  "data": { ... }   // BuildLaneDevicesPayload() 的输出, 结构同 11.1 的 laneDevices 字段
+}</pre>
+<p>只在设备状态变化时推送一次（"变一次推一次"），取代此前每个心跳帧都带一份完整 <code>laneDevices</code> 的做法。
+对应用户手册里"设备状态灯不是定时刷新，是变一次推一次"的描述。</p>
+
+<h3>11.7 LANE_EVENT_APPEND <span class="badge-new">本版新增</span></h3>
+<pre>{
+  "type": "LANE_EVENT_APPEND",
+  "data": { "lane": 3, "text": "道3 触板 1:02.33" }
+}</pre>
+<p>比赛日志改为逐条增量追加推送，取代此前每帧重发完整 <code>laneEventLogs</code> 的做法——这是用户手册里
+"比赛日志是变一次推一次"这句话背后的协议落点，也是 400 米内存问题修复思路（见用户手册附录 D-3"传输与内存"）在本版的延续。</p>
+
+<h3>11.8 USE_BLIND_RESULT_RESULT <span class="badge-new">本版新增</span></h3>
+<pre>{
+  "type": "USE_BLIND_RESULT_RESULT",
+  "ok": true,
+  "reason": "...",   // ok=false 时的失败原因
+  "time": "1:02.33", // ok=true 时的应用时间
+  "lane": 3
+}</pre>
+<p>对 §4 <code>TIMING_CMD: USE_BLIND_RESULT</code> 的回执，只发给发起该请求的 socket。race_control.html 收到后给出
+"已用上这道的盲表时间"或失败提示——此前这个操作按下去之后客户端完全看不出是否生效。</p>
+
+<h3>11.9 STAGE_COMPLETE / PROMOTION_DONE</h3>
+<p>赛次 / 晋级流程消息, 见 RemoteTimingControl 实现。本节本版未重新核实。</p>
+
+<h2 id="p12">十二、硬件计时器协议 <span class="badge-fix">本版重新核对全表</span></h2>
+
+<div class="danger">
+<b>本版勘误说明</b>：v2026.06.22 版的 12.3/12.4 表格存在两处实质性错误，本版对照 <code>TimingBridge.cs</code> 源码逐条核实后改正：
+(1) <code>0x66</code> 被同时标成"硬件→PC 的 EventBackup 帧"和"PC→硬件的 EventBackupQuery"——实际上 <code>0x66</code>
+只是 PC→硬件 的查询命令（<code>Query_BackupLog_Command</code>），硬件返回的备份事件数据帧是 <code>0x67</code>，两个方向不是同一个字节；
+(2) <code>0x42</code> 被标注为"StartPosition"，但源码里 <code>0x42</code> 实际是通用的 <code>SetCommand</code>（子码 0x01-0x0A），
+不是专门的起点位置命令。下表已按源码改正，不确定具体子码含义的地方会明确标注"未核实"，不再凭猜测填写。
+</div>
+
+<h3>12.1 物理层</h3>
+<table>
+  <tr><th>方式</th><th>参数</th></tr>
+  <tr><td>TCP</td><td>硬件 5555, PC 主动连</td></tr>
+  <tr><td>UDP</td><td>硬件→PC: 5002, 双向广播</td></tr>
+  <tr><td>串口 (RS232)</td><td>115200 8N1</td></tr>
+</table>
+
+<div class="note">
+<b>v2026.06.19 实测警告</b>: TCP 链路下硬件开始送时间帧后 PC 端 HTML 客户端数据污染.
+切 RS232 即恢复. 大型比赛优先 RS232 链路. (本版未见修复记录，结论维持不变。)
+</div>
+
+<h3>12.2 帧格式</h3>
+<pre>F1 53 [CMD] [D3] [D4] [D5] [D6] [D7] [D8] [D9] [D10] F4
+↑头  ↑     ↑cmd ↑D3 ↑D4=泳道号  …各 cmd 自己定义…    ↑尾</pre>
+<p>全部 12 字节：D0=<code>0xF1</code>(SOH)，D1=<code>0x53</code>('S')，D2=命令字节，D11=<code>0xF4</code>(EOT)。
+<b>命令字节在代码中直接按原始值使用，不存在"wire 字节再减 0x10"的通用换算</b>——这是本版勘误的重点之一，
+唯一例外是 0x69 Set_StrokeType 命令的firmware 内部历史渊源（见 12.5 脚注），不是普适规则。</p>
+
+<h3>12.3 主要帧 (硬件 → PC)</h3>
+<table>
+  <tr><th>CMD</th><th>含义</th><th>字段</th></tr>
+  <tr><td>0x16</td><td>Touchpad（触板）</td><td>D3: 0=真触板 / 1=盲表代触 / 3=仰泳出发松开TP / 4=手动TP键；D4=泳道+端；D5-D8=时间</td></tr>
+  <tr><td>0x17 / 0x18 / 0x19</td><td>PushButton1/2/3（盲表1/2/3）</td><td>D4=泳道+端；D5-D8=时间</td></tr>
+  <tr><td>0x1A</td><td>StartingBlock（出发台）</td><td>D4=泳道+端；D5-D8=PreStart时间；<b>D10</b>=符号位：1=负值/抢跳，2=超时未反应</td></tr>
+  <tr><td>0x1C</td><td>StartCommand（发令应答）</td><td>D5-D8=PreStart</td></tr>
+  <tr><td>0x1D</td><td>TestCommand（测试设备）</td><td>D4=泳道+端</td></tr>
+  <tr><td>0x22</td><td>GunPreStart（枪响PreStart计数器快照）</td><td>D5-D8=PreStart时间</td></tr>
+  <tr><td>0x21</td><td>TimerReady（硬件触发就位）</td><td>—</td></tr>
+  <tr><td>0x3A</td><td>PoolSingleOrDouble（硬件上报单/两端安装）</td><td>D3=0 两端 / 1 单端</td></tr>
+  <tr><td>0x40 / 0x44</td><td>PoolConfig（泳池参数，0x44 是 0x40 的新版别名，同语义）</td><td>（具体字段未核实）</td></tr>
+  <tr><td>0x41</td><td>RaceConfig（比赛距离参数） <span class="badge-fix">v2026.06.22文档误标为Set_ArmDelay_Time, 已更正</span></td><td>（具体字段未核实）</td></tr>
+  <tr><td>0x47</td><td>LaneOpenClose（硬件上报道次开关） <span class="badge-fix">双向，PC也可发(见12.4)</span></td><td>D3=0xFF全部道/0-9单道；D4=1打开/0关闭</td></tr>
+  <tr><td>0x4B</td><td>BatteryVoltage（电池电压）</td><td>D3:D4 大端 mV</td></tr>
+  <tr><td>0x50</td><td>StartblockStateChange（出发台状态变化）</td><td>D4=泳道+端；D5=newState(0关/1开/2延时/3坏/4未装)</td></tr>
+  <tr><td>0x51</td><td>TPStateChange（触板状态变化）</td><td>D4=泳道+端；D5=newState</td></tr>
+  <tr><td>0x52</td><td>MBStateChange（盲表状态变化）</td><td>D4=泳道+端；D5=newState；D6=mb_idx(0/1/2)</td></tr>
+  <tr><td>0x62</td><td>LaneOrder（硬件上报道次顺序） <span class="badge-fix">双向</span></td><td>D3=0正向0-9 / 1反向9-0</td></tr>
+  <tr><td>0x63</td><td>FinishPosition（硬件上报终点位置） <span class="badge-fix">双向</span></td><td>D3=0左端 / 1右端</td></tr>
+  <tr><td>0x64</td><td>TimingsBundle（硬件上报5项时间参数）</td><td>D3=关闭时间 D4=TP延迟 D5=SB延迟 D6=盲表代替延迟 D7=成绩显示时长（秒）</td></tr>
+  <tr><td>0x67</td><td>备份事件回应 <span class="badge-fix">v2026.06.22文档误标为0x66, 已更正</span></td><td>D3=evt_type(0xFF=末帧，0/1=SB按下/松开，2/3=TP，4/5=MB1，6/7=MB2，8/9=MB3)；D4=lane；D5=side；D6-D9=时分秒毫秒；D10=触发时设备状态(0关/1开/2延迟/3坏/4未装)</td></tr>
+  <tr><td>0x7F</td><td>RunningTime（滚动时间）</td><td>D5-D8=时间，100ms一帧</td></tr>
+</table>
+
+<h3>12.4 主要命令 (PC → 硬件)</h3>
+<table>
+  <tr><th>CMD</th><th>含义</th><th>字段</th></tr>
+  <tr><td>0x20</td><td>TimerReset（计时复位）</td><td>—</td></tr>
+  <tr><td>0x21</td><td>TimerReady（就位）</td><td>—</td></tr>
+  <tr><td>0x1C</td><td>StartCommand（发令）</td><td>—</td></tr>
+  <tr><td>0x39</td><td>Set_DateTime（周期校时）</td><td>D3=年低字节 D4=年高字节 D5=月 D6=日 D7=时 D8=分 D9=秒。连接建立后立即发一次，之后每 30 分钟自动刷一次</td></tr>
+  <tr><td>0x3A</td><td>Set_PoolSingleOrDoubleTP（设置单/两端安装）</td><td>D3=0两端 / 1单端。改动后硬件持久化到 SD 卡</td></tr>
+  <tr><td><b>0x3B</b></td><td><b>Set_Language（界面语言同步）</b> <span class="badge-new">本版新增，2026-10-14，firmware H753SWIM2026-10 commit c23b241/320916f</span></td><td>D3=0 简体中文 / 2 English（跟硬件固件自身 <code>gui_phy.language</code>/<code>systemset.syslanguage</code> 取值约定一致，PC 只用 0/2 两档，不碰"1=繁体"）。详见下方 12.5</td></tr>
+  <tr><td>0x42</td><td>SetCommand（通用设置命令，子码 0x01-0x0A）</td><td>子码含义未逐一核实，沿用旧文档"设置命令"的宽泛描述</td></tr>
+  <tr><td>0x43</td><td>Set_MatchEvent（比赛准备）</td><td>D3=总圈数 D4=右触板次数 D5=左触板次数 D6=道次位图0-4 D7=道次位图5-9 D8=接力标志(1/0) D9=硬件一直打开标志(1/0) D10=仰泳标志(1/0，含混合泳接力第1棒)</td></tr>
+  <tr><td>0x47</td><td>Set_LaneOpenClose（设置道次开关） <span class="badge-fix">双向，硬件也会上报(见12.3)</span></td><td>D3=泳道号 D4=1开/0关</td></tr>
+  <tr><td>0x4B</td><td>BatteryQuery（查询电池电压）</td><td>—</td></tr>
+  <tr><td>0x4C</td><td>Set_ForceAllOpen（强制全开/恢复正常）</td><td>D3=0xFF全部道/0-9单道；D4=0恢复正常关闭流程/1强制全开（不过滤信号）。硬件状态3(坏)/4(未装)不会被覆盖</td></tr>
+  <tr><td>0x60</td><td>Set_LaneEnableDisable（单道整体启用/屏蔽）</td><td>D3=泳道号(0-9，不支持0xFF) D4=1启用/0屏蔽。同时联动硬件道次按钮显示，与 0x47/0x4C 的语义区分见 §12.6</td></tr>
+  <tr><td>0x61</td><td>Set_LapRemaining（同步剩余圈数）</td><td>D3=泳道 D4=端(0左/1右) D5=剩余圈数(0-255) D6=openAction(0不动设备/1漏触补救/2误触回退) D7=sbOpenSide(0不动/1开左关右/2开右关左，仅接力切换点用)</td></tr>
+  <tr><td>0x65</td><td>Set_RefreshDisplay（刷新硬件主控显示）</td><td>D3-D10全0。硬件按新参数重画一屏，但保留比赛状态(缺道/剩余圈数/TP-SB-MB开关状态)</td></tr>
+  <tr><td>0x66</td><td>Query_BackupLog_Command（查询按键备份日志） <span class="badge-fix">只是查询命令，返回数据见12.3的0x67</span></td><td>—</td></tr>
+  <tr><td>0x69</td><td>Set_StrokeType（设置泳姿类型，硬件UI第2行"+1"键左侧显示）</td><td>D3=0自由泳/1蝶泳/2蛙泳/3仰泳/4混合泳/5+空白。跟 0x43 一起发。历史上曾用 0x46，因与 Set_TPSBMB_State 冲突改为 0x69（见12.6脚注）</td></tr>
+  <tr><td>0x7F</td><td>RunningTimeReset（滚动时间复位）</td><td>—</td></tr>
+</table>
+
+<h3>12.5 硬件 0x16 D3 子类型详解</h3>
+<table>
+  <tr><th>D3 值</th><th>含义</th><th>PC 端 cmdType</th><th>触发场景</th></tr>
+  <tr><td>0</td><td>真触板 (TP 松开 1→0 边沿)</td><td>Touchpad</td><td>正常分段触板 / 终点</td></tr>
+  <tr><td>1</td><td>盲表代触</td><td>ManualTouchpad</td><td>硬件用盲表中位代替坏 TP</td></tr>
+  <tr><td>3</td><td>仰泳出发松开 TP</td><td>BackstrokeRelease</td><td>仰泳 + Ready_timer_bit=1 + GunFired_PostOpenDoneBit=0 + TP 松开</td></tr>
+  <tr><td>4</td><td>手动 TP 键</td><td>ManualTouchpad</td><td>裁判按手动按键代触</td></tr>
+</table>
+
+<h3>12.6 命令字节历史沿革备注 <span class="badge-new">本版新增</span></h3>
+<ul>
+  <li><b>0x3B 的两次生命</b>：这个字节早期曾私下挪用给 <code>Set_ForceAllOpen</code>，后来改为官方的 <code>0x4C</code>；
+  本版(2026-10-14)起 <code>0x3B</code> 重新启用，正式含义是 <code>Set_Language</code>（见 12.4）。旧固件若收到这帧会落入
+  default 分支忽略，不报错也不会真的切换硬件界面语言，需要升级到对应固件版本才会生效。</li>
+  <li><b>0x46 → 0x69 的迁移</b>：泳姿类型设置命令最初用 <code>0x46</code>，但该字节已被 <code>Set_TPSBMB_State</code>（设备好坏+启用位）占用，
+  且硬件内部按键命令分发表用"wire 字节 − 0x10"作索引（<code>Receive_Button_Command_Value = wire-0x10</code>），两者在这张内部表里也撞了，
+  导致 case 分支永远匹配不到。修正为使用 <code>0x69</code>（内部对应 <code>0x59</code> = <code>0x69-0x10</code>，未被占用）后解决。
+  <b>这条"wire − 0x10"换算只是这一处按键命令分发表的内部实现细节，不是整个协议的通用规则</b>（呼应 12.2 的勘误说明）。</li>
+  <li>与 0x60/0x4C/0x47 三条"泳道开关类"命令的语义区分：
+    <table>
+      <tr><th>命令</th><th>作用范围</th><th>效果</th></tr>
+      <tr><td><code>0x47</code></td><td>全部或单道</td><td>整体启用/禁用 TP/SB/MB（不动道次按钮显示）</td></tr>
+      <tr><td><code>0x60</code></td><td>仅单道</td><td>同时切换 TP/SB/MB 启用 + 道次按钮显示状态</td></tr>
+      <tr><td><code>0x4C</code></td><td>全部或单道</td><td>设备状态机覆盖（接受所有信号 vs 按状态过滤）</td></tr>
+    </table>
+  </li>
+</ul>
+
+<h3>12.7 仰泳协议重构 (v2026.06.22，历史记录)</h3>
+<p>本节内容为 v2026.06.22 版的历史记录，未在本轮重新核实，原样保留供查阅固件改动历史：</p>
+<h4>问题描述</h4>
+<p>固件 v2026.06.21 及之前: 100m+ 仰泳运动员到终点 (出发端=终点端) 没成绩。</p>
+<h4>根因 (固件 vs PC 协议错位)</h4>
+<table>
+  <tr><th>事件</th><th>PC 协议期望</th><th>固件 v2026.06.21 实际</th><th>v2026.06.22 修正</th></tr>
+  <tr><td>TP 按下 (KeyState 0→1, 预备脚踩)</td><td>不发任何帧</td><td>发 D3=3 BackstrokeRelease ❌ 位置错</td><td>✓ if(0) 禁用</td></tr>
+  <tr><td>TP 松开 (KeyState 1→0, 出发蹬出)</td><td>发 D3=3 + 不减圈</td><td>发 D3=0 Touchpad + Display_Laps_Place_Direct (减 1 圈) ❌</td><td>✓ 仰泳分支发 D3=3 + 不减圈, 其他分支照旧</td></tr>
+</table>
+<h4>固件改动位置 (swimplay.c)</h4>
+<table>
+  <tr><th>行号</th><th>改动</th></tr>
+  <tr><td>4724</td><td>左端 TP 松开减圈守卫: <code>Display_Laps_Place_Direct(i,0)</code> 前加 <code>!(BackstrokeBit==1 &amp;&amp; Ready_timer_bit==1 &amp;&amp; GunFired_PostOpenDoneBit==0)</code></td></tr>
+  <tr><td>4726-4738</td><td>左端 TP 松开协议对齐: 加 if 仰泳分支发 D3=3, else 分支保留原 D3=0</td></tr>
+  <tr><td>4769</td><td>左端 TP 按下: <code>if(0) {...}</code> 禁用原 BackstrokeRelease 块</td></tr>
+  <tr><td>4837</td><td>右端 TP 松开减圈守卫 (对称)</td></tr>
+  <tr><td>4850-4862</td><td>右端 TP 松开协议对齐 (对称)</td></tr>
+  <tr><td>4894</td><td>右端 TP 按下禁用 (对称)</td></tr>
+</table>
+<p>反应时"覆盖迭代"：每次 TP 松开都覆盖 <code>BackstrokeRelease_PreStart_*[i][0/1]</code> + <code>BackstrokeRelease_Valid[i][0/1] = 1</code>，
+取最新一次蹬出时刻。PC 端 <code>case "Touchpad"</code> 入口仍保留"仰泳 + 出发端 + CurrentLap=0 + 非 MB 代触 → 丢弃"守卫作冗余防御，固件回滚或老固件时兜底。</p>
+
+<h2 id="p13">十三、HTTP 文件服务</h2>
+
+<h3>13.1 端点</h3>
+<p>主服务器 <code>http://IP:8080/</code> 提供 Web/ 目录下所有静态文件：路径没有写死的白名单，<code>Web/</code> 目录下任何文件都能按同样方式访问到
+（URL 默认指向 <code>display.html</code>，其余按路径匹配文件名提供）。下表是当前目录下实际会用到的页面：</p>
+<table>
+  <tr><th>路径</th><th>内容</th></tr>
+  <tr><td><code>/display.html</code></td><td>大屏页面</td></tr>
+  <tr><td><code>/control.html</code></td><td>显示控制 (Web 版 RDC)</td></tr>
+  <tr><td><code>/race_control.html</code></td><td>比赛控制 (Web 版 RTC)</td></tr>
+  <tr><td><code>/query.html</code></td><td>赛事查询终端 (公共查询页)</td></tr>
+  <tr><td><code>/checkin.html</code></td><td>检录终端</td></tr>
+  <tr><td><code>/register.html</code></td><td>Web 报名终端</td></tr>
+  <tr><td><code>/leaderboard.html</code></td><td>排行榜大屏</td></tr>
+  <tr><td><code>/webloc.js</code> <span class="badge-new">本版新增</span></td><td>全站中文/English 翻译表 + 语言工具函数，被上面全部网页共用引入</td></tr>
+  <tr><td><code>/test_bot.html</code></td><td><b>开发/调试专用自动化测试机器人，不随正式安装包分发</b>（打包脚本里显式排除），不属于面向客户的协议端点，仅内部测试用</td></tr>
+</table>
+
+<h3>13.2 URL 参数</h3>
+<ul>
+  <li><code>?host=IP</code>: 指定 WebSocket 服务器 IP (display.html / RDC 内嵌大屏用)</li>
+</ul>
+
+<h3>13.3 版本比对机制 <span class="badge-new">本版新增小节</span></h3>
+<p>见 §2 的 <code>CLIENT_VERSION</code>：每个网页自带一个 <code>PAGE_VER</code> JS 常量，连接时发给主服务器比对
+<code>WEB_ASSET_VERSION</code>（当前 <code>20261014-5</code>）。版本不一致时页面顶部挂红条，系统日志同步点名，
+提醒"网页文件没有跟 exe 一起更新"（见用户手册 2.2 节）。<code>webloc.js</code> 变化也算作"网页资产"变化，同样需要
+把 <code>WEB_ASSET_VERSION</code> 和各页面的 <code>PAGE_VER</code> 一起往后挪一个版本号。</p>
+
+<h2 id="p14">十四、v2026.06.22 → v2026.10.14 协议变更</h2>
+
+<h3>14.1 中文/English 全系统双语协议</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>LANGUAGE_SYNC 消息</td><td>新增跨客户端语言同步消息，见 §2</td></tr>
+  <tr><td>GetStatusData.lang 字段</td><td>大屏(display.html)跟随主服务器权威语言，见 11.1</td></tr>
+  <tr><td>硬件 0x3B Set_Language</td><td>新增硬件协议命令，PC 切语言时同步下发，见 12.4/12.6</td></tr>
+  <tr><td>AppMessageBox 自绘弹窗</td><td>不是协议层变更，但影响面广：全系统弹窗改自绘，不再依赖 Windows 系统语言决定按钮文字</td></tr>
+</table>
+
+<h3>14.2 编排同步：增量补丁</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>EDITOR_PATCH / EDITOR_PATCH_ACK</td><td>新增整套增量补丁机制，覆盖并组/分组调整/微调/晋级/纪录维护，见 §6.2</td></tr>
+  <tr><td>EDITOR_PUSH_REJECTED</td><td>整包推送被拒时新增的明确拒绝消息，见 6.1</td></tr>
+  <tr><td>meet.db 同步防抖 2s → 0.5s</td><td>EDITOR_PATCH 成功后触发的数据库增量重建防抖时长缩短</td></tr>
+</table>
+
+<h3>14.3 大屏推送帧瘦身</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>staticOmitted 机制</td><td>2026-08-25 新增，常规帧可省略重/静态字段，见 11.0（客户端兼容性要求见该节的 danger 提示）</td></tr>
+  <tr><td>DEVICE_STATES_UPDATE</td><td>设备状态改为变化时才推送的独立消息类型，见 11.6</td></tr>
+  <tr><td>LANE_EVENT_APPEND</td><td>比赛日志改为逐条增量推送，见 11.7</td></tr>
+  <tr><td>heatCancelled[] / heatStatus[]</td><td>schedule 条目新增取消标记数组和数字状态码数组，见 11.1</td></tr>
+  <tr><td>scoringControlMode 实时计算</td><td>修复此前可能缓存过期值(RTC硬件未连时误显示"local")的问题，2026-09-13</td></tr>
+</table>
+
+<h3>14.4 其它 WebSocket 协议变更</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>UNLOCK_HEAT_RESULT (TIMING_CMD)</td><td>解锁本组成绩的计时站入口，见 §4</td></tr>
+  <tr><td>USE_BLIND_RESULT_RESULT</td><td>USE_BLIND_RESULT 的成功/失败回执，见 11.8</td></tr>
+  <tr><td>CLIENT_VERSION</td><td>网页资产版本比对消息，见 §2、13.3</td></tr>
+  <tr><td>REMOTE_CONTROL 远程列表-选择模式</td><td>LIST_MEDIA_FILES/LIST_PPT_FILES/LIST_SCHEDULE_SESSIONS/LIST_RANKING_CANDIDATES 等一批新命令，见 3.3</td></tr>
+  <tr><td>SHOW_PAUSE / SHOW_EVENT_LIST / SHOW_PROMOTION_LIST</td><td>三个新显示模式，见 3.1</td></tr>
+  <tr><td>MeetRpc 竞赛数据服务</td><td>新增的主服务器独占 meet.db + RPC 读写子系统，见 1.4（本版未详细展开）</td></tr>
+  <tr><td>TIMING_CMD 命令数量大增</td><td>新增 CRUD / 流程 / 设备控制等数十条命令，见 §4（多为远程集成/测试工具驱动）</td></tr>
+</table>
+
+<h3>14.5 硬件协议勘误与新增</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>0x66/0x67 方向勘误</td><td>v2026.06.22 文档误将两个方向共用 0x66，已更正为 0x66(PC→硬件查询)/0x67(硬件→PC数据)，见 12.3/12.4</td></tr>
+  <tr><td>0x41/0x42 含义勘误</td><td>0x41 实为 RaceConfig 非 Set_ArmDelay_Time；0x42 为通用 SetCommand 非专用 StartPosition，见 12.4</td></tr>
+  <tr><td>0x3B Set_Language</td><td>新增命令，见 12.4/12.6</td></tr>
+  <tr><td>0x39/0x3A/0x4C/0x47/0x60/0x61/0x65/0x69 补全</td><td>v2026.06.22 文档遗漏的既有命令，本版逐条补全字段说明，见 12.3/12.4</td></tr>
+</table>
+
+<h2 id="p15">十五、历史协议变更 (v2026.06.22 及以前)</h2>
+
+<h3>15.1 硬件协议变更 (v2026.06.22)</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>仰泳协议彻底重构</td><td>固件 swimplay.c 6 处改动: TP 按下不发, TP 松开仰泳发 D3=3 不减圈 (详见 12.7)</td></tr>
+  <tr><td>0x16 D3=3 BackstrokeRelease</td><td>位置从 "TP 按下边沿" 改为 "TP 松开边沿" (= PC 协议预期)</td></tr>
+  <tr><td>反应时"覆盖迭代"</td><td>每次 TP 松开都覆盖 PreStart 缓存, 不再"只发第 1 次"</td></tr>
+</table>
+
+<h3>15.2 WebSocket 协议变更 (v2026.06.19~06.22)</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>RELEASE_MEMORY <span class="badge-new">v2026.06.20</span></td><td>REMOTE_CONTROL 命令, 主控强制 GC + 压 WorkingSet</td></tr>
+  <tr><td>SET_DEVICE_STATUS 升级 4 态 <span class="badge-new">v2026.06.20</span></td><td>status 字段支持 installed / not_installed / good / broken (兼容旧 good/broken)</td></tr>
+  <tr><td>awardSelection / awardRanking <span class="badge-new">v2026.06.21</span></td><td>SHOW_AWARDS 广播附带选定项目 + 全项目总排名</td></tr>
+  <tr><td>rankingSelection / rankingRanking <span class="badge-new">v2026.06.21</span></td><td>SHOW_EVENT_RANKING 广播附带选定项目 + 总排名 (回放)</td></tr>
+  <tr><td>allSwimmers.results 数组 <span class="badge-new">v2026.06.19</span></td><td>GetStatusData 投影补 results 数组 (stage / heat / finalTime / rank / recordNote / status), query.html 用</td></tr>
+  <tr><td>laneDevices.endLocked / xxxNotInstalled <span class="badge-new">v2026.06.20</span></td><td>10 个 NotInstalled bool + endLocked ('left'/'right'/'none'), 设备状态 4 态用</td></tr>
+  <tr><td>memoryStatus 新格式 <span class="badge-new">v2026.06.20</span></td><td>"350MB · 剩余 12.3/16.0GB · 占用 23%" (旧版 G2 字段移除)</td></tr>
+</table>
+
+<h3>15.3 排序规则变更 (v2026.06.22)</h3>
+<p>所有排名视图统一 DSQ → DNF → DNS → 其他 排序:</p>
+<ul>
+  <li>helper: <code>GetStatusSortOrder(string)</code></li>
+  <li>4 处显示视图共用: GetEventRanking / GetEventRankingForStage / GetEventRankingsSplit / RefreshResultGrid</li>
+</ul>
+
+<h3>15.4 客户端行为变更 (v2026.06.19~06.22)</h3>
+<table>
+  <tr><th>变更</th><th>详情</th></tr>
+  <tr><td>query.html msg.type 白名单 <span class="badge-new">v2026.06.19</span></td><td>只接 EDITOR_PACKAGE + SHOW_LIVE_RACE, 不再 if (msg.data) 全吞</td></tr>
+  <tr><td>display.html 大屏行高自适应 <span class="badge-new">v2026.06.20</span></td><td>CSS 变量 --lane-count, JS setProperty 同步 (8 道时每行加高 25%)</td></tr>
+  <tr><td>display.html 颁奖屏 dvh <span class="badge-new">v2026.06.22</span></td><td>用 dvh 替代 vh, 自动减浏览器 chrome + 任务栏, 全屏/窗口模式都正确</td></tr>
+  <tr><td>race_control.html 顶栏 <span class="badge-new">v2026.06.19</span></td><td>仿 RTC 完整: 内存/电池/硬件计时器/硬件连接/主服务器 IP + 登录弹窗</td></tr>
+</table>
+
+<div class="footer">
+游泳计时系统通讯协议 — v2026.10.14 &nbsp;|&nbsp; 使用方法请参阅《游泳赛事管理与计时系统 使用说明书 v2026.10.14》<br>
+本版由对 MainWindow.xaml.cs / TimingBridge.cs 源码的直接核对与审查生成；§1.4(MeetRpc)、§4 部分 CRUD 命令的精确字段、§5(RTC_FORWARD路由) 未完全核实，标注处请以源码为准。<br>
+2026 © Swim Timing System
+</div>
+
+</body>
+</html>
