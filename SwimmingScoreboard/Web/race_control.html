@@ -168,7 +168,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .section-group.lanes-card .section-title { color: #92400E; margin-bottom: 4px; }
 .section-group.lanes-card .lane-input-row { background: rgba(252,211,77,0.35); margin-bottom: 6px; padding: 4px 8px; }
 .section-group.lanes-card .lane-input-row label { color: #92400E; }
-.section-group.lanes-card .lane-input-row input { color: #1E293B; }
+/* 2026-10-14 用户现场反馈: 这条选择器比 .lane-input-row input(第198行左右) 更具体, 原来只
+   覆盖了文字颜色(#1E293B 深色), 没一并覆盖背景色——背景还是 .lane-input-row input 那条规则
+   留下的深色(#0F172A), 深色底配深色字, 道次号看不清。跟主服务器 LaneInputBox(WPF 默认白底)
+   对齐, 背景一并改成白色。 */
+.section-group.lanes-card .lane-input-row input { color: #1E293B; background: #FFFFFF; }
 .section-group.lanes-card .btn-grid { gap: 4px; }
 .section-group.lanes-card .btn-grid .action-btn { height: 26px; font-size: 13px; border-radius: 5px; padding: 0 4px; }
 .section-group.lanes-card .btn-grid .action-btn .ico { font-size: 12px; }
@@ -983,7 +987,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261014-1';
+var PAGE_VER = '20261014-2';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -2002,8 +2006,14 @@ function closeHwConn() { document.getElementById('hwConnModal').classList.add('h
 //   只管切换下拉筛选时换一下显示内容, 不自己算 Δ 反应时(那段逻辑是有状态的, 照抄一遍
 //   容易跟服务器权威算法走偏)。
 var _backupLogByLane = null;
+// 2026-10-14 第二道防线: 就算 e.repeat 没拦住(比如两次独立按键挨得很近), 查询在途时也
+// 不再重复发——跟服务器那边"硬件还没把上一次问的数据收完就不接下一次"的保护呼应。
+var _backupLogQueryPending = false;
 function rcQueryBackupLog() {
     if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_RC_PleaseConnectServerFirst')); return; }
+    if (_backupLogQueryPending) return;
+    _backupLogQueryPending = true;
+    setTimeout(function() { _backupLogQueryPending = false; }, 5000); // 兜底: 万一服务器那头真不回, 5秒后解除锁定
     ws.send(JSON.stringify({ type: 'QUERY_BACKUP_LOG' }));
     addLog(WebLoc.t('Str_RC_LogBackupLogQuerySent'));
 }
@@ -2014,6 +2024,7 @@ function rcClearBackupLog() {
     addLog(WebLoc.t('Str_RC_LogBackupLogCleared'));
 }
 function _rcHandleBackupLogResult(d) {
+    _backupLogQueryPending = false;
     if (!d) return;
     _backupLogByLane = d.byLane || {};
     var total = d.total || 0;
@@ -2023,6 +2034,7 @@ function _rcHandleBackupLogResult(d) {
     renderBackupLog();
 }
 function _rcHandleBackupLogError(msg) {
+    _backupLogQueryPending = false;
     alert(msg || WebLoc.t('Str_Msg_HwNotConnected'));
 }
 function renderBackupLog() {
@@ -3418,11 +3430,17 @@ document.addEventListener('keydown', function(e) {
     // 2026-10-13 Ctrl+Shift+B 查事件备份 / Ctrl+Shift+L 清空事件备份——跟主服务器
     // MainWindow_PreviewKeyDown_BackupShortcut 同一套快捷键, 必须最先判断并 preventDefault
     // (浏览器自己拿 Ctrl+Shift+B 切书签栏, 不挡住会被浏览器抢走)。
+    // 2026-10-14 用户现场反馈: 弹出事件备份窗口后关掉, 又莫名弹出一个"无事件"的提示——
+    // 根因是按住 Ctrl+Shift+B 没立刻松手时, 浏览器会对按住的键触发【自动重复】keydown
+    // (e.repeat===true), 一次按键发出了 2+ 次 QUERY_BACKUP_LOG, 服务器那边 _pendingBackupEvents
+    // 是单一缓冲区, 后一次查询会把前一次还没收完的数据清空重来, 最终收到的第二轮结果(0 条)
+    // 在第一轮弹窗关掉后才姗姗来迟, 看起来就像"关闭又弹出一个空的"。e.repeat 直接挡掉重复
+    // 触发即可, 不需要用户手动点第二下。
     if (e.ctrlKey && e.shiftKey && !e.altKey && (e.key === 'B' || e.key === 'b')) {
-        e.preventDefault(); rcQueryBackupLog(); return;
+        e.preventDefault(); if (!e.repeat) rcQueryBackupLog(); return;
     }
     if (e.ctrlKey && e.shiftKey && !e.altKey && (e.key === 'L' || e.key === 'l')) {
-        e.preventDefault(); rcClearBackupLog(); return;
+        e.preventDefault(); if (!e.repeat) rcClearBackupLog(); return;
     }
     switch(e.key) {
         case 'F5': e.preventDefault(); readyClick(); break;
@@ -3468,6 +3486,16 @@ document.addEventListener('keydown', function(e) {
     if (rtOn) rtOn.checked = reactionTimeEnabled;
     if (rtOff) rtOff.checked = !reactionTimeEnabled;
 })();
+
+// 2026-10-14 用户现场反馈: 页面刚打开、还没连上主服务器(连登录框都还没填)的这段时间,
+//   界面中英文混杂——根因是本页唯一一处 WebLoc.apply() 调用藏在 ws.onmessage 里(收到服务器
+//   语言广播才会跑), 登录前压根没连 WS, 从没执行过, 所有 data-i18n 元素全靠各自标签里手写
+//   的静态中文兜底文案撑着。那份静态文案是人工在 3000+ 处 data-i18n 标签上分别抄的, 跟
+//   webloc.js 权威翻译表完全是两份独立维护的东西, 难免有个别标签漏抄/抄成英文——用户看到的
+//   "中英文都有"就是这些散落的静态文案走了样。改成页面一加载(登录框显示前)就先跑一次
+//   WebLoc.apply(), 全部 data-i18n 元素统一由同一份权威表现算, 不再依赖人工抄的静态兜底文案,
+//   从第一帧起就是单一语言, 不会有"没连服务器就看不出哪是中文哪是英文"的中间态。
+WebLoc.apply();
 
 // 2026-06-19 启动时显示登录窗口 (跟 RTC LoginWindow 完全一样)
 //   校验通过后才 connect(). 默认账号 admin/admin (首次启动). "记住" 写 localStorage.

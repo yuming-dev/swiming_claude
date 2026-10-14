@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20261014-1";
+        public const string WEB_ASSET_VERSION = "20261014-2";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -381,6 +381,12 @@ namespace SwimmingScoreboard
         private TimingBridge _timingBridge;
         // 2026-06-10 事件备份接收缓冲: 查询时累积, 末帧弹窗后清空
         private List<BackupEventInfo> _pendingBackupEvents = new List<BackupEventInfo>();
+        // 2026-10-14 事件备份查询进行中标志——_pendingBackupEvents 是单一共享缓冲区, 上一次查询
+        //   的硬件数据还没收完(OnBackupQueryComplete 还没触发)时, 如果又来一次查询(本机快捷键
+        //   连按触发浏览器 keydown 自动重复、或网页/本机先后各按一次), Clear() 会把还在收的数据
+        //   冲掉, 最终收到的是第二轮(通常更少或为空)的结果——现场表现就是"关掉一个正常的事件
+        //   备份弹窗后, 又莫名弹出一个'无事件'"。查询在途时直接忽略新请求, 等当前这轮收完再说。
+        private bool _backupQueryInFlight = false;
         private DispatcherTimer _raceTimer;
         private DispatcherTimer _countdownTimer;
         // 2026-06-20 反应时收集窗口: 发令后 ReactionEventWindowSec 秒内未收到合法 SB → 标 "---" (= double.NaN)
@@ -3775,6 +3781,8 @@ namespace SwimmingScoreboard
                 })); } catch { }
                 return;
             }
+            if (_backupQueryInFlight) return;   // 上一轮还没收完, 忽略这次重复请求(见字段注释)
+            _backupQueryInFlight = true;
             _pendingBackupEvents.Clear();
             _timingBridge.SendCommand(0x66);   // Query_BackupLog_Command (0x56) + 0x10
             AddLog(Loc.T("Str_Log_EventBackupQuerySent"));
@@ -5807,6 +5815,7 @@ namespace SwimmingScoreboard
             };
             _timingBridge.OnBackupQueryComplete += delegate() {
                 Dispatcher.BeginInvoke((Action)delegate() {
+                    _backupQueryInFlight = false;
                     AddLog(Loc.F("Str_Log_EventBackupQueryDoneFmt", _pendingBackupEvents.Count));
                     ShowBackupEventDialog();
                     // 2026-10-13 不管这次查询是本机按 Ctrl+Shift+B 触发还是网页版(race_control.html)
@@ -5844,6 +5853,8 @@ namespace SwimmingScoreboard
                 AppMessageBox.Show(Loc.T("Str_Msg_HwNotConnected"), Loc.T("Str_MsgTitle_CheckEventBackup"));
                 return;
             }
+            if (_backupQueryInFlight) return;   // 上一轮还没收完, 忽略这次重复请求(见字段注释)
+            _backupQueryInFlight = true;
             _pendingBackupEvents.Clear();
             _timingBridge.SendCommand(0x66);   // Query_BackupLog_Command (0x56) + 0x10
             AddLog(Loc.T("Str_Log_EventBackupQuerySent"));
