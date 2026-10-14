@@ -98,9 +98,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 .lane-mid { flex: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
 .lane-num { width: 32px; font-size: 22px; font-weight: bold; color: var(--dim); text-align: center; margin-right: 4px; flex-shrink: 0; }
-.swimmer-info { font-size: 16px; white-space: nowrap; overflow: hidden; width: 120px; }
+/* 2026-10-14 用户现场反馈: 姓名/代表队挤在圈数 spinner(▲▼)旁边, 跟主服务器 exe 端(WPF
+   midPanel 有 6px 左边距, 姓名14px/代表队12px, 比网页原来的16px/14px更紧凑清爽)比显得
+   拥挤难看。补一个左边距跟 spinner 拉开距离, 字号也往 exe 那边靠。 */
+.swimmer-info { font-size: 15px; white-space: nowrap; overflow: hidden; width: 120px; margin-left: 10px; }
 .swimmer-info .name { font-weight: bold; }
-.swimmer-info .team { color: var(--dim); font-size: 14px; }
+.swimmer-info .team { color: var(--dim); font-size: 12px; }
 .swim-dir { width: 24px; font-size: 20px; text-align: center; color: var(--accent); flex-shrink: 0; }
 .lane-track { flex: 1; height: 22px; background: #1a2332; border-radius: 4px; margin: 0 6px; display: flex; align-items: center; overflow: hidden; padding: 0 4px; font-family: Consolas, monospace; font-size: 15px; letter-spacing: 1px; }
 .lane-track.going { justify-content: flex-start; }
@@ -987,7 +990,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261014-3';
+var PAGE_VER = '20261014-4';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
