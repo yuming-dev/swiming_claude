@@ -924,6 +924,7 @@ var WebLoc = (function () {
         "Str_RC_LogLaneMarkedFmt": ["泳道{0} 标记为 {1}", "Lane {0} marked as {1}"],
         "Str_RC_LogNoteCancelledFmt": ["泳道{0} 取消备注", "Lane {0} note cancelled"],
         "Str_RC_LogUsedBlindResultFmt": ["泳道{0} 使用盲表成绩", "Lane {0} using blind watch result"],
+        "Str_RC_BlindResultFailedFmt": ["盲表成绩未应用: {0}", "Blind watch result not applied: {0}"],
         "Str_RC_LogLaneOpenedFmt": ["泳道{0} 打开", "Lane {0} opened"],
         "Str_RC_LogLaneClosedFmt": ["泳道{0} 关闭", "Lane {0} closed"],
         "Str_RC_ManualTimeInputPromptFmt": ["泳道 {0} 手动输入成绩（如 49.23 或 1:23.45）：", "Manually enter the result for lane {0} (e.g. 49.23 or 1:23.45):"],

@@ -983,7 +983,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20261013-1';
+var PAGE_VER = '20261014-1';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1072,6 +1072,17 @@ function checkPageVer(serverVer) {
         if (msg.type === 'UNLOCK_HEAT_RESULT_RESULT') {
             if (msg.ok) { addLog(WebLoc.t('Str_RC_LogUnlockDoneShort')); }
             else { alert(WebLoc.f('Str_RC_UnlockFailedFmt', msg.error || '')); addLog(WebLoc.f('Str_RC_UnlockFailedFmt', msg.error || '')); }
+            return;
+        }
+        // 2026-10-14 "盲表成绩"服务端执行结果回执——msg.reason 是服务器生成的原始文本(目前是
+        //   中文), 跟 TIMING_CMD_REJECTED 的 reason 同一个口径, 展示层不做二次翻译。
+        if (msg.type === 'USE_BLIND_RESULT_RESULT') {
+            if (msg.ok) {
+                addLog(WebLoc.f('Str_RC_LogUsedBlindResultFmt', msg.lane));
+            } else {
+                alert(WebLoc.f('Str_RC_BlindResultFailedFmt', msg.reason || ''));
+                addLog(WebLoc.f('Str_RC_BlindResultFailedFmt', msg.reason || ''));
+            }
             return;
         }
         // 2026-06-03 大屏样式同步 (服务器持久化的 recordsHidden 等) - 用来更新本端按钮文字状态
@@ -1294,15 +1305,17 @@ function _rcApplyRemarkReaction(b) {
 
 function publishResult() {
     if (!data || !data.schedule || data.schedule.length === 0) { alert(WebLoc.t('Str_RC_NoScheduleData')); return; }
-    // 收集已完赛的组
+    // 收集已【真正确认】的组——2026-10-14 原来读 heatConfirmed[](数据齐但不一定点过确认的
+    //   弱信号), 会把还没点"确认本组成绩"的组也列进可发布名单; 改用 heatStatus[] 严格要求
+    //   CONFIRMED, 跟 WPF 端"公布项目总排名"要求的"该项目所有组都已确认本组成绩"一个口径。
     var items = [];
     var sched = data.schedule || [];
     for (var i = 0; i < sched.length; i++) {
         var s = sched[i];
-        var confirmed = s.heatConfirmed || [];
-        for (var h = 0; h < confirmed.length; h++) {
-            if (confirmed[h]) {
-                var showHeat = (confirmed.length > 1) || (s.stage||'').indexOf('预赛') >= 0 || (s.stage||'').indexOf('半决赛') >= 0;
+        var hStatus = s.heatStatus || [];
+        for (var h = 0; h < hStatus.length; h++) {
+            if (hStatus[h] === HEAT_STATUS.CONFIRMED) {
+                var showHeat = (hStatus.length > 1) || (s.stage||'').indexOf('预赛') >= 0 || (s.stage||'').indexOf('半决赛') >= 0;
                 var ageHead = s.ageGroup ? (s.ageGroup + ' ') : '';
                 // 2026-09-28 label 是纯展示用的下拉框选项文字, gender/stage 走 genderDisplay/stageDisplay;
                 //   下面 items.push 里的 gender/stage 仍是原始协议值, 供后续 send 用, 不受影响。
@@ -1576,6 +1589,12 @@ function render() {
 }
 
 // ═══════ 泳道操作 ═══════
+// 2026-10-14 固定2字符宽显示整数(个位数前补一个空格, 等价 C 的 "%2d")——
+//   用于左右圈数, 配合调用处 span 上的 white-space:pre, 保证表头/泳道行/状态灯三者对齐。
+function pad2(n) {
+    var s = String(n);
+    return s.length >= 2 ? s : (' ' + s);
+}
 function getLaneInput() {
     var v = parseInt(document.getElementById('laneInput').value);
     return isNaN(v) ? -1 : v;
@@ -1600,8 +1619,10 @@ function cancelNote() {
 function useBlindResult() {
     var lane = getLaneInput();
     if (lane < 0) { alert(WebLoc.t('Str_RC_PleaseEnterLaneNum')); return; }
+    // 2026-10-14 用户现场反馈"按了没反应"——原来这里按下就乐观记一条"已应用"日志, 不管服务器
+    // 那边到底有没有找到盲表数据。改成等服务器回 USE_BLIND_RESULT_RESULT(见 HandleTimingCommand)
+    // 再按真实结果提示, 该道没收到盲表数据时会弹出明确原因, 不再是"按了跟没按一样"。
     sendCmd('USE_BLIND_RESULT', {lane: lane});
-    addLog(WebLoc.f('Str_RC_LogUsedBlindResultFmt', lane));
 }
 // 圈数 spinner ▲/▼：每道左/右独立调整。服务器端 AdjustLapDisplay 会按本侧上限钳到 [0, 该侧触板总次数]。
 function adjustLap(lane, isLeft, delta) {
@@ -2214,7 +2235,12 @@ function disconnectHw() {
     document.getElementById('dlgHwStatus').style.color = '#94A3B8';
 }
 
-// 当前组是否已"确认本组成绩"（从广播 data.schedule[].heatConfirmed 数组反查）
+// 当前组是否已"确认本组成绩"（从广播 data.schedule[].heatStatus 数组反查）
+// 2026-10-14 原来读 heatConfirmed[] ——那是服务器 IsHeatConfirmed() 的弱信号("数据齐但不一定
+//   点过确认", 对应 WPF 的 Done 档), 不是"真确认"。这个函数专门用来判断"能不能再按准备就绪
+//   重新开始"(见 readyClick()), 必须跟 WPF 的 IsHeatTrulyConfirmed() 一个口径——否则"数据齐
+//   但还没点确认"的组会被误锁, 操作员进不去重新计时。改用 heatStatus[] (HeatStatus() 算出来的
+//   真实状态, CONFIRMED=5 才是真点过"确认本组成绩")。
 function isCurrentHeatConfirmed() {
     var sched = data.schedule || [];
     var curAg = data.currentAgeGroup || '';
@@ -2229,10 +2255,10 @@ function isCurrentHeatConfirmed() {
         if ((it.gender||'') !== curG) continue;
         if ((it.eventName||'') !== curE) continue;
         if ((it.stage||'') !== curS) continue;
-        var hc = it.heatConfirmed || [];
+        var hs = it.heatStatus || [];
         var idx = curH - 1;
-        if (idx < 0 || idx >= hc.length) return false;
-        return hc[idx] === true;
+        if (idx < 0 || idx >= hs.length) return false;
+        return hs[idx] === HEAT_STATUS.CONFIRMED;
     }
     return false;
 }
@@ -2453,13 +2479,46 @@ function renderScheduleTree() {
         sessions[sn].events.push(s);
     }
 
+    // 2026-10-14 用户现场反馈: 已确认的组在网页端标成了 [Done], 跟主服务器赛程树的 [Confirmed]
+    //   不一致——根因是原来这里一直拿 ev.allConfirmed/ev.heatConfirmed(服务器 IsHeatConfirmed()
+    //   算出来的"数据齐但不一定点过确认"弱信号)当唯一依据, 从没用上服务器早就一起发来的
+    //   ev.heatStatus[](HeatStatus() 算出来的真实 1~6 档状态, 已经区分"已完赛(未点确认)"=4
+    //   和"已确认"=5, 见 Swimmer.cs 的 HeatDisplayStatus 枚举)。改成跟 WPF 端 BuildScheduleTree()
+    //   同一个口径: 只有【真正点过"确认本组成绩"】(status===CONFIRMED)才算锁死/收起,
+    //   "已完赛但未确认"的组照样可点开重选——这也是 WPF 那边特意把两种状态分开的原因
+    //   (程序中途关掉、没来得及点确认的组不该被锁死进不去)。
+    function heatStatusLabel(code) {
+        switch (code) {
+            case HEAT_STATUS.CHECKED_IN: return WebLoc.t('Str_HeatStatus_CheckedIn');
+            case HEAT_STATUS.RUNNING: return WebLoc.t('Str_HeatStatus_Running');
+            case HEAT_STATUS.DONE: return WebLoc.t('Str_HeatStatus_Done');
+            case HEAT_STATUS.CONFIRMED: return WebLoc.t('Str_HeatStatus_Confirmed');
+            case HEAT_STATUS.CANCELLED: return WebLoc.t('Str_HeatStatus_Cancelled');
+            default: return '';
+        }
+    }
+    // 跟 WPF 端 IsStageAllTrulyConfirmed 同一个口径: 活着的(未取消)组次必须全部真正确认过
+    function isEventAllTrulyConfirmed(ev) {
+        var hc = ev.heatCount || 1;
+        var hs = ev.heatStatus || [];
+        var hCancelled = ev.heatCancelled || [];
+        var anyLive = false;
+        for (var h = 0; h < hc; h++) {
+            if (hCancelled[h]) continue;
+            anyLive = true;
+            if (hs[h] !== HEAT_STATUS.CONFIRMED) return false;
+        }
+        return anyLive;
+    }
+
     var html = '';
     for (var sn in sessions) {
         var sess = sessions[sn];
-        // 检查场内是否全部完赛
+        // 检查场内是否全部真确认（跟 WPF 端 sessionAllDone 的收起条件一致，文案沿用 WPF 那边
+        // 同样写死的 [Done]——BuildScheduleTree() 里 sessionItem.Header 就是这么写的，不是笔误）
         var sessionAllDone = true;
         for (var j2 = 0; j2 < sess.events.length; j2++) {
-            if (sess.events[j2].allConfirmed !== true) { sessionAllDone = false; break; }
+            if (!isEventAllTrulyConfirmed(sess.events[j2])) { sessionAllDone = false; break; }
         }
         // 已完赛场自动收起（除非用户手动展开过）
         if (sessionAllDone && treeCollapsed[sn] === undefined) treeCollapsed[sn] = true;
@@ -2475,39 +2534,38 @@ function renderScheduleTree() {
                 var ev = sess.events[j];
                 var ag = ev.ageGroup || '';
                 var evLabel = (ag ? ('[' + ag + '] ') : '') + (ev.gender||'') + ' ' + (ev.eventName||'') + ' ' + (ev.stage||'');
-                var allDone = ev.allConfirmed === true;
-                var heatDone = ev.heatConfirmed || [];
+                var allDone = isEventAllTrulyConfirmed(ev);
+                var hStatusArr = ev.heatStatus || [];
 
                 if (allDone) {
-                    // 已完赛项目：点击可展开/收起
+                    // 已确认项目：点击可展开/收起
                     var evKey = 'ev_' + sn + '_' + j;
                     var evCollapsed = treeCollapsed[evKey] !== false; // 默认收起
                     html += '<div class="tree-event" style="color:#aaa;cursor:pointer;" onclick="toggleSession(\'' + evKey + '\')">';
-                    html += '<span style="font-size:10px;margin-right:2px;">' + (evCollapsed ? '▶' : '▼') + '</span>' + evLabel + ' [' + WebLoc.t('Str_HeatStatus_Done') + ']</div>';
+                    html += '<span style="font-size:10px;margin-right:2px;">' + (evCollapsed ? '▶' : '▼') + '</span>' + evLabel + ' [' + WebLoc.t('Str_HeatStatus_Confirmed') + ']</div>';
                     if (!evCollapsed) {
                         var hc2 = ev.heatCount || 1;
                         for (var h2 = 1; h2 <= hc2; h2++) {
-                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">' + WebLoc.f('Str_Common_HeatOfFmt', h2, hc2) + ' [' + WebLoc.t('Str_HeatStatus_Done') + ']</div>';
+                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">' + WebLoc.f('Str_Common_HeatOfFmt', h2, hc2) + ' [' + heatStatusLabel(hStatusArr[h2-1] || HEAT_STATUS.CONFIRMED) + ']</div>';
                         }
                     }
                 } else {
                     html += '<div class="tree-event">' + evLabel + '</div>';
                     var hc = ev.heatCount || 1;
                     for (var h = 1; h <= hc; h++) {
-                        var confirmed = heatDone[h-1] === true;
+                        var sCode = hStatusArr[h-1] || HEAT_STATUS.PENDING;
+                        var locked = (sCode === HEAT_STATUS.CONFIRMED); // 只有真确认过才锁死不能再点开
                         // key 含组别在最前，避免不同组别同性别同项目同赛次同组次的冲突
                         var key = ag + '|' + (ev.gender||'') + '|' + (ev.eventName||'') + '|' + (ev.stage||'') + '|' + h;
                         var active = (key === selectedHeatKey) ? ' active' : '';
                         if (!selectedHeatKey && (data.currentAgeGroup||'') === ag && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
                             active = ' active';
                         }
-                        // 2026-09-21 用户要求: "已检录"标志要在整个系统的赛程导航都能看到——
-                        // 跟主服务器/checkin.html 同一份数字状态表(schedule[].heatStatus, 服务器算好发过来)。
-                        var checkedIn = (ev.heatStatus && ev.heatStatus[h-1] === HEAT_STATUS.CHECKED_IN) ? ' <span style="color:#06b6d4;">[' + WebLoc.t('Str_HeatStatus_CheckedIn') + ']</span>' : '';
-                        if (confirmed) {
-                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">' + WebLoc.f('Str_Common_HeatOfFmt', h, hc) + ' [' + WebLoc.t('Str_HeatStatus_Done') + ']' + checkedIn + '</div>';
+                        var labelText = (sCode === HEAT_STATUS.PENDING) ? '' : (' [' + heatStatusLabel(sCode) + ']');
+                        if (locked) {
+                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">' + WebLoc.f('Str_Common_HeatOfFmt', h, hc) + labelText + '</div>';
                         } else {
-                            html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">' + WebLoc.f('Str_Common_HeatOfFmt', h, hc) + checkedIn + '</div>';
+                            html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">' + WebLoc.f('Str_Common_HeatOfFmt', h, hc) + labelText + '</div>';
                         }
                     }
                 }
@@ -2610,14 +2668,14 @@ function renderHeader() {
             leftBlindLabels +
             '<span class="device-label">' + WebLoc.t('Str_RC_StartColHeader') + '</span>' +
             '<span class="device-label">' + WebLoc.t('Str_RC_TpColHeader') + '</span>' +
-            '<span class="device-label" style="width:50px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
+            '<span class="device-label" style="width:44px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
         '</div>' +
         '<div class="lane-mid" style="padding:0 6px;">' +
             '<div class="swimmer-info" style="font-size:12px;">' + WebLoc.t('Str_RC_NameTeamColHeader') + '</div>' +
             '<div class="lane-track" style="font-size:12px;height:auto;background:none;text-align:center;">' + WebLoc.t('Str_RC_DirProgColHeader') + '</div>' +
         '</div>' +
         '<div class="right-devices devices">' +
-            '<span class="device-label" style="width:50px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
+            '<span class="device-label" style="width:44px;">' + WebLoc.t('Str_RC_LapColHeader') + '</span>' +
             '<span class="device-label">' + WebLoc.t('Str_RC_TpColHeader') + '</span>' +
             '<span class="device-label">' + WebLoc.t('Str_RC_StartColHeader') + '</span>' +
             rightBlindLabels +
@@ -2821,8 +2879,8 @@ function buildLaneRows(container, swimmers, rcRelay) {
                 '<div class="device-dot lr-ld-2" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 1) + '" style="' + ldVis(2) + '"></div>' +
                 '<div class="device-dot lr-ld-3" title="' + WebLoc.t('Str_RC_StartBlockTip') + '"></div>' +
                 '<div class="device-dot lr-ld-4" title="' + WebLoc.t('Str_RC_TouchpadTip') + '"></div>' +
-                '<span class="lr-left-remain" style="display:inline-block;width:26px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
-                '<span class="lap-spinner" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;">' +
+                '<span class="lr-left-remain" style="display:inline-block;flex-shrink:0;width:26px;text-align:center;font-size:20px;font-weight:bold;font-variant-numeric:tabular-nums;white-space:pre;"></span>' +
+                '<span class="lap-spinner" style="display:inline-flex;flex-shrink:0;flex-direction:column;align-items:center;vertical-align:middle;">' +
                     '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',true,1)" title="' + WebLoc.t('Str_RC_LeftPlus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
                     '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',true,-1)" title="' + WebLoc.t('Str_RC_LeftMinus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
                 '</span>' +
@@ -2832,11 +2890,11 @@ function buildLaneRows(container, swimmers, rcRelay) {
                 '<div class="lane-track lr-track"></div>' +
             '</div>' +
             '<div class="right-devices devices">' +
-                '<span class="lap-spinner" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;">' +
+                '<span class="lap-spinner" style="display:inline-flex;flex-shrink:0;flex-direction:column;align-items:center;vertical-align:middle;">' +
                     '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',false,1)" title="' + WebLoc.t('Str_RC_RightPlus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
                     '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',false,-1)" title="' + WebLoc.t('Str_RC_RightMinus1Tip') + '" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
                 '</span>' +
-                '<span class="lr-right-remain" style="display:inline-block;width:26px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
+                '<span class="lr-right-remain" style="display:inline-block;flex-shrink:0;width:26px;text-align:center;font-size:20px;font-weight:bold;font-variant-numeric:tabular-nums;white-space:pre;"></span>' +
                 '<div class="device-dot lr-rd-0" title="' + WebLoc.t('Str_RC_TouchpadTip') + '"></div>' +
                 '<div class="device-dot lr-rd-1" title="' + WebLoc.t('Str_RC_StartBlockTip') + '"></div>' +
                 '<div class="device-dot lr-rd-2" title="' + WebLoc.f('Str_RC_BlindWatchNFmt', 1) + '" style="' + rdVis(2) + '"></div>' +
@@ -2929,10 +2987,13 @@ function refreshLaneRows(swimmers, rcRelay) {
         rowUI.leftDots[3].className = 'device-dot lr-ld-3 ' + hwColorClass(ds.hwLeftStartBlock, ds.leftStartBlock, 'sb');
         rowUI.leftDots[4].className = 'device-dot lr-ld-4 ' + hwColorClass(ds.hwLeftTouchpad, ds.leftTouchpad, 'tp');
 
-        // 左剩余秒数
-        var leftRemain = (sw.leftTouchRemain != null && sw.leftTouchRemain > 0) ? sw.leftTouchRemain : '';
-        if (rowUI.leftRemain.textContent !== String(leftRemain)) rowUI.leftRemain.textContent = leftRemain;
-        rowUI.leftRemain.style.color = leftRemain > 0 ? '#F59E0B' : '#475569';
+        // 左剩余圈数 —— 2026-10-14 用户现场反馈: 个位数圈数只占1字符宽度, 跟表头/右侧状态灯对不齐,
+        //   改成固定2字符宽显示(%2d, 个位数前补空格), 配合 lr-left-remain 上的 white-space:pre
+        //   (CSS 默认会把前导空格吃掉, 不加这个样式空格不生效)。
+        var leftRemainN = (sw.leftTouchRemain != null && sw.leftTouchRemain > 0) ? sw.leftTouchRemain : 0;
+        var leftRemainDisp = pad2(leftRemainN);
+        if (rowUI.leftRemain.textContent !== leftRemainDisp) rowUI.leftRemain.textContent = leftRemainDisp;
+        rowUI.leftRemain.style.color = leftRemainN > 0 ? '#F59E0B' : '#475569';
 
         // 右T按钮
         var rightMbEnabled = mb.rightEnabled === true;
@@ -2949,10 +3010,11 @@ function refreshLaneRows(swimmers, rcRelay) {
         rowUI.rightDots[3].className = 'device-dot lr-rd-3 ' + hwColorClass(ds.hwRightBlindWatch2, ds.rightBlindWatch2, 'mb');
         rowUI.rightDots[4].className = 'device-dot lr-rd-4 ' + hwColorClass(ds.hwRightBlindWatch3, ds.rightBlindWatch3, 'mb');
 
-        // 右剩余秒数
-        var rightRemain = (sw.rightTouchRemain != null && sw.rightTouchRemain > 0) ? sw.rightTouchRemain : '';
-        if (rowUI.rightRemain.textContent !== String(rightRemain)) rowUI.rightRemain.textContent = rightRemain;
-        rowUI.rightRemain.style.color = rightRemain > 0 ? '#F59E0B' : '#475569';
+        // 右剩余圈数 —— 同左侧, 固定2字符宽(%2d)
+        var rightRemainN = (sw.rightTouchRemain != null && sw.rightTouchRemain > 0) ? sw.rightTouchRemain : 0;
+        var rightRemainDisp = pad2(rightRemainN);
+        if (rowUI.rightRemain.textContent !== rightRemainDisp) rowUI.rightRemain.textContent = rightRemainDisp;
+        rowUI.rightRemain.style.color = rightRemainN > 0 ? '#F59E0B' : '#475569';
 
         // 姓名/代表队 — 测试模式下姓名栏改为显示左端最近事件文字（"触 23.45" / "出发 0.42"）
         var newName, newTeam, nameColor = '';

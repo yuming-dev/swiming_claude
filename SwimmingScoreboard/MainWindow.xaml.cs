@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20261013-1";
+        public const string WEB_ASSET_VERSION = "20261014-1";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -3448,7 +3448,24 @@ namespace SwimmingScoreboard
                     if (data != null) CancelLaneNote((int)data["lane"]);
                     break;
                 case "USE_BLIND_RESULT":
-                    if (data != null) UseBlindResultForCurrentSegment((int)data["lane"]);
+                    // 2026-10-14 网页端反馈"盲表成绩按了没反应"——本机 WPF 按钮只写本机日志,
+                    //   网页操作员看不到成功/失败, 这里把结果明确回给发命令的那个 socket。
+                    if (data != null) {
+                        int ubLane = (int)data["lane"];
+                        double ubAppliedTime;
+                        string ubFailReason = UseBlindResultForCurrentSegment(ubLane, out ubAppliedTime);
+                        if (socket != null) {
+                            try {
+                                EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                                    type = "USE_BLIND_RESULT_RESULT",
+                                    lane = ubLane,
+                                    ok = (ubFailReason == null),
+                                    reason = ubFailReason,
+                                    time = ubAppliedTime
+                                }));
+                            } catch { }
+                        }
+                    }
                     break;
                 case "ADJUST_LAP_DISPLAY":
                     if (data != null) {
@@ -16708,9 +16725,18 @@ namespace SwimmingScoreboard
         // 盲表成绩：当前分段若无触板时间，使用盲表时间作为该段正式成绩
         // 逻辑：在 laneState.PendingBlind*Time 中选择一个最早的有效盲表时间，
         //       按触板到达处理（ProcessTouchpadHit 会把盲表时间清理并完成分段）
-        private void UseBlindResultForCurrentSegment(int lane) {
+        // 2026-10-14 返回值: null=成功应用(appliedTime 带出实际用的那个盲表时间), 非 null=失败原因
+        //   文本——网页端(race_control.html)反馈"按了没反应"才发现原来这里只写本机日志, 网页操作员
+        //   完全看不到结果(本机 WPF 日志不会转发给网页端), 加这个返回值让 HandleTimingCommand 能把
+        //   成功/失败明确回给发命令的那个 socket, 不再是"按下去悄悄成功或悄悄失败都一个样"。
+        private string UseBlindResultForCurrentSegment(int lane, out double appliedTime) {
+            appliedTime = 0;
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-            if (laneState == null) { AddLog(Loc.F("Str_Log_LaneStateNotFoundFmt", lane)); return; }
+            if (laneState == null) {
+                string m0 = Loc.F("Str_Log_LaneStateNotFoundFmt", lane);
+                AddLog(m0);
+                return m0;
+            }
 
             // 当前 split 上可能已经记录了盲表时间（预创建 split 时盲表会写入 split.PushButton*Time），
             // 这是正常的工作路径；laneState.PendingBlind*Time 只是无 split 时的备用暂存。
@@ -16727,8 +16753,9 @@ namespace SwimmingScoreboard
                 if (curSplit.PushButton3Time > 0 && !blinds.Contains(curSplit.PushButton3Time)) blinds.Add(curSplit.PushButton3Time);
             }
             if (blinds.Count == 0) {
-                AddLog(Loc.F("Str_Log_NoBlindDataFmt", lane));
-                return;
+                string m1 = Loc.F("Str_Log_NoBlindDataFmt", lane);
+                AddLog(m1);
+                return m1;
             }
             blinds.Sort();
             // 2026-06-24 MB 算法: 1 个=自己, 2 个=平均 (千分位 floor), 3 个=真中位
@@ -16748,8 +16775,9 @@ namespace SwimmingScoreboard
                 if (res != null) {
                     var sp = res.Splits.FirstOrDefault(x => x.Lap == curLap);
                     if (sp != null && sp.TouchpadTime > 0) {
-                        AddLog(Loc.F("Str_Log_SplitAlreadyHasTpSkippedFmt", lane));
-                        return;
+                        string m2 = Loc.F("Str_Log_SplitAlreadyHasTpSkippedFmt", lane);
+                        AddLog(m2);
+                        return m2;
                     }
                 }
             }
@@ -16764,6 +16792,8 @@ namespace SwimmingScoreboard
             laneState.LaneCloseCountdown = 0;
             UpdateLaneStatusDisplay();
             Broadcast();
+            appliedTime = blindTime;
+            return null;
         }
 
         // 道次打开 / 道次关闭：只对指定泳道生效（单道版本的 OpenAll/CloseAll）
@@ -17891,7 +17921,8 @@ namespace SwimmingScoreboard
         private void BlindResult_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
-            UseBlindResultForCurrentSegment(lane);
+            double appliedTime;
+            UseBlindResultForCurrentSegment(lane, out appliedTime);
         }
 
         private void LaneOpen_Click(object sender, RoutedEventArgs e) {
