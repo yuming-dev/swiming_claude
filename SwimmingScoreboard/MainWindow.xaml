@@ -125,6 +125,15 @@
                     <Ellipse x:Name="HwConnDot" Width="10" Height="10" Fill="#EF4444" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="HwTimerLabel" Text="{DynamicResource Str_Status_HwTimerColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="HwConnStatusText" Text="{DynamicResource Str_HwConn_NotConnected}" Foreground="#EF4444" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <!-- 2026-10-14 用户要求: 跟 RemoteTimingControl.exe 顶栏那个"硬件连接"按钮一样,
+                         主服务器也加一个方便直接点开硬件连接弹窗, 不用绕去"比赛控制"页内按钮。
+                         只在"比赛控制"Tab 选中时显示(其余页面隐藏, 见 UpdateMainHwConnButtonVisibility)
+                         ——RTC 模式下自己已经有 InjectEditorSyncToolbar 注入的同款按钮(常驻不随Tab),
+                         这颗按钮那边会保持 Collapsed, 不会重复。 -->
+                    <Button x:Name="MainHwConnButton" Content="{DynamicResource Str_Btn_HwConnLabel}" Click="MainHwConnButton_Click"
+                            Visibility="Collapsed" Padding="10,2" FontSize="12"
+                            Background="#DC2626" Foreground="White" BorderThickness="0"
+                            Margin="0,0,12,0" VerticalAlignment="Center" Cursor="Hand"/>
                     <TextBlock x:Name="ControlModeLabel" Text="{DynamicResource Str_Status_ControlModeColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="ControlModeText" Text="{DynamicResource Str_ScoringMode_Local}" Foreground="#22C55E" FontSize="12" VerticalAlignment="Center"/>
                 </StackPanel>

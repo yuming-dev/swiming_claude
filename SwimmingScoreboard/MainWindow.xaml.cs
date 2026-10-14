@@ -633,6 +633,7 @@ namespace SwimmingScoreboard
             _initialized = true;
             // 2026-09-13 右侧"运动员注册"面板按当前页决定显不显示(默认落在"赛事概览", 所以是隐藏)
             try { UpdateAthleteRegPanelVisibility(); } catch { }
+            try { UpdateMainHwConnButtonVisibility(); } catch { }
             // 2026-09-13 开机就把控制模式算一次 —— 原来只在"有客户端连上本机"时才算,
             //   RTC 的客户端连的是主服务器, 于是 RTC 顶栏一直显示"本地"(实际是它在控制)
             try { UpdateScoringControlMode(); } catch { }
@@ -11225,12 +11226,33 @@ namespace SwimmingScoreboard
 
         // 切换主标签页：不影响"比赛控制"后台运行，也不强行落盘（避免覆盖未确认的成绩）
         // 进入"成绩与排名"页时按当前内存重建下拉/网格，让操作员能即时看到已确认的组次
+        // 2026-10-14 顶栏"硬件连接"按钮只在"比赛控制"Tab 选中时显示(其余页面隐藏)——RTC 模式下
+        //   InjectEditorSyncToolbar 已经常驻注入了同款按钮, 这颗再显示就重复了, 故 RTC 模式下
+        //   这颗固定 Collapsed。初次启动(MainTabControl_SelectionChanged 被 !_initialized 挡住
+        //   不会跑)也要调一次, 不然默认停在"系统工作状态"页本就该 Collapsed, 但万一以后改成
+        //   记住上次选中页就会少这一步, 这里直接调一次保证总是对的。
+        private void UpdateMainHwConnButtonVisibility() {
+            if (MainHwConnButton == null) return;
+            bool isRaceControlTab = false;
+            try {
+                var selected = MainTabControl != null ? MainTabControl.SelectedItem as TabItem : null;
+                string header = selected != null && selected.Header != null ? selected.Header.ToString() : "";
+                isRaceControlTab = (header == Loc.TChinese("Str_Tab_RaceControl") || header == Loc.TEnglish("Str_Tab_RaceControl"));
+            } catch { }
+            MainHwConnButton.Visibility = (isRaceControlTab && !IsRemoteTimingControlMode) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void MainHwConnButton_Click(object sender, RoutedEventArgs e) {
+            ShowHardwareConnectionDialog();
+        }
+
         private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e) {
             if (!_initialized) return;
             if (e.OriginalSource != MainTabControl) return;   // 仅顶层 Tab 切换才处理（跳过子标签事件冒泡）
             var selected = MainTabControl.SelectedItem as TabItem;
             if (selected == null || selected.Header == null) return;
             string header = selected.Header.ToString();
+            try { UpdateMainHwConnButtonVisibility(); } catch { }
             // 2026-10-06 同一类坑: Header 跟硬编码中文字面量比, English 模式下比不中——切到"成绩
             //   与排名"/"比赛控制"页时, 下面这两段自动刷新/自动推送参数的逻辑在 English 模式下
             //   全部不触发。
@@ -25559,6 +25581,11 @@ namespace SwimmingScoreboard
             //   ApplyRecordFilter), 不在原有的语言切换级联里, 得跟 BuildUnitBibAllocTab 一样补进来。
             try { RefillGenderCombos(); } catch { }
             try { RefreshRecordFilterCombos(); ApplyRecordFilter(); } catch { }
+            // 2026-10-14 现场反馈: "出场编排微调"Tab 的"组别"筛选框("全部"那一项)切语言不跟着变——
+            //   同一类"数据变化时才刷、不在原语言级联里"的漏网之鱼, 跟上面 RefreshRecordFilterCombos
+            //   一个性质。RefreshAllAgeGroupFilterCombos 顺带也会刷 FilterAgeGroupCombo(运动员管理)/
+            //   ResultAgeGroupCombo(成绩与排名)这两个同款"全部"下拉, 一并解决。
+            try { RefreshAllAgeGroupFilterCombos(); } catch { }
             // 2026-10-11 现场反馈: "计时源对比"Tab 里"分段"下拉框("终点"/"第N圈..."这些选项)
             //   只在组数变化时才重建(UpdateTimingSourceInfo 里按 _lastTsSplitCount 比对决定要不要
             //   重建 Items), 切语言不在那个触发条件里——逼它按当前语言重建一次, 同 LaneInputBox_
@@ -29479,6 +29506,11 @@ namespace SwimmingScoreboard
             if (_recordFilterUpdating) return;
             _recordFilterUpdating = true;
             try {
+                // 2026-10-14 用户现场反馈: 英文界面"记录"页"Search:"最前面那个组别筛选框还显示中文
+                // "全部"——这个函数原来只刷新了 项目/类型 两个下拉框的"全部"项, 漏了组别筛选框
+                // (FillAgeGroupFilterCombo 自己会在最前面加 Loc.T("Str_Common_All"), 但只在数据变化
+                // 时被调用, 没接进语言切换级联, 切语言时它不重建, "全部"字样就停在上一次重建时的语言)。
+                try { FillAgeGroupFilterCombo(RecordFilterAgeGroup); } catch { }
                 // 刷新项目下拉框
                 string prevEvent = RecordFilterEvent.SelectedItem != null ? RecordFilterEvent.SelectedItem.ToString() : "";
                 RecordFilterEvent.Items.Clear();

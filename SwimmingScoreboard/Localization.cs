@@ -406,13 +406,17 @@ namespace SwimmingScoreboard
             { "Str_EM_Tab_Params",     new[] { "比赛参数设置管理", "Competition Settings" } },
             { "Str_EM_CompRule",       new[] { "比赛规则", "Competition Rules" } },
             { "Str_EM_RuleIntl",       new[] { "国际比赛 (FINA)", "International (FINA)" } },
-            { "Str_EM_RuleDomestic",   new[] { "国内大赛 (中国泳协)", "Domestic (CSA)" } },
+            // 2026-10-14 用户要求去掉"(中国泳协)"/"(CSA)"后缀——这款软件也给非中国用户用,
+            //   "国内大赛"规则本身(= 同 FINA, 执行差异由本地规程补充)跟哪国协会无关, 不该
+            //   在选项名里写死"中国泳协"。folders/suffixZh/suffixEn(AutoLoadCompetitionParamsForRule
+            //   里按固定模板文件夹名匹配, 跟这条显示文案无关)不受影响, 不用跟着改。
+            { "Str_EM_RuleDomestic",   new[] { "国内大赛", "Domestic" } },
             { "Str_EM_RuleU",          new[] { "U系列青少年游泳比赛", "U-Series Youth Meet" } },
             // 2026-10-10 补上一直没用上的 Intl/Domestic 说明文案 Loc key——原来 CompRuleCombo_Changed
             //   里这三条说明是硬编码中文数组, 英文模式下切规则时说明文字纹丝不动, 只有 U系列这条
             //   当年建过 Loc key 却从没接上用过。这次顺手把四条(含新的"地区级比赛")都走 Loc。
             { "Str_EM_RuleIntlDesc",   new[] { "国际比赛 (FINA): 男/女 分项, 同年龄组同组, 单组排名按时间, 总排名按 性别×组别", "International (FINA): events split by sex, grouped by age group, single-heat ranking by time, overall ranking split by sex × age group." } },
-            { "Str_EM_RuleDomesticDesc", new[] { "国内大赛 (中国泳协): 同 FINA, 国内执行差异由本地规程补充", "Domestic (CSA): same as FINA; local implementation differences are covered by the local meet regulations." } },
+            { "Str_EM_RuleDomesticDesc", new[] { "国内大赛: 同 FINA, 执行差异由本地规程补充", "Domestic: same as FINA; local implementation differences are covered by the local meet regulations." } },
             { "Str_EM_RuleUDesc",      new[] { "U系列: 允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆", "U-Series: allows mixed-sex events / cross-age events / TRI entries / multi-heat finals / single in-heat ranking / overall ranking split by sex × age group." } },
             // 2026-10-10 新增第4个"比赛规则"选项: 地区级比赛(省/市/区/校运动会等)。没有统一官方
             //   规则文件, 但预置一套取自真实赛事数据(tools\fenzu_parsed.json, 甘肃某地区运动会
