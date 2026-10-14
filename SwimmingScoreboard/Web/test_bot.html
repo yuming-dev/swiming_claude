@@ -2,7 +2,8 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>测试机器人</title>
+<title data-i18n="Str_TB_Title">测试机器人</title>
+<script src="webloc.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Microsoft YaHei', monospace; background: #0f172a; color: #f8fafc; padding: 20px; }
@@ -23,195 +24,191 @@ label { color: #94a3b8; font-size: 12px; }
 .status-bar { background: #334155; padding: 6px 12px; border-radius: 4px; margin-bottom: 12px; display: flex; justify-content: space-between; font-size: 12px; }
 .status-bar .conn { color: #22c55e; }
 .status-bar .info { color: #f59e0b; }
+.lang-toggle-btn { padding: 6px 14px; background: #64748b; color: white; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
 </style>
 </head>
 <body>
 <!-- 启动连接遮罩：未连上主服务器前不让用户操作 -->
 <div id="connectOverlay" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(15,23,42,0.96);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;font-family:'Microsoft YaHei',sans-serif;">
     <div style="background:#1e293b;border-radius:12px;padding:36px 48px;min-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);">
-        <div style="font-size:22px;font-weight:bold;text-align:center;margin-bottom:18px;">连接主服务器</div>
-        <div style="font-size:13px;color:#94a3b8;margin-bottom:6px;">服务器 IP 地址</div>
-        <input id="connHostInput" type="text" placeholder="如 192.168.1.100" autocomplete="off"
+        <div data-i18n="Str_Common_ConnectServerTitle" style="font-size:22px;font-weight:bold;text-align:center;margin-bottom:18px;">连接主服务器</div>
+        <div data-i18n="Str_Common_ServerIpLabel" style="font-size:13px;color:#94a3b8;margin-bottom:6px;">服务器 IP 地址</div>
+        <input id="connHostInput" type="text" data-i18n="Str_Common_ServerIpPlaceholder" data-i18n-attr="placeholder" placeholder="如 192.168.1.100" autocomplete="off"
                style="width:100%;padding:10px 12px;border:1px solid #334155;border-radius:6px;background:#0f172a;color:#f8fafc;font-size:16px;outline:none;"/>
         <div style="margin-top:18px;">
-            <button onclick="overlayConnect()" style="width:100%;padding:11px;background:#22c55e;color:white;border:none;border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;">连接</button>
+            <button onclick="overlayConnect()" data-i18n="Str_Common_Connect" style="width:100%;padding:11px;background:#22c55e;color:white;border:none;border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;">连接</button>
         </div>
         <div id="connOverlayStatus" style="margin-top:14px;text-align:center;font-size:13px;color:#f59e0b;min-height:18px;">请输入主服务器IP并点击连接</div>
     </div>
 </div>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-    <h1 style="margin:0;">自动化测试机器人</h1>
-    <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
+    <h1 data-i18n="Str_TB_H1" style="margin:0;">自动化测试机器人</h1>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button class="lang-toggle-btn" onclick="toggleTbLang()" id="langToggleBtn" data-i18n="Str_Common_LangToggle">English</button>
+        <button class="fullscreen-btn" onclick="goFullScreen()" data-i18n="Str_Common_Fullscreen" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
+    </div>
 </div>
 
 <div class="status-bar">
-    <span id="connStatus" class="conn">连接中...</span>
+    <span id="connStatus" class="conn" data-i18n="Str_TB_StatusConnecting">连接中...</span>
     <span id="raceInfo" class="info">-</span>
     <span id="timerInfo" class="info">计时: -</span>
 </div>
 
 <div class="panel">
-    <h2>1. 批量注册运动员（与最新主程序的"组别 / 单位简称 / 备注"字段同步）</h2>
+    <h2 data-i18n="Str_TB_P1_Title">1. 批量注册运动员（与最新主程序的"组别 / 单位简称 / 备注"字段同步）</h2>
     <div class="row">
-        <label>数量:</label><input id="regCount" type="number" value="16" style="width:60px">
-        <label>项目:</label>
+        <label data-i18n="Str_TB_Count">数量:</label><input id="regCount" type="number" value="16" style="width:60px">
+        <label data-i18n="Str_TB_Event">项目:</label>
         <!-- 2026-06-02 项目/性别/组别 下拉全部改为动态从服务器 data.eventList/data.genderList/data.ageGroups 拉取, 杜绝与现场比赛档案不匹配的报错 -->
-        <select id="regEvent" title="自动从当前比赛档案的项目列表拉取"></select>
-        <label>性别:</label>
-        <select id="regGender" title="自动从当前比赛档案的性别列表拉取"></select>
-        <label>组别:</label>
-        <select id="regAgeGroup" title="自动从当前比赛档案的组别列表拉取 (与 _ageGroups 严格一致, 避免下游 Tab 漏出)"></select>
-        <!-- 2026-10-05 用户要求: 加一项"英文版批量注册运动员", 用来在 English 模式下跑全流程
-             测试(看姓名/队名用西式英文排版是否正常)。没有做成单独一份重复的面板, 而是在这里
-             加个姓名/队名语言切换——性别(男/女/混合)/组别/项目这些字段永远是中文数据哨兵值
-             不变(本系统既有设计, 服务器按这几个字面量做匹配), 只是生成姓名和代表队的素材库
-             换成西式英文, 这样"批量注册"/"多组别一键样本"/"注册接力队"/两个"完整自动测试"
-             全部自动跟着用英文素材, 不用维护两套流程。 -->
-        <label>姓名/队名:</label>
-        <select id="nameLang" title="只影响生成的姓名和代表队用中文还是西式英文素材；性别/组别/项目仍是系统内部的中文数据值，不受此项影响">
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-        </select>
+        <select id="regEvent" data-i18n-title="Str_TB_AutoFromEventListTitle" title="自动从当前比赛档案的项目列表拉取"></select>
+        <label data-i18n="Str_TB_Gender">性别:</label>
+        <select id="regGender" data-i18n-title="Str_TB_AutoFromGenderListTitle" title="自动从当前比赛档案的性别列表拉取"></select>
+        <label data-i18n="Str_TB_AgeGroup">组别:</label>
+        <select id="regAgeGroup" data-i18n-title="Str_TB_RegAgeGroupTitle" title="自动从当前比赛档案的组别列表拉取 (与 _ageGroups 严格一致, 避免下游 Tab 漏出)"></select>
+        <!-- 2026-10-14 用户要求: 原来姓名/队名语言是面板内单独一个下拉(nameLang), 跟全局UI语言
+             脱钩; 现改为跟随页面右上角的中文/English总开关(toggleTbLang), 单一按钮控制UI文案+
+             生成姓名/代表队的语言, 不再需要这里单独一个选择器。isEnglishMode() 直接读 WebLoc。 -->
     </div>
     <div class="row">
-        <label>代表队:</label>
-        <select id="regCountryMode" title="代表队来源">
-            <option value="random">随机（绵阳蓝鲸/晓游青训/…）</option>
-            <option value="fixed">固定值</option>
+        <label data-i18n="Str_TB_Team">代表队:</label>
+        <select id="regCountryMode" data-i18n-title="Str_TB_TeamSourceTitle" title="代表队来源">
+            <option value="random" data-i18n="Str_TB_TeamModeRandom">随机（内置队名池）</option>
+            <option value="fixed" data-i18n="Str_TB_TeamModeFixed">固定值</option>
         </select>
-        <input id="regCountryFixed" placeholder="代表队全名" style="width:140px;display:none">
-        <input id="regCountryShort" placeholder="单位简称（可选，留空则用全名前两字）" style="width:200px">
-        <label>备注:</label>
-        <input id="regNotes" placeholder="备注（可选，会显示在大屏）" style="width:200px">
-        <button class="btn-blue" onclick="batchRegister()">批量注册</button>
-        <button class="btn-purple" onclick="autoGenerateHeats()">自动生成分组</button>
+        <input id="regCountryFixed" data-i18n="Str_TB_TeamFixedPlaceholder" data-i18n-attr="placeholder" placeholder="代表队全名" style="width:140px;display:none">
+        <input id="regCountryShort" data-i18n="Str_TB_TeamShortPlaceholder" data-i18n-attr="placeholder" placeholder="单位简称（可选，留空则用全名前两字）" style="width:200px">
+        <label data-i18n="Str_TB_Notes">备注:</label>
+        <input id="regNotes" data-i18n="Str_TB_NotesPlaceholder" data-i18n-attr="placeholder" placeholder="备注（可选，会显示在大屏）" style="width:200px">
+        <button class="btn-blue" onclick="batchRegister()" data-i18n="Str_TB_BtnBatchRegister">批量注册</button>
+        <button class="btn-purple" onclick="autoGenerateHeats()" data-i18n="Str_TB_BtnAutoGenHeats">自动生成分组</button>
     </div>
     <div class="row">
-        <button class="btn-gold" onclick="batchRegisterMixedGroups()" title="生成 N 人 × 选中的多个组别 (与当前比赛档案的组别一致), 每组各 N 人">多组别一键样本（各组各 N 人）</button>
-        <label style="margin-left:8px;font-size:11px;color:#64748B">勾选要批量注册的组别 (动态拉取):</label>
+        <button class="btn-gold" onclick="batchRegisterMixedGroups()" data-i18n="Str_TB_BtnMixedGroups" data-i18n-title="Str_TB_MixedGroupsTitle" title="生成 N 人 × 选中的多个组别 (与当前比赛档案的组别一致), 每组各 N 人">多组别一键样本（各组各 N 人）</button>
+        <label style="margin-left:8px;font-size:11px;color:#64748B" data-i18n="Str_TB_PickGroupsLabel">勾选要批量注册的组别 (动态拉取):</label>
         <!-- 2026-06-02 多组别 checkbox 改为动态生成, 来自 data.ageGroups -->
         <span id="mgGroupBoxes"></span>
     </div>
 </div>
 
 <div class="panel">
-    <h2>2. 模拟比赛流程</h2>
+    <h2 data-i18n="Str_TB_P2_Title">2. 模拟比赛流程</h2>
     <div class="row">
-        <button class="btn-gold" onclick="simReady()">就位</button>
-        <button class="btn-green" onclick="simStart()">发令</button>
-        <button class="btn-blue" onclick="simStartBlock('left')">模拟左边出发台</button>
-        <button class="btn-blue" onclick="simTouchpad('left')">模拟左边触板</button>
-        <button class="btn-blue" onclick="simBlindWatch('left')">模拟左边盲表</button>
-        <button class="btn-purple" onclick="simStartBlock('right')">模拟右边出发台</button>
-        <button class="btn-purple" onclick="simTouchpad('right')">模拟右边触板</button>
-        <button class="btn-purple" onclick="simBlindWatch('right')">模拟右边盲表</button>
-        <button class="btn-gray" onclick="simConfirm()">确认成绩</button>
-        <button class="btn-red" onclick="simTimerReset()">计时复位</button>
+        <button class="btn-gold" onclick="simReady()" data-i18n="Str_TB_BtnReady">就位</button>
+        <button class="btn-green" onclick="simStart()" data-i18n="Str_TB_BtnStart">发令</button>
+        <button class="btn-blue" onclick="simStartBlock('left')" data-i18n="Str_TB_BtnSimStartBlockLeft">模拟左边出发台</button>
+        <button class="btn-blue" onclick="simTouchpad('left')" data-i18n="Str_TB_BtnSimTouchpadLeft">模拟左边触板</button>
+        <button class="btn-blue" onclick="simBlindWatch('left')" data-i18n="Str_TB_BtnSimBlindLeft">模拟左边盲表</button>
+        <button class="btn-purple" onclick="simStartBlock('right')" data-i18n="Str_TB_BtnSimStartBlockRight">模拟右边出发台</button>
+        <button class="btn-purple" onclick="simTouchpad('right')" data-i18n="Str_TB_BtnSimTouchpadRight">模拟右边触板</button>
+        <button class="btn-purple" onclick="simBlindWatch('right')" data-i18n="Str_TB_BtnSimBlindRight">模拟右边盲表</button>
+        <button class="btn-gray" onclick="simConfirm()" data-i18n="Str_TB_BtnConfirmResult">确认成绩</button>
+        <button class="btn-red" onclick="simTimerReset()" data-i18n="Str_TB_BtnTimerReset">计时复位</button>
     </div>
 </div>
 
 <div class="panel">
-    <h2>3. 显示模式切换</h2>
+    <h2 data-i18n="Str_TB_P3_Title">3. 显示模式切换</h2>
     <div class="row">
-        <button class="btn-green" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛视图</button>
-        <button class="btn-blue" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
-        <button class="btn-purple" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
-        <button class="btn-gold" onclick="sendDisplay('SHOW_EVENT_RANKING')">总排名</button>
-        <button class="btn-blue" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体</button>
-        <button class="btn-red" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
-        <button class="btn-gray" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
+        <button class="btn-green" onclick="sendDisplay('SHOW_LIVE_RACE')" data-i18n="Str_TB_BtnShowLiveRace">比赛视图</button>
+        <button class="btn-blue" onclick="sendDisplay('SHOW_START_LIST')" data-i18n="Str_TB_BtnShowStartList">出发表</button>
+        <button class="btn-purple" onclick="sendDisplay('SHOW_HEAT_RESULT')" data-i18n="Str_TB_BtnShowHeatResult">组成绩</button>
+        <button class="btn-gold" onclick="sendDisplay('SHOW_EVENT_RANKING')" data-i18n="Str_TB_BtnShowEventRanking">总排名</button>
+        <button class="btn-blue" onclick="sendDisplay('SHOW_TEAM_STANDINGS')" data-i18n="Str_TB_BtnShowTeamStandings">团体</button>
+        <button class="btn-red" onclick="sendDisplay('SHOW_AWARDS')" data-i18n="Str_TB_BtnShowAwards">颁奖</button>
+        <button class="btn-gray" onclick="sendDisplay('SHOW_WELCOME')" data-i18n="Str_TB_BtnShowWelcome">欢迎</button>
     </div>
 </div>
 
 <div class="panel">
-    <h2>4. 接力比赛测试</h2>
+    <h2 data-i18n="Str_TB_P4_Title">4. 接力比赛测试</h2>
     <div class="row">
-        <label>队伍数:</label><input id="relayTeamCount" type="number" value="8" style="width:60px">
-        <label>项目:</label>
-        <select id="relayEvent" onchange="updateRelayButtons()" title="自动只显示含'接力'的项目"></select>
-        <label>性别:</label>
-        <select id="relayGender" title="自动从当前比赛档案的性别列表拉取"></select>
-        <label>组别:</label>
-        <select id="relayAgeGroup" title="自动从当前比赛档案的组别列表拉取"></select>
-        <input id="relayCountryShort" placeholder="单位简称（可选）" style="width:160px">
-        <button class="btn-blue" onclick="batchRegisterRelay()">注册接力队</button>
+        <label data-i18n="Str_TB_TeamCount">队伍数:</label><input id="relayTeamCount" type="number" value="8" style="width:60px">
+        <label data-i18n="Str_TB_Event">项目:</label>
+        <select id="relayEvent" onchange="updateRelayButtons()" data-i18n-title="Str_TB_RelayEventTitle" title="自动只显示含'接力'的项目"></select>
+        <label data-i18n="Str_TB_Gender">性别:</label>
+        <select id="relayGender" data-i18n-title="Str_TB_AutoFromGenderListTitle" title="自动从当前比赛档案的性别列表拉取"></select>
+        <label data-i18n="Str_TB_AgeGroup">组别:</label>
+        <select id="relayAgeGroup" data-i18n-title="Str_TB_AutoFromAgeGroupListTitle" title="自动从当前比赛档案的组别列表拉取"></select>
+        <input id="relayCountryShort" data-i18n="Str_TB_RelayShortPlaceholder" data-i18n-attr="placeholder" placeholder="单位简称（可选）" style="width:160px">
+        <button class="btn-blue" onclick="batchRegisterRelay()" data-i18n="Str_TB_BtnRegisterRelay">注册接力队</button>
     </div>
     <div class="row">
-        <button class="btn-gold" onclick="simReady()">就位</button>
-        <button class="btn-green" onclick="simStart()">发令</button>
+        <button class="btn-gold" onclick="simReady()" data-i18n="Str_TB_BtnReady">就位</button>
+        <button class="btn-green" onclick="simStart()" data-i18n="Str_TB_BtnStart">发令</button>
     </div>
     <div id="relayStepButtons" class="row" style="flex-wrap:wrap;"></div>
     <div class="row">
-        <button class="btn-gray" onclick="simConfirm()">确认成绩</button>
-        <button class="btn-red" onclick="simTimerReset()">计时复位</button>
+        <button class="btn-gray" onclick="simConfirm()" data-i18n="Str_TB_BtnConfirmResult">确认成绩</button>
+        <button class="btn-red" onclick="simTimerReset()" data-i18n="Str_TB_BtnTimerReset">计时复位</button>
     </div>
-    <div class="row" style="font-size:11px;color:#64748B;" id="relayStepInfo">
+    <div class="row" style="font-size:11px;color:#64748B;" id="relayStepInfo" data-i18n="Str_TB_RelayStepInfoDefault">
         选择项目后显示操作步骤
     </div>
     <!-- 2026-06-03 接力 一键完整自动测试 (4×100 等任意 X×Y, 自动注册队伍/分组/出发台/逐棒触板/确认) -->
     <div class="row">
-        <button class="btn-green" onclick="fullAutoTestRelay()">完整自动测试 (接力)</button>
-        <button class="btn-red" onclick="stopAutoTest()">停止</button>
-        <label>注册接力队→分组→就位→发令→逐棒(出发台+触板+盲表)→确认</label>
+        <button class="btn-green" onclick="fullAutoTestRelay()" data-i18n="Str_TB_BtnFullAutoRelay">完整自动测试 (接力)</button>
+        <button class="btn-red" onclick="stopAutoTest()" data-i18n="Str_TB_BtnStopAutoTest">停止</button>
+        <label data-i18n="Str_TB_RelayFlowLabel">注册接力队→分组→就位→发令→逐棒(出发台+触板+盲表)→确认</label>
     </div>
 </div>
 
 <div class="panel">
-    <h2>5. 完整自动测试（个人项目）</h2>
+    <h2 data-i18n="Str_TB_P5_Title">5. 完整自动测试（个人项目）</h2>
     <div class="row">
-        <button class="btn-green" onclick="fullAutoTest()">开始完整测试</button>
-        <button class="btn-red" onclick="stopAutoTest()">停止</button>
-        <label>注册→分组→就位→发令→出发→等待触板打开→触板→确认</label>
+        <button class="btn-green" onclick="fullAutoTest()" data-i18n="Str_TB_BtnFullAutoTest">开始完整测试</button>
+        <button class="btn-red" onclick="stopAutoTest()" data-i18n="Str_TB_BtnStopAutoTest">停止</button>
+        <label data-i18n="Str_TB_IndivFlowLabel">注册→分组→就位→发令→出发→等待触板打开→触板→确认</label>
     </div>
 </div>
 
 <!-- 2026-07-12 反应时端到端测试面板 (硬件送帧粒度控制, 替代 ReactionTimeE2E.exe REPL) -->
 <div class="panel">
-    <h2>6. 反应时端到端测试（直接送硬件数据）</h2>
+    <h2 data-i18n="Str_TB_P6_Title">6. 反应时端到端测试（直接送硬件数据）</h2>
     <div class="row">
-        <label>Gun PreStart 秒:</label>
+        <label data-i18n="Str_TB_GunLabel">Gun PreStart 秒:</label>
         <input id="e2eGun" type="number" step="0.001" value="100.000" style="width:100px">
-        <button class="btn-gold" onclick="e2eSendGun()">送 Gun (0x22 GunPreStart)</button>
-        <label style="color:#94a3b8;font-size:11px;margin-left:8px;">先送 gun 锚定 _gunPreStartSec, 再送 SB/TP</label>
+        <button class="btn-gold" onclick="e2eSendGun()" data-i18n="Str_TB_BtnSendGun">送 Gun (0x22 GunPreStart)</button>
+        <label style="color:#94a3b8;font-size:11px;margin-left:8px;" data-i18n="Str_TB_GunHint">先送 gun 锚定 _gunPreStartSec, 再送 SB/TP</label>
     </div>
     <div class="row">
-        <label>泳道:</label>
+        <label data-i18n="Str_TB_Lane">泳道:</label>
         <select id="e2eLane" style="width:60px">
             <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option>
             <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
         </select>
-        <label>端:</label>
+        <label data-i18n="Str_TB_Side">端:</label>
         <select id="e2eSide" style="width:70px">
-            <option value="left">左</option><option value="right">右</option>
+            <option value="left" data-i18n="Str_TB_SideLeft">左</option><option value="right" data-i18n="Str_TB_SideRight">右</option>
         </select>
-        <label>时间(秒):</label>
+        <label data-i18n="Str_TB_TimeSec">时间(秒):</label>
         <input id="e2eTime" type="number" step="0.001" value="100.600" style="width:100px">
-        <label style="color:#94a3b8;font-size:11px;">SB/触放 是 PreStart 秒 (rt=time-gunPreStart); TP 是 running 秒</label>
+        <label style="color:#94a3b8;font-size:11px;" data-i18n="Str_TB_SbTpHint">SB/触放 是 PreStart 秒 (rt=time-gunPreStart); TP 是 running 秒</label>
     </div>
     <div class="row">
-        <button class="btn-blue" onclick="e2eSend('StartingBlock', false)">送 SB 出发台</button>
-        <button class="btn-red" onclick="e2eSend('StartingBlock', true)">送 SB 抢跳</button>
-        <button class="btn-green" onclick="e2eSend('Touchpad', false)">送 TP 触板</button>
-        <button class="btn-purple" onclick="e2eSend('BackstrokeRelease', false)">送 仰泳松开</button>
-        <button class="btn-gray" onclick="e2eSend('PushButton1', false)">送 盲1</button>
-        <button class="btn-gray" onclick="e2eSend('PushButton2', false)">送 盲2</button>
-        <button class="btn-gray" onclick="e2eSend('PushButton3', false)">送 盲3</button>
+        <button class="btn-blue" onclick="e2eSend('StartingBlock', false)" data-i18n="Str_TB_BtnSendSB">送 SB 出发台</button>
+        <button class="btn-red" onclick="e2eSend('StartingBlock', true)" data-i18n="Str_TB_BtnSendSBFalse">送 SB 抢跳</button>
+        <button class="btn-green" onclick="e2eSend('Touchpad', false)" data-i18n="Str_TB_BtnSendTP">送 TP 触板</button>
+        <button class="btn-purple" onclick="e2eSend('BackstrokeRelease', false)" data-i18n="Str_TB_BtnSendBackstroke">送 仰泳松开</button>
+        <button class="btn-gray" onclick="e2eSend('PushButton1', false)" data-i18n="Str_TB_BtnSendBlind1">送 盲1</button>
+        <button class="btn-gray" onclick="e2eSend('PushButton2', false)" data-i18n="Str_TB_BtnSendBlind2">送 盲2</button>
+        <button class="btn-gray" onclick="e2eSend('PushButton3', false)" data-i18n="Str_TB_BtnSendBlind3">送 盲3</button>
     </div>
     <div class="row">
-        <button class="btn-gold" onclick="e2eRefresh()">刷新观察</button>
-        <label style="color:#94a3b8;font-size:11px;">主服务器 status 广播 100ms 自动来, 手工点也可</label>
-        <button class="btn-gray" onclick="e2ePreset('50m自由')">预设:50m 自由 (right/100.6)</button>
-        <button class="btn-gray" onclick="e2ePreset('4x50-leg2')">预设:4×50 棒2交接 (opp/130.4)</button>
+        <button class="btn-gold" onclick="e2eRefresh()" data-i18n="Str_TB_BtnRefreshObs">刷新观察</button>
+        <label style="color:#94a3b8;font-size:11px;" data-i18n="Str_TB_ObsHint">主服务器 status 广播 100ms 自动来, 手工点也可</label>
+        <button class="btn-gray" onclick="e2ePreset('50m自由')" data-i18n="Str_TB_BtnPreset50Free">预设:50m 自由 (right/100.6)</button>
+        <button class="btn-gray" onclick="e2ePreset('4x50-leg2')" data-i18n="Str_TB_BtnPreset4x50Leg2">预设:4×50 棒2交接 (opp/130.4)</button>
     </div>
-    <div style="background:#0f172a;padding:8px;font-family:Consolas,monospace;font-size:11px;color:#94a3b8;max-height:200px;overflow:auto;margin-top:8px;border:1px solid #334155;border-radius:4px;" id="e2eObservation">(点"刷新观察" 或送帧后自动更新)</div>
-    <div style="background:#0f172a;padding:8px;font-family:Consolas,monospace;font-size:11px;color:#f8fafc;max-height:150px;overflow:auto;margin-top:6px;border:1px solid #334155;border-radius:4px;" id="e2eLaneLog">(选中泳道后显示 laneEventLog)</div>
+    <div style="background:#0f172a;padding:8px;font-family:Consolas,monospace;font-size:11px;color:#94a3b8;max-height:200px;overflow:auto;margin-top:8px;border:1px solid #334155;border-radius:4px;" id="e2eObservation" data-i18n="Str_TB_ObsDefault">(点"刷新观察" 或送帧后自动更新)</div>
+    <div style="background:#0f172a;padding:8px;font-family:Consolas,monospace;font-size:11px;color:#f8fafc;max-height:150px;overflow:auto;margin-top:6px;border:1px solid #334155;border-radius:4px;" id="e2eLaneLog" data-i18n="Str_TB_LaneLogDefault">(选中泳道后显示 laneEventLog)</div>
 </div>
 
 <div class="panel">
-    <h2>日志</h2>
+    <h2 data-i18n="Str_TB_LogTitle">日志</h2>
     <div id="log"></div>
     <div class="row" style="margin-top:8px;">
-        <button class="btn-gray" onclick="document.getElementById('log').innerHTML=''">清除日志</button>
+        <button class="btn-gray" onclick="document.getElementById('log').innerHTML=''" data-i18n="Str_TB_BtnClearLog">清除日志</button>
     </div>
 </div>
 
@@ -220,12 +217,29 @@ var ws, data = {}, autoRunning = false;
 // 2026-06-03 sim* 函数道间延时 (ms), 防止 8 道 burst send 一次性触发 32 次 SHOW_LIVE_RACE 全量广播
 var _SIM_LANE_GAP_MS = 15;
 
-window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭测试机器人？'; };
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return WebLoc.t('Str_TB_ConfirmClose'); };
 
 function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
 document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
 document.addEventListener('webkitfullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.webkitFullscreenElement?'none':''; });
 
+// 2026-10-14 页面右上角中文/English总开关: 切UI文案的同时, 也让生成姓名/代表队跟着换语言
+// (isEnglishMode() 直接读 WebLoc, 不再需要面板内单独的 nameLang 下拉), 并强制重绘所有依赖
+// 当前语言的动态内容(下拉框性别展示文本/组次占位符/接力步骤按钮/连接遮罩默认文案等)。
+function toggleTbLang() {
+    WebLoc.toggle();
+    WebLoc.apply();
+    _lastDropdownSig = '';           // 强制 syncBotDropdowns 重绘(性别展示文本跟着语言变)
+    try { syncBotDropdowns(); } catch (e) {}
+    try { updateStatusBar(); } catch (e) {}
+    try { updateRelayButtons(); } catch (e) {}
+    var ov = document.getElementById('connectOverlay');
+    if (ov && ov.style.display !== 'none') {
+        var st = document.getElementById('connOverlayStatus');
+        // 遮罩文案只有在还没开始尝试连接(没有失败计数)时才用默认提示语覆盖, 避免打断正在显示的错误/重试文案
+        if (st && _connFailCount === 0) st.textContent = WebLoc.t('Str_TB_ConnPromptDefault');
+    }
+}
 
 var _connFailCount = 0;
 
@@ -240,7 +254,7 @@ function showConnectOverlay(text, color) {
     var ov = document.getElementById('connectOverlay');
     if (ov) ov.style.display = 'flex';
     var st = document.getElementById('connOverlayStatus');
-    if (st) { st.textContent = text || '请输入主服务器IP并点击连接'; st.style.color = color || '#f59e0b'; }
+    if (st) { st.textContent = text || WebLoc.t('Str_TB_ConnPromptDefault'); st.style.color = color || '#f59e0b'; }
 }
 function hideConnectOverlay() {
     var ov = document.getElementById('connectOverlay');
@@ -249,11 +263,11 @@ function hideConnectOverlay() {
 function overlayConnect() {
     var inp = document.getElementById('connHostInput');
     var ip = inp ? inp.value.trim() : '';
-    if (!ip) { showConnectOverlay('请输入服务器IP', '#ef4444'); return; }
+    if (!ip) { showConnectOverlay(WebLoc.t('Str_TB_ConnPromptEmptyIp'), '#ef4444'); return; }
     localStorage.setItem('swimServerHost', ip);
     _connFailCount = 0;
     if (ws) try { ws.close(); } catch(e) {}
-    showConnectOverlay('连接中… ' + ip + ':3002', '#f59e0b');
+    showConnectOverlay(WebLoc.f('Str_TB_ConnConnectingFmt', ip), '#f59e0b');
     connect();
 }
 
@@ -265,35 +279,35 @@ function getServerHost(forceAsk) {
     var saved = localStorage.getItem('swimServerHost');
     if (!forceAsk && saved) return saved;
     var def = saved || '192.168.1.100';
-    var ip = prompt('请输入服务器IP地址:', def);
+    var ip = prompt(WebLoc.t('Str_TB_PromptServerIp'), def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
 }
 function changeServerHost() {
-    showConnectOverlay('请重新输入服务器IP并点击连接', '#f59e0b');
+    showConnectOverlay(WebLoc.t('Str_TB_ResetServerPrompt'), '#f59e0b');
     _connFailCount = 0;
 }
 
 function connect() {
     var host = localStorage.getItem('swimServerHost') || getInitialHost();
     try { ws = new WebSocket('ws://' + host + ':3002'); }
-    catch (ex) { showConnectOverlay('连接失败：' + ex.message, '#ef4444'); return; }
+    catch (ex) { showConnectOverlay(WebLoc.f('Str_TB_ConnCtorFailedFmt', ex.message), '#ef4444'); return; }
     ws.onopen = function() {
         _connFailCount = 0;
-        document.getElementById('connStatus').textContent = '已连接 ' + host;
-        log('已连接服务器 ' + host);
+        document.getElementById('connStatus').textContent = WebLoc.f('Str_TB_ConnConnectedFmt', host);
+        log(WebLoc.f('Str_TB_LogConnectedFmt', host));
         hideConnectOverlay();   // 只有连接成功才进入主界面
     };
     ws.onclose = function() {
-        document.getElementById('connStatus').textContent = '断开，重连中...';
+        document.getElementById('connStatus').textContent = WebLoc.t('Str_TB_ConnDisconnectedRetrying');
         document.getElementById('connStatus').style.color = '#ef4444';
         _connFailCount++;
-        showConnectOverlay('未连接 / 连接断开（已尝试 ' + _connFailCount + ' 次），3 秒后自动重连…', '#ef4444');
-        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
+        showConnectOverlay(WebLoc.f('Str_TB_ConnRetryStatusFmt', _connFailCount), '#ef4444');
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm(WebLoc.t('Str_TB_ConfirmResetServer'))) { changeServerHost(); return; } }
         setTimeout(connect, 3000);
     };
     ws.onerror = function() {
-        showConnectOverlay('连接错误，请检查服务器IP是否正确', '#ef4444');
+        showConnectOverlay(WebLoc.t('Str_TB_ConnErrorCheckIp'), '#ef4444');
     };
     ws.onmessage = function(e) {
         try {
@@ -314,7 +328,7 @@ var _lastDropdownSig = '';
 function syncBotDropdowns() {
     if (!data) return;
     var events = (data.eventList && data.eventList.length > 0) ? data.eventList : [];
-    var genders = (data.genderList && data.genderList.length > 0) ? data.genderList : ['男','女','混合'];
+    var genders = (data.genderList && data.genderList.length > 0) ? data.genderList : (WebLoc.currentLang() === 'en' ? ['Men','Women','Mixed'] : ['男','女','混合']);
     var ages = (data.ageGroups && data.ageGroups.length > 0) ? data.ageGroups : [];
     var sig = JSON.stringify({e: events, g: genders, a: ages});
     if (sig === _lastDropdownSig) return;   // 内容没变就跳过
@@ -327,12 +341,14 @@ function syncBotDropdowns() {
         if (isRelayEventName(events[i])) relayEvents.push(events[i]);
         else indEvents.push(events[i]);
     }
+    var notSpecified = WebLoc.t('Str_TB_NotSpecified');
+    var noRelayEvent = WebLoc.t('Str_TB_NoRelayEvent');
     _fillSelect('regEvent', indEvents);
-    _fillSelect('regGender', genders);
-    _fillSelect('regAgeGroup', ['(不指定)'].concat(ages), '不指定 = 空字符串, 不传 ageGroup');
-    _fillSelect('relayEvent', relayEvents.length > 0 ? relayEvents : ['(无接力项目)']);
-    _fillSelect('relayGender', genders);
-    _fillSelect('relayAgeGroup', ['(不指定)'].concat(ages));
+    _fillSelect('regGender', genders, null, genderSelectDisplay);
+    _fillSelect('regAgeGroup', [notSpecified].concat(ages), WebLoc.t('Str_TB_NotSpecifiedTitle'));
+    _fillSelect('relayEvent', relayEvents.length > 0 ? relayEvents : [noRelayEvent]);
+    _fillSelect('relayGender', genders, null, genderSelectDisplay);
+    _fillSelect('relayAgeGroup', [notSpecified].concat(ages));
 
     // 多组别 checkbox 动态生成 (与 ageGroups 完全一致)
     var box = document.getElementById('mgGroupBoxes');
@@ -343,7 +359,7 @@ function syncBotDropdowns() {
         for (var j = 0; j < existing.length; j++) prev[existing[j].value] = existing[j].checked;
         box.innerHTML = '';
         if (ages.length === 0) {
-            box.innerHTML = '<span style="color:#94a3b8;font-size:11px;">(当前比赛未配置组别)</span>';
+            box.innerHTML = '<span style="color:#94a3b8;font-size:11px;">' + WebLoc.t('Str_TB_NoAgeGroupsConfigured') + '</span>';
         } else {
             for (var k = 0; k < ages.length; k++) {
                 var ag = ages[k];
@@ -367,15 +383,19 @@ function syncBotDropdowns() {
     }
 }
 
-function _fillSelect(id, options, title) {
+// 2026-10-14 displayFn(可选): 下拉项"给人看"的展示文本转换(如性别 男/女/混合 -> Men/Women/Mixed),
+//   option.value 永远保持服务器原始值不变(送给服务器的还是原始字面量, 不受展示语言影响)。
+function _fillSelect(id, options, title, displayFn) {
     var sel = document.getElementById(id);
     if (!sel) return;
     var prev = sel.value;
+    var notSpecified = WebLoc.t('Str_TB_NotSpecified');
+    var noRelayEvent = WebLoc.t('Str_TB_NoRelayEvent');
     sel.innerHTML = '';
     for (var i = 0; i < options.length; i++) {
         var op = document.createElement('option');
-        op.value = (options[i] === '(不指定)' || options[i] === '(无接力项目)') ? '' : options[i];
-        op.textContent = options[i];
+        op.value = (options[i] === notSpecified || options[i] === noRelayEvent) ? '' : options[i];
+        op.textContent = displayFn ? displayFn(options[i]) : options[i];
         sel.appendChild(op);
     }
     // 尝试还原之前选择
@@ -387,17 +407,28 @@ function _fillSelect(id, options, title) {
     if (title) sel.title = title;
 }
 
+// 性别下拉展示层转换——沿用 webloc.js genderDisplay() 同样的"只转换给人看的文本, 不碰 value"
+// 原则(值仍是服务器下发的原始字面量,是男/女/混合还是Men/Women/Mixed取决于主服务器自己的语言,
+// 参见 MainWindow.xaml.cs DefaultGenders())。英文模式下把能识别的中文字面量转成英文展示;
+// 已经是英文(主服务器本身是英文模式时下发的)就原样显示, 不会显示成怪异的双重翻译。
+function genderSelectDisplay(g) {
+    if (WebLoc.currentLang() !== 'en') return g;
+    return WebLoc.genderDisplay(g);
+}
+
 function updateStatusBar() {
     if (!data) return;
     // 拼接比赛标题：任一字段空 → 该段不显示；全空 → 整段为空字符串
+    // 中文习惯说法"男子/女子/混合子"是中文特有的语法后缀; 英文模式直接用翻译后的性别词
+    // (Men/Women/Mixed), 不加任何后缀——参照 query.html fmtGender() 同样的中英文分流方式。
     var parts = [];
     var g = data.currentGender || '';
-    if (g) parts.push(g + '子');                       // "男子" / "女子" / "混合子"
+    if (g) parts.push(WebLoc.currentLang() === 'en' ? WebLoc.genderDisplay(g) : (g + '子'));
     if (data.currentEvent)  parts.push(data.currentEvent);
     if (data.currentStage)  parts.push(data.currentStage);
-    if (data.currentHeat && data.currentHeat > 0) parts.push('第' + data.currentHeat + '组');
+    if (data.currentHeat && data.currentHeat > 0) parts.push(WebLoc.f('Str_Common_HeatNumFmt', data.currentHeat));
     document.getElementById('raceInfo').textContent = parts.join(' ');
-    document.getElementById('timerInfo').textContent = '计时: ' + (data.runningTime || '-') + ' [' + (data.raceState || '-') + ']';
+    document.getElementById('timerInfo').textContent = WebLoc.f('Str_TB_TimerLabelFmt', (data.runningTime || '-') + ' [' + (data.raceState || '-') + ']');
 }
 
 function send(type, payload) {
@@ -410,7 +441,7 @@ function sendCmd(cmd, cmdData) {
 
 function sendDisplay(mode) {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: mode}));
-    log('显示模式: ' + mode);
+    log(WebLoc.f('Str_TB_DisplayModeLogFmt', mode));
 }
 
 // 2026-06-03 log() 改 createTextNode 增量追加 + requestAnimationFrame 批量刷 scroll, 防止
@@ -463,9 +494,10 @@ var femaleFirstEN = ['Emma','Olivia','Ava','Sophia','Isabella','Mia','Charlotte'
 var lastNamesEN = ['Johnson','Smith','Williams','Brown','Jones','Garcia','Miller','Davis','Rodriguez','Martinez','Anderson','Taylor','Thomas','Moore','Jackson','Martin','Lee','Perez','Thompson','White'];
 var _usedNames = {};
 
+// 2026-10-14 原来姓名/队名语言读独立的 nameLang 下拉, 现改为跟随页面右上角的全局
+// 中文/English总开关(toggleTbLang), 一个按钮同时控制UI文案和生成素材的语言。
 function isEnglishMode() {
-    var sel = document.getElementById('nameLang');
-    return sel && sel.value === 'en';
+    return WebLoc.currentLang() === 'en';
 }
 
 // 2026-10-05 实机测试发现: 全英文赛事项目表用"Relay"而不是"接力", 原来 4 处
@@ -476,11 +508,35 @@ function isRelayEventName(ev) {
     return !!ev && (ev.indexOf('接力') >= 0 || ev.indexOf('Relay') >= 0);
 }
 
+// side 参数 ('left'/'right') 本身是协议字面量(传给 send() 时必须保持不变), 这里只转换
+// log() 里"给人看"的显示文本(左/右 ←→ Left/Right)。
+function sideDisplay(side) {
+    return WebLoc.t(side === 'left' ? 'Str_TB_SideLeft' : 'Str_TB_SideRight');
+}
+
+// 2026-10-14 混合接力按棒次交替男/女——原来硬编码只认中文"混合"/"男"/"女", 若主服务器
+// 本身处于English模式(DefaultGenders() 会下发 Men/Women/Mixed), 这个判断会失效, 导致混合接力
+// 每一棒都拿到同一个性别字面量。现在"是否混合"和"交替用哪个字面量"都从当前 data.genderList
+// 动态判断/取值(有服务器真实列表就用它, 没有则按当前UI语言退回默认值), 不再硬编码中文。
+function isMixedGender(g) { return g === '混合' || g === 'Mixed'; }
+function altGenderValue(baseGender, legNum) {
+    if (!isMixedGender(baseGender)) return baseGender;
+    var list = (data && data.genderList && data.genderList.length > 0) ? data.genderList
+        : (WebLoc.currentLang() === 'en' ? ['Men','Women','Mixed'] : ['男','女','混合']);
+    var maleVal = (list.indexOf('Men') >= 0) ? 'Men' : '男';
+    var femaleVal = (list.indexOf('Women') >= 0) ? 'Women' : '女';
+    return (legNum % 2 === 1) ? maleVal : femaleVal;
+}
+
 // 2026-10-05 加 gender 参数——English素材按性别分男/女名字池选(西式名字不像中文给名那样中性通用)。
 //   gender 传"混合"或拿不到性别时随便挑一个池子, 不影响注册(gender 字段本身另外传, 跟姓名选哪个池子无关)。
+// 2026-10-14 原来只认中文字面量'女'/'男', 若主服务器本身是English模式(data.genderList 下发
+//   Women/Men), 这个判断会失效、全部落到"随便挑"分支——这里补上英文字面量, 两套都认。
 function randomName(gender) {
     if (isEnglishMode()) {
-        var pool = (gender === '女') ? femaleFirstEN : (gender === '男' ? maleFirstEN : (Math.random() < 0.5 ? maleFirstEN : femaleFirstEN));
+        var isFemale = (gender === '女' || gender === 'Women');
+        var isMale = (gender === '男' || gender === 'Men');
+        var pool = isFemale ? femaleFirstEN : (isMale ? maleFirstEN : (Math.random() < 0.5 ? maleFirstEN : femaleFirstEN));
         for (var i = 0; i < 100; i++) {
             var n = pool[Math.floor(Math.random()*pool.length)] + ' ' + lastNamesEN[Math.floor(Math.random()*lastNamesEN.length)];
             if (!_usedNames[n]) { _usedNames[n] = true; return n; }
@@ -624,7 +680,7 @@ function batchRegister() {
             var legs = [];
             for (var j = 1; j <= legCount; j++) {
                 var memberAge = randomAgeFor(ageGroup);
-                var memberGender = gender === '混合' ? ((j % 2 === 1) ? '男' : '女') : gender;
+                var memberGender = altGenderValue(gender, j);
                 legs.push({
                     legOrder: j,
                     swimmerName: randomName(memberGender),
@@ -648,7 +704,7 @@ function batchRegister() {
                 legs: legs
             });
         }
-        log('已注册 ' + count + ' 支接力队 (' + gender + ' ' + ev + (ageGroup ? ' ' + ageGroup : '') + ', 每队' + legCount + '棒)');
+        log(WebLoc.f('Str_TB_LogRegisteredRelayFmt', count, gender, ev, (ageGroup ? ' ' + ageGroup : ''), legCount));
     } else {
         var distMatch = ev.match(/(\d+)/);
         var dist = distMatch ? parseInt(distMatch[1]) : 100;
@@ -674,7 +730,7 @@ function batchRegister() {
                 isResubmit: false
             });
         }
-        log('已批量注册 ' + count + ' 名运动员 (' + gender + ' ' + ev + (ageGroup ? ' ' + ageGroup : '') + (countryShort ? ' 简称:' + countryShort : '') + ')');
+        log(WebLoc.f('Str_TB_LogRegisteredSwimmersFmt', count, gender, ev, (ageGroup ? ' ' + ageGroup : ''), (countryShort ? WebLoc.f('Str_TB_ShortNameSuffixFmt', countryShort) : '')));
     }
 }
 
@@ -695,7 +751,7 @@ function batchRegisterMixedGroups() {
     for (var k = 0; k < chks.length; k++) {
         if (chks[k].checked && chks[k].value) picked.push(chks[k].value);
     }
-    if (picked.length === 0) { log('请至少勾选一个组别 (当前比赛档案的组别会自动列在上方; 没勾就不批量)'); return; }
+    if (picked.length === 0) { log(WebLoc.t('Str_TB_PickGroupWarn')); return; }
 
     var isRelay = isRelayEventName(ev);
     var distMatch = ev.match(/(\d+)/);
@@ -714,7 +770,7 @@ function batchRegisterMixedGroups() {
                 var legs = [];
                 for (var j = 1; j <= legCount; j++) {
                     var memberAge = randomAgeFor(ag);
-                    var memberGender = gender === '混合' ? ((j % 2 === 1) ? '男' : '女') : gender;
+                    var memberGender = altGenderValue(gender, j);
                     legs.push({
                         legOrder: j, swimmerName: randomName(memberGender), swimmerBibNumber: '',
                         gender: memberGender, age: memberAge, country: teamName,
@@ -744,23 +800,23 @@ function batchRegisterMixedGroups() {
             totalCount++;
         }
     }
-    log('已注册 ' + totalCount + ' 条 (' + picked.join('/') + ' 各 ' + perGroup + ' 条, ' + gender + ' ' + ev + ')');
+    log(WebLoc.f('Str_TB_LogRegisteredMixedFmt', totalCount, picked.join('/'), perGroup, gender, ev));
 }
 
 function autoGenerateHeats() {
     sendCmd('AUTO_GENERATE_HEATS');
-    log('发送: 自动生成分组');
+    log(WebLoc.t('Str_TB_LogAutoGenHeats'));
 }
 
 // ═══════ 2. 模拟比赛流程 ═══════
-function simReady() { sendCmd('READY'); log('发送: 就位'); }
-function simStart() { sendCmd('START_RACE'); log('发送: 发令'); }
+function simReady() { sendCmd('READY'); log(WebLoc.t('Str_TB_LogSentReady')); }
+function simStart() { sendCmd('START_RACE'); log(WebLoc.t('Str_TB_LogSentStart')); }
 
 // 2026-07-12 反应时端到端 (面板 6): 直接送硬件帧 (TIMING_DATA), 主程序按硬件路径处理
 function e2eSendGun() {
     var t = parseFloat(document.getElementById('e2eGun').value);
     send('TIMING_DATA', {lane: 0, commandType: 'GunPreStart', time: t, side: null});
-    log('E2E: 送 GunPreStart PreStart=' + t.toFixed(3) + 's (锚定 _gunPreStartSec)');
+    log(WebLoc.f('Str_TB_E2ELogGunFmt', t.toFixed(3)));
     setTimeout(e2eRefresh, 300);
 }
 function e2eSend(cmdType, isFalseStart) {
@@ -770,8 +826,8 @@ function e2eSend(cmdType, isFalseStart) {
     var payload = {lane: lane, commandType: cmdType, time: t, side: side};
     if (isFalseStart) payload.isFalseStart = true;
     send('TIMING_DATA', payload);
-    log('E2E: 送 ' + cmdType + ' lane=' + lane + ' side=' + side + ' t=' + t.toFixed(3)
-        + (isFalseStart ? ' [抢跳]' : ''));
+    log(WebLoc.f('Str_TB_E2ELogSendFmt', cmdType, lane, side, t.toFixed(3))
+        + (isFalseStart ? WebLoc.t('Str_TB_E2ELogFalseStartSuffix') : ''));
     setTimeout(e2eRefresh, 300);
 }
 function e2ePreset(name) {
@@ -780,27 +836,28 @@ function e2ePreset(name) {
         document.getElementById('e2eSide').value = 'right';
         document.getElementById('e2eGun').value = '100.000';
         document.getElementById('e2eTime').value = '100.600';
-        log('E2E 预设: 50m 自由 lane=0 right t=100.600 期望 rt=0.6');
+        log(WebLoc.t('Str_TB_E2EPreset50FreeLog'));
     } else if (name === '4x50-leg2') {
         document.getElementById('e2eLane').value = '0';
         document.getElementById('e2eSide').value = 'left';   // 4×50 startPos=right 时对端为 left; 若 startPos=left 应发 right
         document.getElementById('e2eGun').value = '100.000';
         document.getElementById('e2eTime').value = '130.400';
-        log('E2E 预设: 4×50 棒2交接 (发前先 gun→SB出发→TP到端 时机), t=130.400');
+        log(WebLoc.t('Str_TB_E2EPreset4x50Log'));
     }
 }
 function e2eRefresh() {
-    if (!data) { document.getElementById('e2eObservation').textContent = '(尚无 status)'; return; }
+    if (!data) { document.getElementById('e2eObservation').textContent = WebLoc.t('Str_TB_E2ENoStatus'); return; }
     var out = 'state=' + (data.raceState || '?') + '  event=' + (data.currentEvent || '') + '  heat=' + (data.currentHeat || '?')
-        + '  isRelay=' + (data.isRelay ? '是' : '否') + '  running=' + (data.runningTime || '');
+        + '  isRelay=' + (data.isRelay ? WebLoc.t('Str_TB_Yes') : WebLoc.t('Str_TB_No')) + '  running=' + (data.runningTime || '');
     var lcs = data.laneCloseSettings || {};
     out += '\n  startPos=' + (lcs.startPosition || '?') + '  sbCloseDelay=' + lcs.startBlockCloseDelay
         + '  laneCloseTime=' + lcs.laneCloseTime + '  hwAlwaysOpen=' + lcs.hardwareAlwaysOpen;
-    out += '\n\n泳道                              rt   seq lap   SB左/右    TP左/右    LegRTs';
+    out += WebLoc.t('Str_TB_ObsTableHeader');
+    var lanePrefix = WebLoc.t('Str_TB_LaneNumPrefix');
     (data.swimmers || []).forEach(function(sw) {
         var ds = sw.deviceStatus || {};
         var legs = sw.legReactionTimes || [];
-        var name = ('道' + sw.lane + ' [' + (sw.name || '—') + ']').padEnd(30, ' ');
+        var name = (lanePrefix + sw.lane + ' [' + (sw.name || '—') + ']').padEnd(30, ' ');
         var rt = (sw.reactionTime || '').padStart(6, ' ');
         var seq = String(sw.reactionSeq || 0).padStart(3, ' ');
         var lap = String(sw.currentLap || 0).padStart(3, ' ');
@@ -813,8 +870,8 @@ function e2eRefresh() {
     // 刷新选中泳道的 laneEventLog
     var lane = parseInt(document.getElementById('e2eLane').value);
     var laneLogs = data.laneEventLogs || {};
-    var logText = laneLogs[String(lane)] || '(道' + lane + ' 暂无事件)';
-    document.getElementById('e2eLaneLog').textContent = '道 ' + lane + ' 比赛日志:\n' + logText;
+    var logText = laneLogs[String(lane)] || WebLoc.f('Str_TB_LaneEventLogDefaultFmt', lane);
+    document.getElementById('e2eLaneLog').textContent = WebLoc.f('Str_TB_LaneEventLogHeaderFmt', lane) + logText;
 }
 
 function simStartBlock(side) {
@@ -832,12 +889,12 @@ function simStartBlock(side) {
     var fsLow1Idx = indices.length > 1 ? indices[1] : -1;
     var fsLow2Idx = indices.length > 2 ? indices[2] : -1;
 
-    log('=== 模拟'+side+'出发台 (阈值:'+threshold+'s) ===');
+    log(WebLoc.f('Str_TB_LogSimStartBlockHeaderFmt', sideDisplay(side), threshold));
     // 2026-06-03 道间延时分散广播 (同 simTouchpad)
     var fsLanes = [];
     var i = 0;
     function next() {
-        if (i >= lanes.length) { log('抢跳泳道: ['+fsLanes.join(',')+']'); return; }
+        if (i >= lanes.length) { log(WebLoc.f('Str_TB_LogFalseStartLanesFmt', fsLanes.join(','))); return; }
         var lane = lanes[i];
         var rt;
         if (i === fsNegIdx) {
@@ -845,20 +902,20 @@ function simStartBlock(side) {
             rt = parseFloat(rt.toFixed(3));
             send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt, side: side});
             send('FALSE_START_DETECTED', {lane: lane, reactionTime: rt});
-            log('  道'+lane+'('+side+') ★抢跳(负值) '+rt.toFixed(3)+'s');
+            log(WebLoc.f('Str_TB_LogFalseStartNegFmt', lane, sideDisplay(side), rt.toFixed(3)));
             fsLanes.push(lane);
         } else if (i === fsLow1Idx || i === fsLow2Idx) {
             rt = 0.02 + Math.random() * (threshold - 0.02);
             rt = parseFloat(rt.toFixed(3));
             send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt, side: side});
             send('FALSE_START_DETECTED', {lane: lane, reactionTime: rt});
-            log('  道'+lane+'('+side+') ★抢跳(≤阈值) '+rt.toFixed(3)+'s');
+            log(WebLoc.f('Str_TB_LogFalseStartLowFmt', lane, sideDisplay(side), rt.toFixed(3)));
             fsLanes.push(lane);
         } else {
             rt = 0.50 + Math.random() * 0.35;
             rt = parseFloat(rt.toFixed(2));
             send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt, side: side});
-            log('  道'+lane+'('+side+') 正常出发 '+rt.toFixed(2)+'s');
+            log(WebLoc.f('Str_TB_LogNormalStartFmt', lane, sideDisplay(side), rt.toFixed(2)));
         }
         i++;
         setTimeout(next, _SIM_LANE_GAP_MS);
@@ -877,7 +934,7 @@ function simTouchpad(side) {
     var lanes = getLanes();
     var currentServerTime = parseRunningTime();
     var segTime = 26;
-    log('=== 模拟'+side+'触板 ===');
+    log(WebLoc.f('Str_TB_LogSimTouchpadHeaderFmt', sideDisplay(side)));
     var i = 0;
     function next() {
         if (i >= lanes.length) return;
@@ -890,7 +947,7 @@ function simTouchpad(side) {
         if (t < 1) t = segTime * lapNum;
         _lastTouchpadTime[lane] = t;
         send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t, side: side});
-        log('  道'+lane+'('+side+') 第'+lapNum+'段 触板: '+t.toFixed(2)+'s');
+        log(WebLoc.f('Str_TB_LogTouchpadSegFmt', lane, sideDisplay(side), lapNum, t.toFixed(2)));
         i++;
         setTimeout(next, _SIM_LANE_GAP_MS);
     }
@@ -901,10 +958,10 @@ function simBlindWatch(side) {
     var lanes = getLanes();
     var currentServerTime = parseRunningTime();
     if (currentServerTime <= 0) {
-        log('警告: 比赛未开始，无法模拟盲表');
+        log(WebLoc.t('Str_TB_WarnRaceNotStarted'));
         return;
     }
-    log('=== 模拟'+side+'盲表 (当前时间:'+currentServerTime.toFixed(2)+'s) ===');
+    log(WebLoc.f('Str_TB_LogSimBlindHeaderFmt', sideDisplay(side), currentServerTime.toFixed(2)));
     var i = 0;
     function next() {
         if (i >= lanes.length) return;
@@ -914,7 +971,7 @@ function simBlindWatch(side) {
             if (t < 0.5) t = currentServerTime + 0.05;
             send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t, side: side});
         }
-        log('  道'+lane+'('+side+') 盲表x3 基准:'+currentServerTime.toFixed(2)+'s');
+        log(WebLoc.f('Str_TB_LogBlindFmt', lane, sideDisplay(side), currentServerTime.toFixed(2)));
         i++;
         setTimeout(next, _SIM_LANE_GAP_MS);
     }
@@ -923,14 +980,14 @@ function simBlindWatch(side) {
 
 function simConfirm() {
     sendCmd('CONFIRM_RESULT');
-    log('发送: 确认成绩');
+    log(WebLoc.t('Str_TB_LogConfirmResult'));
 }
 
 function simTimerReset() {
     sendCmd('TIMER_RESET');
     _lastTouchpadTime = {};
     _touchpadLapCount = {};
-    log('发送: 计时复位');
+    log(WebLoc.t('Str_TB_LogTimerReset'));
 }
 
 // ═══════ 4. 接力比赛测试 ═══════
@@ -954,7 +1011,7 @@ function batchRegisterRelay() {
         var legs = [];
         for (var j = 1; j <= legCount; j++) {
             var legAge = randomAgeFor(ageGroup);
-            var memberGender = gender === '混合' ? ((j % 2 === 1) ? '男' : '女') : gender;
+            var memberGender = altGenderValue(gender, j);
             legs.push({
                 legOrder: j,
                 swimmerName: randomName(memberGender),
@@ -977,7 +1034,7 @@ function batchRegisterRelay() {
             legs: legs
         });
     }
-    log('已注册 ' + teamCount + ' 支接力队 (' + gender + ' ' + ev + (ageGroup ? ' ' + ageGroup : '') + (countryShort ? ' 简称:' + countryShort : '') + ', 每队' + legCount + '棒)');
+    log(WebLoc.f('Str_TB_LogRegisteredRelayTeamsFmt', teamCount, gender, ev, (ageGroup ? ' ' + ageGroup : ''), (countryShort ? WebLoc.f('Str_TB_ShortNameSuffixFmt', countryShort) : ''), legCount));
 }
 
 // 接力赛步骤跟踪
@@ -1006,7 +1063,7 @@ function updateRelayButtons() {
         // 出发台检测
         stepNum++;
         var sbColor = leg === 1 ? 'btn-blue' : 'btn-green';
-        var sbLabel = leg === 1 ? '第' + leg + '棒出发' : '第' + leg + '棒出发台';
+        var sbLabel = leg === 1 ? WebLoc.f('Str_TB_RelayLeg1StartFmt', leg) : WebLoc.f('Str_TB_RelayLegStartBlockFmt', leg);
         html += '<button class="' + sbColor + '" onclick="simRelayStartBlock(' + leg + ')" style="margin:2px;font-size:11px;padding:4px 8px;">' + sbLabel + '</button>';
         info += sbLabel + ' → ';
 
@@ -1017,16 +1074,16 @@ function updateRelayButtons() {
             var isLegEnd = (lap === p.lapsPerLeg);
             var isFinal = (leg === p.legCount && isLegEnd);
             var label = '';
-            if (isFinal) label = '终点触板';
-            else if (isLegEnd && leg < p.legCount) label = '交接触板';
-            else label = '第' + leg + '棒第' + lap + '段';
+            if (isFinal) label = WebLoc.t('Str_TB_RelayFinishTouch');
+            else if (isLegEnd && leg < p.legCount) label = WebLoc.t('Str_TB_RelayExchangeTouch');
+            else label = WebLoc.f('Str_TB_RelayLegSegFmt', leg, lap);
             html += '<button class="btn-purple" onclick="simRelayTouchpad(' + leg + ',' + lap + ',' + globalLap + ')" style="margin:2px;font-size:11px;padding:4px 8px;">' + label + '</button>';
             info += label + (isFinal ? '' : ' → ');
         }
     }
 
     document.getElementById('relayStepButtons').innerHTML = html;
-    document.getElementById('relayStepInfo').textContent = '操作顺序: 就位→发令→' + info + '→确认成绩 (共' + totalLaps + '段, 每棒' + p.lapsPerLeg + '段)';
+    document.getElementById('relayStepInfo').textContent = WebLoc.f('Str_TB_RelayStepInfoFmt', info, totalLaps, p.lapsPerLeg);
     _relayStepTime = {};
     _relayStepCount = 0;
 }
@@ -1036,27 +1093,27 @@ function simRelayStartBlock(legNum) {
     var threshold = (data && data.laneCloseSettings) ? data.laneCloseSettings.falseStartThreshold || 0.10 : 0.10;
     // 2026-06-03 道间延时分散广播 (同 simTouchpad)
     if (legNum === 1) {
-        log('=== 第1棒出发 ===');
+        log(WebLoc.t('Str_TB_Relay_Leg1Header'));
         var i = 0;
         function next1() {
             if (i >= lanes.length) return;
             var rt = 0.50 + Math.random() * 0.35;
             rt = parseFloat(rt.toFixed(2));
             send('TIMING_DATA', {lane: lanes[i], commandType: 'StartingBlock', time: rt});
-            log('  道' + lanes[i] + ' 反应: ' + rt.toFixed(2) + 's');
+            log(WebLoc.f('Str_TB_Relay_ReactFmt', lanes[i], rt.toFixed(2)));
             i++;
             setTimeout(next1, _SIM_LANE_GAP_MS);
         }
         next1();
     } else {
-        log('=== 第' + legNum + '棒出发台检测 ===');
+        log(WebLoc.f('Str_TB_Relay_LegStartCheckHeaderFmt', legNum));
         var i = 0;
         function next2() {
             if (i >= lanes.length) return;
             var refTime = _relayStepTime[lanes[i]] || parseRunningTime();
             var rt = refTime + 0.05 + Math.random() * 0.3;
             send('TIMING_DATA', {lane: lanes[i], commandType: 'StartingBlock', time: rt});
-            log('  道' + lanes[i] + ' 出发台: ' + rt.toFixed(2) + 's');
+            log(WebLoc.f('Str_TB_Relay_StartBlockFmt', lanes[i], rt.toFixed(2)));
             i++;
             setTimeout(next2, _SIM_LANE_GAP_MS);
         }
@@ -1072,10 +1129,10 @@ function simRelayTouchpad(legNum, lapInLeg, globalLap) {
     var segTime = p.segTime;
 
     var desc = '';
-    if (isFinal) desc = '终点触板（比赛结束）';
-    else if (isLegEnd) desc = '第' + legNum + '棒→第' + (legNum + 1) + '棒 交接触板';
-    else desc = '第' + legNum + '棒 第' + lapInLeg + '/' + p.lapsPerLeg + '段';
-    log('=== ' + desc + ' (全局第' + globalLap + '段) ===');
+    if (isFinal) desc = WebLoc.t('Str_TB_Relay_FinishDesc');
+    else if (isLegEnd) desc = WebLoc.f('Str_TB_Relay_ExchangeDescFmt', legNum, legNum + 1);
+    else desc = WebLoc.f('Str_TB_Relay_SegDescFmt', legNum, lapInLeg, p.lapsPerLeg);
+    log(WebLoc.f('Str_TB_Relay_HeaderFmt', desc, globalLap));
 
     var currentServerTime = parseRunningTime();
     // 2026-06-03 加 道间延时 (= _SIM_LANE_GAP_MS), 防止 8 道 × 4 帧 (TP+3 PB) 同时发 32 条
@@ -1092,7 +1149,7 @@ function simRelayTouchpad(legNum, lapInLeg, globalLap) {
         for (var b = 1; b <= 3; b++) {
             send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t + (Math.random() - 0.5) * 0.3});
         }
-        log('  道' + lane + ' 触板: ' + t.toFixed(2) + 's');
+        log(WebLoc.f('Str_TB_Relay_TouchFmt', lane, t.toFixed(2)));
         i++;
         setTimeout(next, _SIM_LANE_GAP_MS);
     }
@@ -1103,7 +1160,7 @@ function simRelayTouchpad(legNum, lapInLeg, globalLap) {
 setTimeout(updateRelayButtons, 100);
 
 // ═══════ 5. 完整自动测试（个人项目） ═══════
-function stopAutoTest() { autoRunning = false; log('自动测试已停止'); }
+function stopAutoTest() { autoRunning = false; log(WebLoc.t('Str_TB_LogAutoTestStopped')); }
 
 function fullAutoTest() {
     autoRunning = true;
@@ -1113,30 +1170,30 @@ function fullAutoTest() {
     var totalLaps = Math.max(1, Math.floor(dist / poolLen));
     var closeTime = (data && data.laneCloseSettings) ? data.laneCloseSettings.laneCloseTime || 20 : 20;
 
-    log('=== 完整自动测试 ===');
-    log('项目: ' + ev + ', 距离: ' + dist + 'm, 段数: ' + totalLaps + ', 泳道关闭: ' + closeTime + 's');
+    log(WebLoc.t('Str_TB_FA_Header'));
+    log(WebLoc.f('Str_TB_FA_InfoFmt', ev, dist, totalLaps, closeTime));
 
     // Step 1: 注册
     batchRegister();
-    log('[1/7] 注册完成');
+    log(WebLoc.t('Str_TB_FA_Step1'));
 
     setTimeout(function() {
         if (!autoRunning) return;
         // Step 2: 自动分组
         autoGenerateHeats();
-        log('[2/7] 分组完成');
+        log(WebLoc.t('Str_TB_FA_Step2'));
 
         setTimeout(function() {
             if (!autoRunning) return;
             // Step 3: 就位
             simReady();
-            log('[3/7] 就位');
+            log(WebLoc.t('Str_TB_FA_Step3'));
 
             setTimeout(function() {
                 if (!autoRunning) return;
                 // Step 4: 发令
                 simStart();
-                log('[4/7] 发令');
+                log(WebLoc.t('Str_TB_FA_Step4'));
 
                 setTimeout(function() {
                     if (!autoRunning) return;
@@ -1144,7 +1201,7 @@ function fullAutoTest() {
                     var startSide = (data && data.laneCloseSettings && data.laneCloseSettings.startPosition) || 'left';
                     var oppSide = (startSide === 'left') ? 'right' : 'left';
                     simStartBlock(startSide);
-                    log('[5/7] 出发完成('+startSide+'端)');
+                    log(WebLoc.f('Str_TB_FA_Step5Fmt', sideDisplay(startSide)));
 
                     // Step 6: 逐段触板（奇数段=出发对面, 偶数段=出发端）
                     var lap = 0;
@@ -1154,10 +1211,10 @@ function fullAutoTest() {
                         var lapSide = (lap % 2 === 1) ? oppSide : startSide;
                         // 等泳道打开（关闭时间+2秒余量）
                         var waitTime = (closeTime + 2) * 1000;
-                        log('等待泳道打开... (' + (closeTime + 2) + 's)');
+                        log(WebLoc.f('Str_TB_FA_WaitOpenFmt', closeTime + 2));
                         setTimeout(function() {
                             if (!autoRunning) return;
-                            log('[6/7] 第'+lap+'/'+totalLaps+'段('+lapSide+'端) 触板');
+                            log(WebLoc.f('Str_TB_FA_Step6Fmt', lap, totalLaps, sideDisplay(lapSide)));
                             simTouchpad(lapSide);
                             // 同时发盲表
                             setTimeout(function() {
@@ -1173,8 +1230,8 @@ function fullAutoTest() {
                                 setTimeout(function() {
                                     if (!autoRunning) return;
                                     simConfirm();
-                                    log('[7/7] 成绩已确认');
-                                    log('=== 完整自动测试结束 ===');
+                                    log(WebLoc.t('Str_TB_FA_Step7'));
+                                    log(WebLoc.t('Str_TB_FA_End'));
                                     autoRunning = false;
                                 }, 2000);
                             }
@@ -1194,7 +1251,7 @@ function fullAutoTestRelay() {
     autoRunning = true;
     var ev = document.getElementById('relayEvent').value;
     if (!isRelayEventName(ev)) {
-        log('错误: 当前 relayEvent 不是接力项目, 请先选择 (如 4x100米自由泳接力 / 4x100m Relay)');
+        log(WebLoc.t('Str_TB_FAR_ErrNotRelay'));
         autoRunning = false;
         return;
     }
@@ -1204,35 +1261,35 @@ function fullAutoTestRelay() {
     var closeTime = (data && data.laneCloseSettings) ? data.laneCloseSettings.laneCloseTime || 20 : 20;
     var legSwimMs = p.segTime * p.lapsPerLeg * 1000;   // 每棒模拟泳进时间 (50m ≈ 28s × lapsPerLeg)
 
-    log('=== 接力 完整自动测试: ' + ev + ' (' + p.legCount + '×' + p.legDist + 'm), 队伍数: ' + teamCount + ', 共 ' + totalLaps + ' 段 ===');
+    log(WebLoc.f('Str_TB_FAR_HeaderFmt', ev, p.legCount, p.legDist, teamCount, totalLaps));
 
     // Step 1: 注册接力队
     batchRegisterRelay();
-    log('[1/7] 注册 ' + teamCount + ' 支接力队');
+    log(WebLoc.f('Str_TB_FAR_Step1Fmt', teamCount));
 
     setTimeout(function() {
         if (!autoRunning) return;
         // Step 2: 自动分组
         autoGenerateHeats();
-        log('[2/7] 自动分组完成');
+        log(WebLoc.t('Str_TB_FAR_Step2'));
 
         setTimeout(function() {
             if (!autoRunning) return;
             // Step 3: 就位
             simReady();
-            log('[3/7] 就位');
+            log(WebLoc.t('Str_TB_FAR_Step3'));
 
             setTimeout(function() {
                 if (!autoRunning) return;
                 // Step 4: 发令
                 simStart();
-                log('[4/7] 发令');
+                log(WebLoc.t('Str_TB_FAR_Step4'));
 
                 setTimeout(function() {
                     if (!autoRunning) return;
                     // Step 5: 第 1 棒出发 (常规出发台反应时)
                     simRelayStartBlock(1);
-                    log('[5/7] 第 1 棒 出发台');
+                    log(WebLoc.t('Str_TB_FAR_Step5'));
 
                     // Step 6: 逐棒 / 逐段触板
                     var leg = 1, lap = 1;
@@ -1244,10 +1301,10 @@ function fullAutoTestRelay() {
 
                         // 模拟一段泳进时间后触板
                         var swimWait = p.segTime * 1000;
-                        log('  泳进 ' + p.legDist / p.lapsPerLeg + 'm... (' + p.segTime + 's)');
+                        log(WebLoc.f('Str_TB_FAR_SwimWaitFmt', p.legDist / p.lapsPerLeg, p.segTime));
                         setTimeout(function() {
                             if (!autoRunning) return;
-                            log('[6/7] 第' + leg + '棒 第' + lap + '/' + p.lapsPerLeg + '段 (全局' + globalLap + '/' + totalLaps + ') 触板');
+                            log(WebLoc.f('Str_TB_FAR_Step6Fmt', leg, lap, p.lapsPerLeg, globalLap, totalLaps));
                             simRelayTouchpad(leg, lap, globalLap);
 
                             // 如果是 leg 末段且不是最后一棒, 下一棒出发台 (= 交接)
@@ -1256,7 +1313,7 @@ function fullAutoTestRelay() {
                                     if (!autoRunning) return;
                                     leg++;
                                     lap = 1;
-                                    log('  → 第 ' + leg + ' 棒 出发台 (交接)');
+                                    log(WebLoc.f('Str_TB_FAR_ExchangeFmt', leg));
                                     simRelayStartBlock(leg);
                                     setTimeout(nextStep, 800);
                                 }, 600);
@@ -1269,8 +1326,8 @@ function fullAutoTestRelay() {
                                 setTimeout(function() {
                                     if (!autoRunning) return;
                                     simConfirm();
-                                    log('[7/7] 确认成绩');
-                                    log('=== 接力 完整自动测试 结束 ===');
+                                    log(WebLoc.t('Str_TB_FAR_Step7'));
+                                    log(WebLoc.t('Str_TB_FAR_End'));
                                     autoRunning = false;
                                 }, 2000);
                             }
@@ -1285,12 +1342,13 @@ function fullAutoTestRelay() {
 
 // 启动：把已知/默认 IP 填入遮罩输入框，等用户点击"连接"按钮才真的发起 WebSocket
 (function bootstrap() {
+    WebLoc.apply();   // 2026-10-14 页面首次渲染就按 localStorage 里记住的语言展示, 不用等用户点按钮
     var inp = document.getElementById('connHostInput');
     if (inp) {
         inp.value = getInitialHost();
         inp.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') overlayConnect(); });
     }
-    showConnectOverlay('请输入主服务器IP并点击连接', '#f59e0b');
+    showConnectOverlay(WebLoc.t('Str_TB_ConnPromptDefault'), '#f59e0b');
 })();
 </script>
 </body>
