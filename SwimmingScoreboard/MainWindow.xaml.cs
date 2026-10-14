@@ -387,6 +387,14 @@ namespace SwimmingScoreboard
         //   冲掉, 最终收到的是第二轮(通常更少或为空)的结果——现场表现就是"关掉一个正常的事件
         //   备份弹窗后, 又莫名弹出一个'无事件'"。查询在途时直接忽略新请求, 等当前这轮收完再说。
         private bool _backupQueryInFlight = false;
+        // 2026-10-14 用户现场反馈: 在网页版(race_control.html)按 Ctrl+Shift+B, 服务器屏幕上也跟着
+        //   弹出一个本机原生 WPF"事件备份"窗口(ShowBackupEventDialog(), 标题栏自带系统的最小化/
+        //   最大化/关闭图标)——这不是网页自己的弹窗, 关掉它不会影响网页那边; 但操作员分不清这是
+        //   两个独立窗口, 关了这个"没反应"的窗口后, 网页自己真正的结果弹窗(或"无事件"提示)才
+        //   姗姗来迟出现, 看起来就像"关了一个又弹一个"。本机查询(按钮/本机快捷键)该弹这个原生
+        //   窗口(本来就是给本机操作员看的); 网页远程触发的不该弹——网页操作员根本看不到服务器
+        //   屏幕, 弹了也只会在服务器屏幕上占地方、制造混淆。
+        private bool _backupQueryIsRemote = false;
         private DispatcherTimer _raceTimer;
         private DispatcherTimer _countdownTimer;
         // 2026-06-20 反应时收集窗口: 发令后 ReactionEventWindowSec 秒内未收到合法 SB → 标 "---" (= double.NaN)
@@ -3783,6 +3791,7 @@ namespace SwimmingScoreboard
             }
             if (_backupQueryInFlight) return;   // 上一轮还没收完, 忽略这次重复请求(见字段注释)
             _backupQueryInFlight = true;
+            _backupQueryIsRemote = true;   // 见字段注释: 远程触发的不弹本机原生窗口
             _pendingBackupEvents.Clear();
             _timingBridge.SendCommand(0x66);   // Query_BackupLog_Command (0x56) + 0x10
             AddLog(Loc.T("Str_Log_EventBackupQuerySent"));
@@ -5817,7 +5826,9 @@ namespace SwimmingScoreboard
                 Dispatcher.BeginInvoke((Action)delegate() {
                     _backupQueryInFlight = false;
                     AddLog(Loc.F("Str_Log_EventBackupQueryDoneFmt", _pendingBackupEvents.Count));
-                    ShowBackupEventDialog();
+                    // 2026-10-14 只有本机触发的查询才弹本机原生窗口——见 _backupQueryIsRemote 字段注释,
+                    //   网页远程触发的这里不弹, 避免服务器屏幕上冒出一个网页操作员看不到、关了也没用的窗口。
+                    if (!_backupQueryIsRemote) ShowBackupEventDialog();
                     // 2026-10-13 不管这次查询是本机按 Ctrl+Shift+B 触发还是网页版(race_control.html)
                     //   远程触发的, 查完都顺手推一份给所有网页版比赛控制——它没有 WPF 弹窗可用,
                     //   全靠服务器把格式化好的文本行发过去自己弹 modal 展示。
@@ -5855,6 +5866,7 @@ namespace SwimmingScoreboard
             }
             if (_backupQueryInFlight) return;   // 上一轮还没收完, 忽略这次重复请求(见字段注释)
             _backupQueryInFlight = true;
+            _backupQueryIsRemote = false;   // 本机按钮/本机快捷键触发, 该弹本机原生窗口
             _pendingBackupEvents.Clear();
             _timingBridge.SendCommand(0x66);   // Query_BackupLog_Command (0x56) + 0x10
             AddLog(Loc.T("Str_Log_EventBackupQuerySent"));
